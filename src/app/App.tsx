@@ -28,7 +28,7 @@ import { ThesaurusPanel } from "../components/tools/ThesaurusPanel";
 import { FS, MONO, SANS, SCOL, SDEFS, SERIF, TIMER_OPTS, isEditorialBar } from "../data/constants";
 import { TSIGS } from "../data/music";
 import { newProjectPrefix, parseProjectPrefix, prefixFromDate, projectNameWithPrefix, uid } from "../format";
-import { fetchOWRow, saveAsNew, updateOriginal } from "../lib/owCloud";
+import { applyCloudDeleteToEntries, deleteStandaloneOW, fetchOWRow, saveAsNew, updateOriginal } from "../lib/owCloud";
 import { owLabel } from "../lib/text/owLabel";
 import { loadOWPool } from "../lib/text/owPool";
 import { useSelectedWord } from "../lib/useSelectedWord";
@@ -388,6 +388,24 @@ export default function App() {
     }));
   }, []);
 
+  // Deleting a cloud writing rewrites every song holding it, in the database.
+  // The song open right now is also held in memory, and its next autosave would
+  // put the old objectWritings straight back — so patch it here with the same
+  // rewrite rather than leaving the two to disagree.
+  const deleteCloudOW = useCallback(async (id: string, alsoFromSongs: boolean) => {
+    setSong(p => {
+      const entries = p.objectWritings ?? [];
+      // Untouched songs must stay untouched — rewriting unconditionally would
+      // dirty the open song and schedule a save it never earned.
+      if (!entries.some(e => e.cloudId === id || e.sourceId === id)) return p;
+      return { ...p, objectWritings: applyCloudDeleteToEntries(entries, id, alsoFromSongs) };
+    });
+    const w = owWindowRef.current;
+    if (w && (w.entry.cloudId === id || w.entry.sourceId === id)) { owWindowRef.current = null; setOwWindow(null); }
+    await deleteStandaloneOW(id, alsoFromSongs);
+    setOwRefreshKey(k => k + 1);
+  }, []);
+
   // ── Save to cloud, offered on loose pills only (linked ones already sync) ──
 
   const owSaveAsNew = useCallback(async (message: string) => {
@@ -637,6 +655,7 @@ export default function App() {
             importOWFromCloud(seedWord, body, sourceId);
             setTab("notes");
           }}
+          onDeleteCloudOW={deleteCloudOW}
           owRefreshKey={owRefreshKey} />
       )}
       {/* Mobile: overlay drawer with backdrop */}
@@ -657,7 +676,8 @@ export default function App() {
                 setShowGlobalOW(true);
                 toggleSidebar();
               }}
-              owRefreshKey={owRefreshKey} />
+              onDeleteCloudOW={deleteCloudOW}
+          owRefreshKey={owRefreshKey} />
           </div>
         </div>
       )}

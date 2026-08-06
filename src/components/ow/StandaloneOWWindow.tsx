@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { OWWindow } from "./OWWindow";
+import { ConfirmDialog } from "../common/ConfirmDialog";
 import { supabase } from "../../lib/supabase";
 import { MONO } from "../../data/constants";
 import { owLabel } from "../../lib/text/owLabel";
@@ -16,7 +17,7 @@ const SAVE_DEBOUNCE = 800;
 // dismissing it — or hiding the tab — flushes whatever hasn't been written yet.
 // A writing with no text never touches the database at all.
 export function StandaloneOWWindow({
-  entry = null, timerStart = null, onClose, onSaved, onUpdated, onCreateSong, onAddToSong,
+  entry = null, timerStart = null, onClose, onSaved, onUpdated, onCreateSong, onAddToSong, onDelete,
 }: {
   entry?: StandaloneOW | null;
   timerStart?: number | null;
@@ -26,12 +27,15 @@ export function StandaloneOWWindow({
   onUpdated?: (row: StandaloneOW) => void;
   onCreateSong?: (seedWord: string, body: string) => void;
   onAddToSong?: (seedWord: string | null, body: string, sourceId: string) => void;
+  /** Delete this row from the cloud. `alsoFromSongs` answers the Yes/No. */
+  onDelete?: (id: string, alsoFromSongs: boolean) => void;
 }) {
   const [seedWord, setSeedWord] = useState(entry?.seed_word ?? "");
   const [body, setBody]         = useState(entry?.body ?? "");
   const [saveError, setSaveError] = useState("");
   const [copied, setCopied]     = useState(false);
   const [added, setAdded]       = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
   const latest    = useRef({ seedWord, body });
@@ -122,16 +126,39 @@ export function StandaloneOWWindow({
     </>
   );
 
+  // Both answers delete the cloud row — they differ only in what happens to the
+  // copies inside songs. Backing out entirely is the backdrop or Escape.
+  const runDelete = (alsoFromSongs: boolean) => {
+    if (!entry || !onDelete) return;
+    // The debounce/unmount flush must not resurrect the row we are deleting.
+    clearTimeout(saveTimer.current);
+    written.current = { seedWord, body };
+    setConfirmDelete(false);
+    onDelete(entry.id, alsoFromSongs);
+  };
+
   return (
-    <OWWindow
-      text={body}
-      seedWord={seedWord || undefined}
-      onChange={handleChange}
-      onClose={onClose}
-      timerStart={timerStart}
-      onDrillDown={w => handleChange(body, w)}
-      footer={footer}
-      closeLabel={entry ? "Close" : "Done"}
-    />
+    <>
+      <OWWindow
+        text={body}
+        seedWord={seedWord || undefined}
+        onChange={handleChange}
+        onClose={onClose}
+        timerStart={timerStart}
+        onDrillDown={w => handleChange(body, w)}
+        footer={footer}
+        closeLabel={entry ? "Close" : "Done"}
+        onDelete={entry && onDelete ? () => setConfirmDelete(true) : undefined}
+      />
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Delete this pill from songs as well?"
+          note="No leaves the writing in the song notebook but removes it from the Object Writing cloud."
+          confirmLabel="Yes" cancelLabel="No" destructive
+          onConfirm={() => runDelete(true)}
+          onDeny={() => runDelete(false)}
+          onCancel={() => setConfirmDelete(false)} />
+      )}
+    </>
   );
 }

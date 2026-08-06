@@ -142,10 +142,9 @@ before typing and locks at the first keystroke.
   written at all, and a committed writing emptied out again leaves the song
   when its window closes.
 
-**Known gap**: the sidebar's word cloud (`ProjectsSidebar`) is still keyed
-by lowercased label (now `owLabel(seed_word, body)` rather than raw
-`seed_word`, since `seed_word` can be null) with a first-match `find()` —
-unchanged in behaviour, still collapses/hides duplicates (see "Known debt").
+The sidebar lists every `standalone_ow` row chronologically, newest first,
+keyed by row `id` (Phase 4 — replacing the word cloud, whose label-keyed
+first-match `find()` hid duplicates; see "Known debt").
 
 ## Module map
 
@@ -314,16 +313,13 @@ code.
   pill `<button>`s rendered into its `headerExtra` are siblings-in-spirit
   rather than nested interactive elements. Verified live: 0 nested buttons
   in the DOM, header click toggles the section, pill click doesn't.
-- **Sidebar word-cloud `find()` bug** (`src/components/sidebar/
-  ProjectsSidebar.tsx`, inside the "Object Writing Sessions" block): the
-  word cloud is built from `owWordFreq`, now keyed by lowercased, trimmed
-  `owLabel(seed_word, body)` (changed from raw `seed_word` only because
-  `seed_word` can now be null — the dedup/lookup bug itself is untouched).
-  Two `standalone_ow` sessions with the same label still collapse into a
-  single word-cloud entry, and clicking it still does a first-match
-  `find()`, so every session after the first for a given label remains
-  unreachable from the word cloud. Not fixed here per task scope — deferred
-  to a future pass that replaces the cloud with a chronological list.
+- **Fixed: sidebar word-cloud `find()` bug.** The cloud was built from a
+  frequency map keyed by lowercased `owLabel(seed_word, body)` and resolved
+  clicks with a first-match `find()`, so two `standalone_ow` rows sharing a
+  label collapsed into one entry and every row after the first was
+  unreachable. Phase 4 replaced the cloud with a chronological list keyed by
+  row `id` (newest first, uncapped, scrolling), which removes the
+  possibility rather than patching the lookup.
 - **Circular imports** between `lib/theory/chords.ts` ↔ `lib/theory/key.ts`
   and `lib/theory/chords.ts` ↔ `lib/theory/substitutions.ts` (see module
   map above) — harmless at runtime since all cross-references are inside

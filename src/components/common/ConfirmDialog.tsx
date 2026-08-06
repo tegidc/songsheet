@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { MONO, SANS } from "../../data/constants";
 
 // A confirm that can carry more than a question: the thing being replaced or
@@ -6,7 +7,7 @@ import { MONO, SANS } from "../../data/constants";
 // "update original" replacement preview or the cloud-delete Yes/No.
 export function ConfirmDialog({
   title, detail, note, confirmLabel = "Yes", cancelLabel = "No", destructive = false,
-  onConfirm, onCancel,
+  onConfirm, onCancel, onDeny,
 }: {
   title: string;
   /** What is being acted on — label and date of the row, typically. */
@@ -17,8 +18,20 @@ export function ConfirmDialog({
   cancelLabel?: string;
   destructive?: boolean;
   onConfirm: () => void;
+  /** Backing out entirely — backdrop click and Escape. */
   onCancel: () => void;
+  /**
+   * Makes this a three-way question: the negative button *does* something
+   * rather than dismissing. Only backdrop/Escape then means "never mind".
+   */
+  onDeny?: () => void;
 }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
       onClick={onCancel}>
@@ -35,7 +48,7 @@ export function ConfirmDialog({
           )}
         </div>
         <div className="px-5 py-3 border-t border-border/40 flex items-center justify-end gap-2">
-          <button onClick={onCancel}
+          <button onClick={onDeny ?? onCancel}
             className="text-[12px] px-2.5 py-1 border border-border rounded-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
             style={{ fontFamily: MONO }}>{cancelLabel}</button>
           <button onClick={onConfirm}

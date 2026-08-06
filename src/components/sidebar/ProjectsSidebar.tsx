@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { StandaloneOWWindow } from "../ow/StandaloneOWWindow";
@@ -18,13 +18,15 @@ export const STATUS_LABEL: Record<ProjectStatus, string> = {
   archived: "Archived",
 };
 
-export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, onCreateSongFromOW, onAddOWToSong, owRefreshKey, mobile = false, onClose }: {
+export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, onCreateSongFromOW, onAddOWToSong, onDeleteCloudOW, owRefreshKey, mobile = false, onClose }: {
   onLoad: (id: string, song: Song, name: string, createdAt?: string | null) => void;
   onNew: () => void;
   onSignOut: () => void;
   currentProjectId: string | null;
   onCreateSongFromOW: (seedWord: string, body: string) => void;
   onAddOWToSong?: (seedWord: string | null, body: string, sourceId: string) => void;
+  /** Delete a cloud writing; `alsoFromSongs` decides what songs holding it keep. */
+  onDeleteCloudOW?: (id: string, alsoFromSongs: boolean) => Promise<void> | void;
   owRefreshKey: number;
   mobile?: boolean;
   onClose?: () => void;
@@ -61,24 +63,6 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
       .order("written_at", { ascending: false })
       .then(({ data }) => setStandaloneOWs((data as StandaloneOW[]) ?? []));
   }, [owRefreshKey]);
-
-  // Word cloud frequency map
-  const owWordFreq = useMemo(() => {
-    const freq: Record<string, number> = {};
-    standaloneOWs.forEach(e => {
-      const w = owLabel(e.seed_word, e.body).toLowerCase().trim();
-      if (!w) return;
-      freq[w] = (freq[w] ?? 0) + 1;
-    });
-    return freq;
-  }, [standaloneOWs]);
-
-  const owWordsSorted = useMemo(() => {
-    const words = Object.entries(owWordFreq);
-    const maxFreq = Math.max(1, ...words.map(([, f]) => f));
-    return words.map(([word, freq]) => ({ word, freq, size: 10 + Math.round((freq / maxFreq) * 6) }))
-      .sort((a, b) => b.freq - a.freq);
-  }, [owWordFreq]);
 
   const load = async (id: string) => {
     const { data } = await supabase.from("projects").select("data, name, created_at").eq("id", id).single();
@@ -282,28 +266,32 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
               + New session
             </button>
 
-            {/* Word cloud */}
-            {owWordsSorted.length > 0 && (
-              <div className="flex flex-wrap gap-x-2 gap-y-1.5">
-                {owWordsSorted.map(({ word, size }) => {
-                  const entry = standaloneOWs.find(e => owLabel(e.seed_word, e.body).toLowerCase().trim() === word);
-                  return (
-                    <button key={word}
-                      onClick={() => entry && setOwDetail(entry)}
-                      className="text-muted-foreground/50 hover:text-accent transition-colors italic leading-tight"
-                      style={{ fontFamily: SERIF, fontSize: size }}>
-                      {word}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
             {standaloneOWs.length === 0 && (
               <p className="text-[10px] text-muted-foreground/30 italic" style={{ fontFamily: SERIF }}>
-                Sessions will appear here as a word cloud.
+                Sessions will appear here as you write them.
               </p>
             )}
+          </div>
+        )}
+
+        {/* Every writing, newest first. Keyed by row id: the word cloud this
+            replaced mapped by seed word and resolved clicks with a first-match
+            find(), so of two writings sharing a seed word only one was ever
+            reachable. Nothing to cap — the list scrolls. */}
+        {owOpen && standaloneOWs.length > 0 && (
+          <div className="max-h-56 overflow-y-auto border-t border-border/30" style={{ scrollbarWidth: "none" }}>
+            {standaloneOWs.map(e => (
+              <button key={e.id} onClick={() => setOwDetail(e)}
+                className="w-full text-left px-3 py-2 border-b border-border/30 last:border-b-0 hover:bg-foreground/[0.04] transition-colors block">
+                <span className="text-[10px] text-foreground/60 truncate leading-snug block"
+                  style={{ fontFamily: MONO }}>
+                  {owLabel(e.seed_word, e.body) || "Object Writing"}
+                </span>
+                <span className="text-[9px] text-muted-foreground/40" style={{ fontFamily: MONO }}>
+                  {formatRelativeTime(e.written_at)}
+                </span>
+              </button>
+            ))}
           </div>
         )}
       </div>
@@ -335,6 +323,12 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
           onUpdated={row => setStandaloneOWs(prev => prev.map(e => e.id === row.id ? { ...e, ...row } : e))}
           onCreateSong={(seedWord, body) => { onCreateSongFromOW(seedWord, body); setOwDetail(null); }}
           onAddToSong={onAddOWToSong}
+          onDelete={onDeleteCloudOW && (async (id, alsoFromSongs) => {
+            setOwDetail(null);
+            setStandaloneOWs(prev => prev.filter(e => e.id !== id));
+            await onDeleteCloudOW(id, alsoFromSongs);
+            setRefreshKey(k => k + 1);   // songs were rewritten; their updated_at moved
+          })}
         />
       )}
     </aside>

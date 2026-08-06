@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
-import { X, ChevronUp, ChevronDown } from "lucide-react";
+import { X, ChevronUp, ChevronDown, Trash2 } from "lucide-react";
 import { AutoTA } from "../common/AutoTA";
 import { MONO, SERIF, TIMER_OPTS } from "../../data/constants";
 import { SENSES } from "../../data/senses";
@@ -24,7 +24,7 @@ export function OWWindow({
   text, seedWord, onChange, onClose,
   timerStart = null,
   onDrillDown, onSaveToNotebook, allSongText,
-  footer, closeLabel = "Done",
+  footer, closeLabel = "Done", onDelete,
   isMobile,
 }: {
   text: string;
@@ -43,6 +43,12 @@ export function OWWindow({
   footer?: ReactNode;
   /** Label for the built-in close button, or null when the footer supplies its own. */
   closeLabel?: string | null;
+  /**
+   * Deliberately discreet: deleting a writing from the cloud should only be
+   * reachable by opening that specific writing and looking for it, so it sits
+   * on the bottom edge at barely-there opacity rather than among the actions.
+   */
+  onDelete?: () => void;
   isMobile?: boolean;
 }) {
   const hasTimer = timerStart != null;
@@ -301,6 +307,15 @@ export function OWWindow({
               style={{ fontFamily: MONO }}>{closeLabel}</button>
           )}
         </div>
+
+        {onDelete && (
+          <div className="flex justify-center pb-1.5 shrink-0">
+            <button onClick={onDelete} title="Delete this writing from the Object Writing cloud"
+              className="text-muted-foreground/15 hover:text-destructive transition-colors p-1">
+              <Trash2 size={11} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
