@@ -107,6 +107,29 @@ Only Linked entries (typed in a song) sync automatically; Loose entries
 (imported from the cloud) are one-shot copies by design. See `OWEntry`
 above for the field-level contract.
 
+**Loose → cloud, by hand (Phase 4)**: because a loose entry never syncs,
+its window (and only its window) offers two deliberate gestures, wired in
+`App.tsx` over `src/lib/owCloud.ts`. *Update original* overwrites the
+`sourceId` row behind a `ConfirmDialog` showing that row's label and date;
+*Save as new* inserts a fork and repoints `sourceId` at it, so provenance
+names a row that exists. With no `sourceId`, or when the update matches
+zero rows because the original was deleted, only the insert is possible —
+both paths fall back to it automatically and say which happened. The entry
+stays loose either way; neither gesture creates a link.
+
+**Cloud → gone (Phase 4)**: `deleteStandaloneOW(id, alsoFromSongs)` in
+`src/lib/owCloud.ts`, reached only from the discreet trash control on the
+bottom edge of a standalone writing's own window. It scans every
+`projects` row for entries whose `cloudId` *or* `sourceId` is this id and
+rewrites the ones that match — removing them (`alsoFromSongs`) or
+converting them to loose with `cloudId` cleared. That conversion is load-
+bearing: a linked entry left pointing at a deleted row would be re-inserted
+as a brand-new row by `syncObjectWritingsToCloud` on the song's next save.
+`App.deleteCloudOW` applies the identical rewrite (`applyCloudDeleteToEntries`)
+to the song held in memory, which would otherwise overwrite the database
+change on its next autosave — but only when that song actually holds the
+writing, so an unrelated open song isn't dirtied.
+
 ### One window, and no save button
 
 Every object writing is edited by `OWWindow`, whatever opened it. The three
@@ -176,6 +199,21 @@ All shared interfaces/types: `SectionType`, `Tab`, `CP`, `Section`,
   dimensions), `MONO`/`SANS`/`SERIF` (font stacks), `PHRASE_MARKER`/
   `ROW_BREAK`/`isEditorialBar` (chord-bar editorial sentinels).
 
+### `src/lib/` (top level)
+- `supabase.ts` — the shared client.
+- `owCloud.ts` — cloud operations on `standalone_ow` that are *not* part of
+  a song's autosave: `fetchOWRow`, `updateOriginal` (false when it matches
+  zero rows), `saveAsNew`, `deleteStandaloneOW` and the pure
+  `applyCloudDeleteToEntries` it shares with `App`. See "the two
+  object-writing stores" above.
+- `useSelectedWord.ts` — the word selected anywhere on the page, or null,
+  feeding `FloatingOWButton`. Reads textarea/input selections directly as
+  well as `window.getSelection()`, since a selection inside a textarea is
+  invisible to the latter in some browsers and most of this app's text is in
+  textareas. Multi-word selections return null rather than guessing. Passed
+  `enabled: !isMobile` — on touch, selecting text raises the OS copy/paste
+  bar and needs a different trigger (Phase 5).
+
 ### `src/lib/theory/`
 - `chords.ts` — `parseChord`, `normNote`, `getDiatonic`, `inKey`,
   `toNashville`, plus `ROMAN`/`chordToken`/`degreeLabel`/`ChordSuggestion`/
@@ -225,16 +263,32 @@ random id generator used everywhere an `id` field is needed),
 
 ### `src/components/`
 - `common/` — `FL` (small-caps mono field label), `AutoTA` (auto-growing
-  textarea with word-select callback), `CollapsibleSection`.
+  textarea with word-select callback), `CollapsibleSection`, `ConfirmDialog`
+  (a confirm carrying a `detail` line — what is about to be replaced or
+  deleted — and a `note` about what the negative answer does; with `onDeny`
+  it becomes a three-way Yes/No/dismiss, where the negative button *acts*
+  and only backdrop or Escape backs out. `window.confirm` gives OK/Cancel
+  and one line, which fits neither the overwrite preview nor the
+  cloud-delete question).
 - `auth/AuthModal.tsx` — email/password + Google/Apple OAuth sign-in.
-- `sidebar/ProjectsSidebar.tsx` — project list (grouped by status) +
-  standalone object-writing word cloud/list. Also exports `STATUS_DOT`/
-  `STATUS_LABEL` (per-`ProjectStatus` colour dot and label). **Known bug**:
-  see "Known debt" below.
+- `sidebar/ProjectsSidebar.tsx` — project list (grouped by status) + every
+  `standalone_ow` row as a chronological list, newest first, uncapped and
+  scrolling, in the same row treatment as the projects list above it
+  (Phase 4 — replacing the word cloud). Also exports `STATUS_DOT`/
+  `STATUS_LABEL` (per-`ProjectStatus` colour dot and label).
 - `ow/` — `OWWindow` (the single editor for one writing, whatever opened
-  it — see "One window" below), `StandaloneOWWindow` (its container for
-  `standalone_ow` rows), `ObjectWritingSection` (the song's list of
-  writings; opens `OWWindow`, composes nothing itself).
+  it — see "One window" below; its optional `onDelete` renders the discreet
+  bottom-edge trash control), `StandaloneOWWindow` (its container for
+  `standalone_ow` rows, and the only place the cloud-delete confirm lives),
+  `OWPillRow` (the song's writings as pills, between the Notebook and the
+  object writing area; loose ones carry a hollow dot, and the delete × takes
+  a pill out of *this song only*, whichever kind it is), `ObjectWritingSection`
+  (what remains of the old section: the two ways to acquire a writing — start
+  one, or open the picker), `OWCloudPicker` (shuffled handful + Shuffle, plus
+  a search box; one import at a time and the picker stays open, since a batch
+  would flood the pill row and Inspiration), `FloatingOWButton` (bottom-right,
+  every tab; plain ✦ opens an empty writing on 10 minutes, ✦ + word opens
+  seeded on 2).
 - `create/` — `StoryAndBigIdea`, `NotebookSection`, `ProductionSection`,
   `VoiceNotesSection` (records/uploads to the `audio-notes` bucket).
 - `lyrics/` — `LyricBlock` (per-section lyrics editor), `MobileLyricTools`
@@ -257,8 +311,10 @@ random id generator used everywhere an `id` field is needed),
 ### `src/app/App.tsx`
 Top-level state (song, tab, auth, sidebar, autosave, undo state for chord
 ideas/bridge ideas), the autosave effect (debounced + periodic forced save
-to `projects.data`), tab routing, and JSX composition only — 835 lines,
-down from 5,586. `src/app/components/ui/` (48 shadcn files) and
+to `projects.data`), tab routing, and JSX composition only — 1,144 lines,
+down from 5,586 (up from 835 at the end of Phase 3: Phase 4 added the
+loose-pill save-to-cloud handlers, the cloud-delete handler and the picker/
+floating-button wiring). `src/app/components/ui/` (48 shadcn files) and
 `src/app/components/figma/ImageWithFallback.tsx` are untouched, vendored
 code.
 
@@ -320,6 +376,17 @@ code.
   unreachable. Phase 4 replaced the cloud with a chronological list keyed by
   row `id` (newest first, uncapped, scrolling), which removes the
   possibility rather than patching the lookup.
+- **`FloatingOWButton` can hold a stale word.** `useSelectedWord` re-reads
+  on `selectionchange`, but unmounting the element a selection sits in
+  (switching tabs, collapsing a section) doesn't always fire that event, so
+  the button can keep offering a word whose text is no longer on screen.
+  Harmless — it seeds a word the user did select moments earlier — but it
+  should clear.
+- **A word selected from uppercase chrome seeds in capitals.**
+  `Selection.toString()` returns *rendered* text, so a word taken from
+  something styled `uppercase` (the chord-grid hint line, section headers)
+  arrives as e.g. `NAVIGATE`. Only affects mono UI chrome; lyrics, notebook
+  and story text are never uppercased. Verified live.
 - **Circular imports** between `lib/theory/chords.ts` ↔ `lib/theory/key.ts`
   and `lib/theory/chords.ts` ↔ `lib/theory/substitutions.ts` (see module
   map above) — harmless at runtime since all cross-references are inside
