@@ -19,7 +19,7 @@ export const STATUS_LABEL: Record<ProjectStatus, string> = {
 };
 
 export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, onCreateSongFromOW, onAddOWToSong, owRefreshKey, mobile = false, onClose }: {
-  onLoad: (id: string, song: Song, name: string) => void;
+  onLoad: (id: string, song: Song, name: string, createdAt?: string | null) => void;
   onNew: () => void;
   onSignOut: () => void;
   currentProjectId: string | null;
@@ -81,8 +81,8 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
   }, [owWordFreq]);
 
   const load = async (id: string) => {
-    const { data } = await supabase.from("projects").select("data, name").eq("id", id).single();
-    if (data) onLoad(id, data.data as Song, data.name as string);
+    const { data } = await supabase.from("projects").select("data, name, created_at").eq("id", id).single();
+    if (data) onLoad(id, data.data as Song, data.name as string, data.created_at as string | null);
   };
 
   const del = async (id: string, e: React.MouseEvent) => {

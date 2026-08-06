@@ -23,7 +23,7 @@ import { RhymePanel } from "../components/tools/RhymePanel";
 import { ThesaurusPanel } from "../components/tools/ThesaurusPanel";
 import { FS, MONO, SANS, SCOL, SDEFS, SERIF, TIMER_OPTS, isEditorialBar } from "../data/constants";
 import { TSIGS } from "../data/music";
-import { newProjectPrefix, parseProjectPrefix, projectNameWithPrefix, uid } from "../format";
+import { newProjectPrefix, parseProjectPrefix, prefixFromDate, projectNameWithPrefix, uid } from "../format";
 import { loadOWPool } from "../lib/text/owPool";
 import { buildChordSuggestions, parseChord } from "../lib/theory/chords";
 import type { IdeaResult } from "../lib/theory/ideas";
@@ -413,8 +413,11 @@ export default function App() {
     setTab(t);
   };
 
-  const loadProject = (id: string, loadedSong: Song, name: string) => {
-    currentProjectPrefixRef.current = parseProjectPrefix(name) ?? newProjectPrefix();
+  const loadProject = (id: string, loadedSong: Song, name: string, createdAt?: string | null) => {
+    // created_at is the song's genuine start date; the name is only consulted
+    // for rows that somehow have no usable one.
+    currentProjectPrefixRef.current =
+      (createdAt ? prefixFromDate(createdAt) : "") || parseProjectPrefix(name) || newProjectPrefix();
     const ls = loadedSong as Song & { objectWriting?: string; mode?: string };
     const rawKey = (loadedSong.key ?? "");
     const legacyMode = ls.mode ?? "major";
