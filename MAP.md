@@ -64,15 +64,13 @@ detection of section headers).
 
 There are **two separate places object-writing text lives**:
 
-1. `song.objectWritings` (`OWEntry[]`) — writing sessions started from
-   inside a song's Create tab, saved as part of that song's `data` jsonb.
-   Rendered by `src/components/ow/ObjectWritingSection.tsx` /
-   `ObjectWritingBox.tsx`.
-2. `standalone_ow` (Supabase table) — writing sessions started from the
-   sidebar (`src/components/ow/StandaloneOWDialog.tsx`), independent of any
-   song, shown as a word cloud and list in
-   `src/components/sidebar/ProjectsSidebar.tsx` /
-   `StandaloneOWDetail.tsx`.
+1. `song.objectWritings` (`OWEntry[]`) — writings started from inside a
+   song, saved as part of that song's `data` jsonb. Listed by
+   `src/components/ow/ObjectWritingSection.tsx`, written in an `OWWindow`.
+2. `standalone_ow` (Supabase table) — writings started from the sidebar or
+   the header ✦, independent of any song, shown as a word cloud in
+   `src/components/sidebar/ProjectsSidebar.tsx` and written in the same
+   `OWWindow` via `StandaloneOWWindow.tsx`.
 
 **Song → cloud (Linked)**: entries typed inside a song (no `cloudId`, not
 `imported`, non-empty text) get mirrored into `standalone_ow` as part of the
@@ -108,6 +106,41 @@ diverge). Imported/Loose entries never sync back to `standalone_ow`.
 Only Linked entries (typed in a song) sync automatically; Loose entries
 (imported from the cloud) are one-shot copies by design. See `OWEntry`
 above for the field-level contract.
+
+### One window, and no save button
+
+Every object writing is edited by `OWWindow`, whatever opened it. The three
+components that used to do this (`StandaloneOWDialog` composing from the
+sidebar, `StandaloneOWDetail` reading from the sidebar, `ObjectWritingBox`
+inline on the Create page) differed only in whether a timer ran and which
+actions sat in the footer, so those are the two props that vary:
+`timerStart` (seconds, or `null` for an existing writing) and a `footer`
+slot. A collapsed pill is this component collapsed, not a summary of it —
+expanded it is always this editor, with the same sense scan.
+
+Timer defaults: 10 minutes (`TIMER_OPTS[3]`) for a plain new writing,
+2 minutes (`TIMER_OPTS[1]`) when it starts from a word already chosen —
+the Lyrics "Object Write [word]" button, `ThesaurusPanel`'s `onObjectWrite`,
+or drilling into a sense word. The duration is chosen with the chevrons
+before typing and locks at the first keystroke.
+
+**The lifecycle is inverted** (Phase 3): nothing is saved by a button.
+- Typing is what starts the timer and what creates the record. The same
+  keystroke does both.
+- `standalone_ow` writings: `StandaloneOWWindow` inserts on the first
+  character and updates on an 800ms debounce, serialized through a
+  `saving`/`dirty` ref pair so a burst can't race two inserts. It flushes
+  on unmount and on `visibilitychange`.
+- In-song writings: `App` holds the open one as a draft and appends it to
+  `song.objectWritings` on the keystroke that first gives it text, so the
+  window can be opened and closed without touching the song (this is what
+  keeps the zero-write invariant true). From there the song's own autosave
+  mirrors it to the cloud as before. `App` flushes that autosave on
+  `visibilitychange` too, gated on `pendingRef`.
+- Done/Close/X only put the window away. Never pressing Done — dismissing
+  the window, hiding the tab — still saves. A writing with no text is never
+  written at all, and a committed writing emptied out again leaves the song
+  when its window closes.
 
 **Known gap**: the sidebar's word cloud (`ProjectsSidebar`) is still keyed
 by lowercased label (now `owLabel(seed_word, body)` rather than raw
@@ -199,8 +232,10 @@ random id generator used everywhere an `id` field is needed),
   standalone object-writing word cloud/list. Also exports `STATUS_DOT`/
   `STATUS_LABEL` (per-`ProjectStatus` colour dot and label). **Known bug**:
   see "Known debt" below.
-- `ow/` — `StandaloneOWDialog`/`StandaloneOWDetail` (sidebar-driven
-  sessions), `ObjectWritingBox`/`ObjectWritingSection` (in-song sessions).
+- `ow/` — `OWWindow` (the single editor for one writing, whatever opened
+  it — see "One window" below), `StandaloneOWWindow` (its container for
+  `standalone_ow` rows), `ObjectWritingSection` (the song's list of
+  writings; opens `OWWindow`, composes nothing itself).
 - `create/` — `StoryAndBigIdea`, `NotebookSection`, `ProductionSection`,
   `VoiceNotesSection` (records/uploads to the `audio-notes` bucket).
 - `lyrics/` — `LyricBlock` (per-section lyrics editor), `MobileLyricTools`
@@ -242,11 +277,14 @@ code.
   on every save, which always mints *today's* date — present since the
   initial import commit (`4232483`), predates every refactor phase, not
   introduced by Phase 2. `defaultProjectName` is gone; `src/format.ts` now
-  has `newProjectPrefix()` (today's date, insert-only), `parseProjectPrefix
-  (name)` (pulls the `YYMMDD` back out of a stored name), and
-  `projectNameWithPrefix(prefix, title)`. `App.tsx` tracks the open
-  project's prefix in `currentProjectPrefixRef`, set from the loaded row's
-  actual name in `loadProject` and reused on every subsequent save;
+  has `newProjectPrefix()` (today's date, insert-only), `prefixFromDate
+  (when)`, `parseProjectPrefix(name)` (pulls the `YYMMDD` back out of a
+  stored name) and `projectNameWithPrefix(prefix, title)`. `App.tsx` tracks
+  the open project's prefix in `currentProjectPrefixRef`, set in
+  `loadProject` from the row's `created_at` — the genuine start date, added
+  and backfilled in Phase 3 (`supabase/migrations/
+  20260806_add_created_at_to_projects.sql`), with `parseProjectPrefix` kept
+  only as a fallback for a row without one — and reused on every save;
   `newSong`/new-project-insert mint a fresh one. Manual renames via the
   sidebar (`ProjectsSidebar` `renamePrj`) are untouched by this and still
   write whatever text the user typed directly — a separate, pre-existing
@@ -291,12 +329,14 @@ code.
   map above) — harmless at runtime since all cross-references are inside
   function bodies, not module-init-time, but worth flattening in a later
   pass.
-- **Object-writing cloud sync piggybacks on the song's existing debounced
-  autosave** (`doSave` in `src/app/App.tsx`) rather than having its own
-  trigger — there wasn't an existing per-entry "save" hook to attach to (see
-  commit/PR notes for Phase 2). This means: (a) a linked entry only syncs
-  once the song's autosave actually fires, and (b) an entry created before
-  the song has ever been saved (`origin_song_id: null` at insert time) does
-  not get its `origin_song_id` backfilled once the song does get an id —
-  it stays `null` until something else touches that row. Both are edge
-  cases Phase 3 (lifecycle) is the natural place to revisit.
+- **In-song cloud sync still piggybacks on the song's debounced autosave**
+  (`doSave` in `src/app/App.tsx`). Phase 3 gave standalone writings their
+  own save path but left this one alone: a linked entry syncs when the
+  song's autosave fires, and an entry created before the song has ever been
+  saved (`origin_song_id: null` at insert time) never gets its
+  `origin_song_id` backfilled once the song does get an id — it stays
+  `null` until something else touches that row.
+- **`projects.data` still carries in-song writings as well as
+  `standalone_ow` mirroring them.** Phase 3 unified the editor and the
+  lifecycle, not the storage; an in-song writing is still two records kept
+  in step by `syncObjectWritingsToCloud`.
