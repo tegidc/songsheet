@@ -14,6 +14,7 @@ import { VoiceNotesSection } from "../components/create/VoiceNotesSection";
 import { FinalSectionView } from "../components/final/FinalSectionView";
 import { LyricBlock } from "../components/lyrics/LyricBlock";
 import { MobileLyricTools } from "../components/lyrics/MobileLyricTools";
+import { FloatingOWButton } from "../components/ow/FloatingOWButton";
 import { ObjectWritingSection } from "../components/ow/ObjectWritingSection";
 import { OWPillRow } from "../components/ow/OWPillRow";
 import { OWWindow } from "../components/ow/OWWindow";
@@ -29,6 +30,7 @@ import { newProjectPrefix, parseProjectPrefix, prefixFromDate, projectNameWithPr
 import { fetchOWRow, saveAsNew, updateOriginal } from "../lib/owCloud";
 import { owLabel } from "../lib/text/owLabel";
 import { loadOWPool } from "../lib/text/owPool";
+import { useSelectedWord } from "../lib/useSelectedWord";
 import { buildChordSuggestions, parseChord } from "../lib/theory/chords";
 import type { IdeaResult } from "../lib/theory/ideas";
 import { generateBridgeIdea, generateIdea } from "../lib/theory/ideas";
@@ -39,6 +41,9 @@ import type { NbEntry, OWEntry, Section, SectionType, Song, Tab } from "../types
 
 export default function App() {
   const isMobile = useIsMobile();
+  // Desktop only: on touch, selecting text raises the OS copy/paste bar and
+  // needs a different trigger (Phase 5). The plain button still works there.
+  const selectedWord = useSelectedWord(!isMobile);
   const [song, setSong]               = useState<Song>(EMPTY_SONG);
   const [tab, setTab]                 = useState<Tab>("notes");
   const [metaExpanded, setMetaExpanded] = useState(false);
@@ -1042,6 +1047,11 @@ export default function App() {
       </main>
 
       </div>{/* end body flex */}
+
+      {/* Capture a writing from anywhere, without leaving the tab you're on */}
+      <FloatingOWButton
+        word={selectedWord}
+        onStart={w => (w ? handleObjectWrite(w) : newObjectWriting())} />
 
       {/* Modals */}
       {authModal && <AuthModal onClose={() => setAuthModal(false)} />}
