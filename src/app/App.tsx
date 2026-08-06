@@ -15,8 +15,10 @@ import { FinalSectionView } from "../components/final/FinalSectionView";
 import { LyricBlock } from "../components/lyrics/LyricBlock";
 import { MobileLyricTools } from "../components/lyrics/MobileLyricTools";
 import { ObjectWritingSection } from "../components/ow/ObjectWritingSection";
+import { OWPillRow } from "../components/ow/OWPillRow";
 import { OWWindow } from "../components/ow/OWWindow";
 import { StandaloneOWWindow } from "../components/ow/StandaloneOWWindow";
+import { ConfirmDialog } from "../components/common/ConfirmDialog";
 import { ProjectsSidebar } from "../components/sidebar/ProjectsSidebar";
 import { InspirationPanel } from "../components/tools/InspirationPanel";
 import { RhymePanel } from "../components/tools/RhymePanel";
@@ -24,6 +26,8 @@ import { ThesaurusPanel } from "../components/tools/ThesaurusPanel";
 import { FS, MONO, SANS, SCOL, SDEFS, SERIF, TIMER_OPTS, isEditorialBar } from "../data/constants";
 import { TSIGS } from "../data/music";
 import { newProjectPrefix, parseProjectPrefix, prefixFromDate, projectNameWithPrefix, uid } from "../format";
+import { fetchOWRow, saveAsNew, updateOriginal } from "../lib/owCloud";
+import { owLabel } from "../lib/text/owLabel";
 import { loadOWPool } from "../lib/text/owPool";
 import { buildChordSuggestions, parseChord } from "../lib/theory/chords";
 import type { IdeaResult } from "../lib/theory/ideas";
@@ -59,6 +63,10 @@ export default function App() {
   // whether it has made it into song.objectWritings yet (see openOW below).
   const [owWindow, setOwWindow] = useState<{ entry: OWEntry; timer: number | null; committed: boolean } | null>(null);
   const owWindowRef = useRef<typeof owWindow>(null);
+  // "Save to cloud" on a loose pill: the pending Update-original confirmation
+  // (carrying what would be overwritten) and the one-line result afterwards.
+  const [owCloudConfirm, setOwCloudConfirm] = useState<{ sourceId: string; detail: string } | null>(null);
+  const [owCloudMsg, setOwCloudMsg] = useState("");
   const autoSaveTimer  = useRef<ReturnType<typeof setTimeout>>();
   const forceSaveTimer = useRef<ReturnType<typeof setInterval>>();
   const pendingRef     = useRef(false);
@@ -337,9 +345,68 @@ export default function App() {
   // that gives it text, so opening a window and closing it again leaves the
   // song (and its updated_at) untouched.
   const openOW = useCallback((entry: OWEntry, timer: number | null, committed: boolean) => {
+    setOwCloudMsg("");
     owWindowRef.current = { entry, timer, committed };
     setOwWindow(owWindowRef.current);
   }, []);
+
+  // Patch one committed entry in place, keeping the open window's copy in step.
+  const patchOWEntry = useCallback((id: string, patch: Partial<OWEntry>) => {
+    const w = owWindowRef.current;
+    if (w && w.entry.id === id) {
+      owWindowRef.current = { ...w, entry: { ...w.entry, ...patch } };
+      setOwWindow(owWindowRef.current);
+    }
+    setSong(p => ({ ...p, objectWritings: (p.objectWritings ?? []).map(e => e.id === id ? { ...e, ...patch } : e) }));
+  }, []);
+
+  // Removing a pill takes the writing out of *this song* and nothing else —
+  // true for both kinds. standalone_ow is never touched from here; the only
+  // place a cloud row can be deleted is the control inside its own window.
+  const deleteOWEntry = useCallback((id: string) => {
+    setSong(p => ({ ...p, objectWritings: (p.objectWritings ?? []).filter(e => e.id !== id) }));
+    if (owWindowRef.current?.entry.id === id) { owWindowRef.current = null; setOwWindow(null); }
+  }, []);
+
+  // ── Save to cloud, offered on loose pills only (linked ones already sync) ──
+
+  const owSaveAsNew = useCallback(async (message: string) => {
+    const w = owWindowRef.current;
+    if (!w) return;
+    const row = await saveAsNew(w.entry.seedWord?.trim() || null, w.entry.text, currentProjectIdRef.current);
+    if (!row) { setOwCloudMsg("Save failed."); return; }
+    // A fork, not a link: the entry stays loose. Provenance moves to the row
+    // that now exists, so a later "Update original" has something to hit.
+    patchOWEntry(w.entry.id, { sourceId: row.id });
+    setOwCloudMsg(message);
+    setOwRefreshKey(k => k + 1);
+  }, [patchOWEntry]);
+
+  // Without a sourceId, or with an original that has since been deleted, there
+  // is nothing to overwrite — fall back to inserting rather than failing, and
+  // say which happened.
+  const owUpdateOriginal = useCallback(async () => {
+    const w = owWindowRef.current;
+    if (!w) return;
+    const sourceId = w.entry.sourceId;
+    if (!sourceId) { await owSaveAsNew("No original to update — saved as a new writing."); return; }
+    const row = await fetchOWRow(sourceId);
+    if (!row) { await owSaveAsNew("The original was deleted — saved as a new writing."); return; }
+    setOwCloudConfirm({
+      sourceId,
+      detail: `${owLabel(row.seed_word, row.body) || "Object Writing"} · ${new Date(row.written_at).toLocaleDateString()}`,
+    });
+  }, [owSaveAsNew]);
+
+  const owConfirmUpdateOriginal = useCallback(async () => {
+    const w = owWindowRef.current;
+    const pending = owCloudConfirm;
+    setOwCloudConfirm(null);
+    if (!w || !pending) return;
+    const ok = await updateOriginal(pending.sourceId, w.entry.seedWord?.trim() || null, w.entry.text);
+    if (ok) { setOwCloudMsg("Original updated."); setOwRefreshKey(k => k + 1); }
+    else await owSaveAsNew("The original was deleted — saved as a new writing.");
+  }, [owCloudConfirm, owSaveAsNew]);
 
   const newObjectWriting = useCallback((seedWord?: string, timer: number = TIMER_OPTS[3]) =>
     openOW({ id: uid(), text: "", seedWord }, timer, false), [openOW]);
@@ -933,13 +1000,18 @@ export default function App() {
                 onDeleteNbSection={id => updateSong({ notebookSections: (song.notebookSections ?? []).filter(s => s.id !== id) })}
                 isMobile={isMobile} />
 
-              {/* 5. Object Writing */}
-              <ObjectWritingSection
+              {/* 5. The song's writings, as pills */}
+              <OWPillRow
                 entries={song.objectWritings ?? []}
                 onOpen={id => {
                   const entry = (song.objectWritings ?? []).find(e => e.id === id);
                   if (entry) openOW(entry, null, true);
                 }}
+                onDelete={deleteOWEntry}
+                isMobile={isMobile} />
+
+              {/* 6. Object Writing area */}
+              <ObjectWritingSection
                 onNew={() => newObjectWriting()}
                 isMobile={isMobile} />
             </div>
@@ -984,7 +1056,29 @@ export default function App() {
           onDrillDown={(word: string) => newObjectWriting(word, TIMER_OPTS[1])}
           onSaveToNotebook={saveOWToNotebook}
           allSongText={allSongText}
+          footer={owWindow.entry.imported ? (
+            <>
+              {owCloudMsg && (
+                <span className="text-[11px] text-muted-foreground/70 mr-1" style={{ fontFamily: MONO }}>{owCloudMsg}</span>
+              )}
+              <button onClick={owUpdateOriginal}
+                className="text-[12px] px-2.5 py-1 border border-border rounded-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                style={{ fontFamily: MONO }}>Update original</button>
+              <button onClick={() => owSaveAsNew("Saved as a new writing.")}
+                className="text-[12px] px-2.5 py-1 border border-border rounded-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                style={{ fontFamily: MONO }}>Save as new</button>
+            </>
+          ) : undefined}
           isMobile={isMobile} />
+      )}
+      {owCloudConfirm && (
+        <ConfirmDialog
+          title="Overwrite the original with this version?"
+          detail={owCloudConfirm.detail}
+          note="The old version is gone — this replaces it in the Object Writing cloud."
+          confirmLabel="Overwrite" cancelLabel="Cancel" destructive
+          onConfirm={owConfirmUpdateOriginal}
+          onCancel={() => setOwCloudConfirm(null)} />
       )}
       {showGlobalOW && (
         <StandaloneOWWindow
