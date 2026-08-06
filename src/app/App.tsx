@@ -15,12 +15,12 @@ import { FinalSectionView } from "../components/final/FinalSectionView";
 import { LyricBlock } from "../components/lyrics/LyricBlock";
 import { MobileLyricTools } from "../components/lyrics/MobileLyricTools";
 import { ObjectWritingSection } from "../components/ow/ObjectWritingSection";
-import { StandaloneOWDialog } from "../components/ow/StandaloneOWDialog";
+import { StandaloneOWWindow } from "../components/ow/StandaloneOWWindow";
 import { ProjectsSidebar } from "../components/sidebar/ProjectsSidebar";
 import { InspirationPanel } from "../components/tools/InspirationPanel";
 import { RhymePanel } from "../components/tools/RhymePanel";
 import { ThesaurusPanel } from "../components/tools/ThesaurusPanel";
-import { FS, MONO, SANS, SCOL, SDEFS, SERIF, isEditorialBar } from "../data/constants";
+import { FS, MONO, SANS, SCOL, SDEFS, SERIF, TIMER_OPTS, isEditorialBar } from "../data/constants";
 import { TSIGS } from "../data/music";
 import { newProjectPrefix, parseProjectPrefix, projectNameWithPrefix, uid } from "../format";
 import { loadOWPool } from "../lib/text/owPool";
@@ -911,7 +911,8 @@ export default function App() {
       {/* Modals */}
       {authModal && <AuthModal onClose={() => setAuthModal(false)} />}
       {showGlobalOW && (
-        <StandaloneOWDialog
+        <StandaloneOWWindow
+          timerStart={TIMER_OPTS[3]}
           onClose={() => setShowGlobalOW(false)}
           onSaved={() => setOwRefreshKey(k => k + 1)}
         />

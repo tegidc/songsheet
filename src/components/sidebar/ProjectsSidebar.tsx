@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
-import { StandaloneOWDetail } from "../ow/StandaloneOWDetail";
-import { StandaloneOWDialog } from "../ow/StandaloneOWDialog";
-import { MONO, SERIF } from "../../data/constants";
+import { StandaloneOWWindow } from "../ow/StandaloneOWWindow";
+import { MONO, SERIF, TIMER_OPTS } from "../../data/constants";
 import { formatRelativeTime } from "../../format";
 import { owLabel } from "../../lib/text/owLabel";
 import type { AudioNote, Project, ProjectStatus, Song, StandaloneOW, Tab } from "../../types";
@@ -318,19 +317,21 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
         </button>
       </div>
 
-      {/* Standalone OW session dialog */}
+      {/* New standalone writing */}
       {owSession && (
-        <StandaloneOWDialog
+        <StandaloneOWWindow
+          timerStart={TIMER_OPTS[3]}
           onClose={() => setOwSession(false)}
           onSaved={entry => entry && setStandaloneOWs(prev => [entry, ...prev])}
         />
       )}
 
-      {/* Standalone OW detail dialog */}
+      {/* Existing standalone writing */}
       {owDetail && (
-        <StandaloneOWDetail
+        <StandaloneOWWindow
           entry={owDetail}
           onClose={() => setOwDetail(null)}
+          onUpdated={row => setStandaloneOWs(prev => prev.map(e => e.id === row.id ? { ...e, ...row } : e))}
           onCreateSong={(seedWord, body) => { onCreateSongFromOW(seedWord, body); setOwDetail(null); }}
           onAddToSong={onAddOWToSong}
         />

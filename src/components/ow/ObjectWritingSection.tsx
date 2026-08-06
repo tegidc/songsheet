@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Plus, ChevronDown } from "lucide-react";
 import { CollapsibleSection } from "../common/CollapsibleSection";
-import { ObjectWritingBox } from "./ObjectWritingBox";
+import { OWWindow } from "./OWWindow";
 import { MONO, SERIF } from "../../data/constants";
 import { uid } from "../../format";
 import { owLabel } from "../../lib/text/owLabel";
@@ -99,10 +99,12 @@ export function ObjectWritingSection({ entries, allSongText, onUpdate, onSaveToN
                 </div>
               )}
               {!isCollapsed && (
-                <ObjectWritingBox
-                  entry={entry}
+                <OWWindow
+                  presentation="inline"
+                  text={entry.text}
+                  seedWord={entry.seedWord}
                   onChange={(text, seedWord) => updateEntry(entry.id, text, seedWord)}
-                  onMinimize={() => toggleCollapsed(entry.id)}
+                  onClose={() => toggleCollapsed(entry.id)}
                   onDrillDown={drillDown}
                   onSaveToNotebook={(title, text) => onSaveToNotebook(title, text)}
                   allSongText={allSongText}
