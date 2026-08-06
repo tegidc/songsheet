@@ -14,11 +14,3 @@ export function getSecondaryDominant(chord: string): string | null {
   const domRoot = NOTES[(ri + 7) % 12]; // perfect 5th above
   return `${domRoot}7`;
 }
-export function getTritoneSubstitution(chord: string): string | null {
-  const p = parseChord(chord);
-  if (!p) return null;
-  const ri = NOTES.indexOf(p.root);
-  if (ri === -1) return null;
-  const triRoot = NOTES[(ri + 6) % 12]; // tritone = 6 semitones
-  return `${triRoot}7`;
-}

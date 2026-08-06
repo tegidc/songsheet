@@ -13,15 +13,16 @@ export function CollapsibleSection({ title, subtitle, defaultOpen = true, isMobi
   const setOpen = (v: boolean) => { setInternalOpen(v); onOpenChange?.(v); };
   return (
     <div className="border border-border rounded-sm overflow-hidden">
-      <button onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors text-left">
+      <div role="button" tabIndex={0} onClick={() => setOpen(!open)}
+        onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(!open); } }}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors text-left cursor-pointer">
         <div className="flex-1 min-w-0">
           <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground" style={{ fontFamily: MONO }}>{title}</span>
           {subtitle && <p className="text-xs text-muted-foreground/60 mt-0.5" style={{ fontFamily: SANS }}>{subtitle}</p>}
           {headerExtra}
         </div>
         <ChevronDown size={13} className={`text-muted-foreground transition-transform shrink-0 ml-4 ${open ? "rotate-180" : ""}`} />
-      </button>
+      </div>
       {open && children}
     </div>
   );

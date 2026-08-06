@@ -22,7 +22,7 @@ import { RhymePanel } from "../components/tools/RhymePanel";
 import { ThesaurusPanel } from "../components/tools/ThesaurusPanel";
 import { FS, MONO, SANS, SCOL, SDEFS, SERIF, isEditorialBar } from "../data/constants";
 import { TSIGS } from "../data/music";
-import { defaultProjectName, uid } from "../format";
+import { newProjectPrefix, parseProjectPrefix, projectNameWithPrefix, uid } from "../format";
 import { loadOWPool } from "../lib/text/owPool";
 import { buildChordSuggestions, parseChord } from "../lib/theory/chords";
 import type { IdeaResult } from "../lib/theory/ideas";
@@ -30,7 +30,7 @@ import { generateBridgeIdea, generateIdea } from "../lib/theory/ideas";
 import { detectKey, formatDetectedKey } from "../lib/theory/key";
 import { distributeChords, sortCP, syncBarsToPositions } from "../lib/theory/layout";
 import { EMPTY_SONG, makeEmptySong, makeSection, normalizeSection, renumberSections } from "../sections";
-import type { NbEntry, Section, SectionType, Song, Tab } from "../types";
+import type { NbEntry, OWEntry, Section, SectionType, Song, Tab } from "../types";
 
 export default function App() {
   const isMobile = useIsMobile();
@@ -57,6 +57,17 @@ export default function App() {
   const autoSaveTimer  = useRef<ReturnType<typeof setTimeout>>();
   const forceSaveTimer = useRef<ReturnType<typeof setInterval>>();
   const pendingRef     = useRef(false);
+  // The YYMMDD prefix of the currently open project's name — set on load or on
+  // first insert, then reused on every subsequent save so it never drifts to
+  // today's date. Null only when no project has been loaded/created yet.
+  const currentProjectPrefixRef = useRef<string | null>(null);
+  // Set right before setSong() in loadProject/newSong — where the song is being
+  // *replaced wholesale* with existing-or-blank content rather than edited — so
+  // the debounce effect can tell that apart from a real user edit and skip
+  // scheduling a pointless save. Not set in createSongFromOW: that call fills a
+  // brand-new song with real content the user asked to bring in, which should
+  // save like any other edit.
+  const suppressNextAutosaveRef = useRef(false);
   // Refs so doSave always reads current values without stale closures
   const songRef              = useRef(song);
   const userRef              = useRef(user);
@@ -94,7 +105,60 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signOut = async () => { await supabase.auth.signOut(); setCurrentProjectId(null); setShowSidebar(false); };
+  const signOut = async () => { await supabase.auth.signOut(); currentProjectPrefixRef.current = null; setCurrentProjectId(null); setShowSidebar(false); };
+
+  // Mirror writings composed inside this song ("linked" entries) into standalone_ow,
+  // so they stop being invisible to the cloud. Runs alongside the song's own autosave —
+  // an entry with a cloudId gets updated, one without gets inserted and stamped with the
+  // new row's id; if the update hits zero rows (the cloud row was deleted separately) we
+  // clear cloudId and insert fresh so the pill re-links rather than staying orphaned.
+  const syncObjectWritingsToCloud = useCallback(async (entries: OWEntry[], userId: string, projectId: string | null) => {
+    for (const entry of entries) {
+      if (entry.imported) continue;
+      if (!entry.text.trim()) continue;
+      const seedWord = entry.seedWord?.trim() || null;
+
+      if (!entry.cloudId) {
+        // Entries written before this sync existed have no `imported` flag either way —
+        // if a standalone_ow row with identical body already exists, this is almost
+        // certainly a pre-Phase-2 import, not a new writing. Adopt it as loose instead
+        // of inserting a duplicate.
+        const { data: existing, error: findError } = await supabase.from("standalone_ow")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("body", entry.text)
+          .limit(1);
+        if (!findError && existing && existing.length > 0) {
+          const sourceId = existing[0].id;
+          setSong(p => ({ ...p, objectWritings: (p.objectWritings ?? []).map(e => e.id === entry.id ? { ...e, imported: true, sourceId } : e) }));
+          continue;
+        }
+
+        const { data, error } = await supabase.from("standalone_ow")
+          .insert({ user_id: userId, seed_word: seedWord, body: entry.text, origin_song_id: projectId })
+          .select("id").single();
+        if (!error && data) {
+          const cloudId = data.id;
+          setSong(p => ({ ...p, objectWritings: (p.objectWritings ?? []).map(e => e.id === entry.id ? { ...e, cloudId } : e) }));
+        }
+        continue;
+      }
+
+      const { data: updated, error } = await supabase.from("standalone_ow")
+        .update({ seed_word: seedWord, body: entry.text })
+        .eq("id", entry.cloudId)
+        .select("id");
+      if (!error && updated && updated.length === 0) {
+        const { data, error: insertError } = await supabase.from("standalone_ow")
+          .insert({ user_id: userId, seed_word: seedWord, body: entry.text, origin_song_id: projectId })
+          .select("id").single();
+        if (!insertError && data) {
+          const cloudId = data.id;
+          setSong(p => ({ ...p, objectWritings: (p.objectWritings ?? []).map(e => e.id === entry.id ? { ...e, cloudId } : e) }));
+        }
+      }
+    }
+  }, []);
 
   // Unified save — handles both first-create (insert) and subsequent updates
   const doSave = useCallback(async () => {
@@ -103,10 +167,14 @@ export default function App() {
     const pid = currentProjectIdRef.current;
     if (!u) return;
     pendingRef.current = false;
+    let effectivePid = pid;
     if (pid) {
       setAutoSaveState("saving");
+      // Reuse the existing prefix — it records when the song was started and
+      // must never be regenerated from today's date on an update.
+      const prefix = currentProjectPrefixRef.current ?? newProjectPrefix();
       const { error } = await supabase.from("projects")
-        .update({ name: defaultProjectName(s.title), data: s })
+        .update({ name: projectNameWithPrefix(prefix, s.title), data: s })
         .eq("id", pid);
       if (error) {
         pendingRef.current = true;
@@ -118,31 +186,45 @@ export default function App() {
         setTimeout(() => setAutoSaveState("idle"), 2000);
       }
     } else {
-      // First save — silent, no indicator
+      // First save — silent, no indicator. A brand-new project mints today's prefix.
+      const prefix = newProjectPrefix();
       const { data, error } = await supabase.from("projects")
-        .insert({ user_id: u.id, name: defaultProjectName(s.title), data: s })
+        .insert({ user_id: u.id, name: projectNameWithPrefix(prefix, s.title), data: s })
         .select("id").single();
       if (error) {
         pendingRef.current = true;
         console.error("Auto-create project failed:", error.message);
       } else if (data) {
+        currentProjectPrefixRef.current = prefix;
         setCurrentProjectId(data.id);
+        effectivePid = data.id;
       }
     }
-  }, []);
+    syncObjectWritingsToCloud(s.objectWritings ?? [], u.id, effectivePid);
+  }, [syncObjectWritingsToCloud]);
 
-  // Debounce trigger (2s after last edit)
+  // Debounce trigger (2s after last edit). Loading/replacing the song (loadProject,
+  // newSong, createSongFromOW) changes `song` just like an edit would, so those set
+  // suppressNextAutosaveRef first — this effect consumes that flag and skips
+  // scheduling once, instead of treating "song object changed" as "user typed
+  // something". Depends on `!!user` rather than `user` itself so a token refresh
+  // (a new user object, same signed-in state) can't re-arm the timer on its own.
   useEffect(() => {
     if (!user) return;
+    if (suppressNextAutosaveRef.current) {
+      suppressNextAutosaveRef.current = false;
+      return;
+    }
     const hasMeaningful = song.title.trim() ||
-      song.sections.some(s => (s.lyrics ?? "").trim() || (s.chordBars ?? []).some(b => b.trim()));
+      song.sections.some(s => (s.lyrics ?? "").trim() || (s.chordBars ?? []).some(b => b.trim())) ||
+      (song.objectWritings ?? []).some(e => !e.imported && e.text.trim());
     if (!hasMeaningful) return;
     pendingRef.current = true;
     clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(doSave, 2000);
     return () => clearTimeout(autoSaveTimer.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song, user]);
+  }, [song, !!user]);
 
   // Force-save every 30s if there are pending changes
   useEffect(() => {
@@ -279,7 +361,8 @@ export default function App() {
     setTab(t);
   };
 
-  const loadProject = (id: string, loadedSong: Song) => {
+  const loadProject = (id: string, loadedSong: Song, name: string) => {
+    currentProjectPrefixRef.current = parseProjectPrefix(name) ?? newProjectPrefix();
     const ls = loadedSong as Song & { objectWriting?: string; mode?: string };
     const rawKey = (loadedSong.key ?? "");
     const legacyMode = ls.mode ?? "major";
@@ -298,16 +381,20 @@ export default function App() {
       sectionNaming: loadedSong.sectionNaming ?? {},
       audioNotes: Array.isArray(loadedSong.audioNotes) ? loadedSong.audioNotes : [],
     };
+    suppressNextAutosaveRef.current = true;
     setSong(merged); setCurrentProjectId(id); setTab("lyrics");
     // On desktop keep the sidebar pinned open; on mobile close the overlay after picking.
     setShowSidebar(!isMobile);
   };
 
   const newSong = () => {
+    currentProjectPrefixRef.current = null;
+    suppressNextAutosaveRef.current = true;
     setSong(makeEmptySong()); setCurrentProjectId(null);
   };
 
   const createSongFromOW = useCallback((seedWord: string, body: string) => {
+    currentProjectPrefixRef.current = null;
     setSong({
       ...makeEmptySong(),
       title: seedWord,
@@ -390,8 +477,8 @@ export default function App() {
           currentProjectId={currentProjectId}
           onSignOut={signOut}
           onCreateSongFromOW={createSongFromOW}
-          onAddOWToSong={(seedWord, body) => {
-            setSong(p => ({ ...p, objectWritings: [...(p.objectWritings ?? []), { id: uid(), text: body, seedWord, savedAt: new Date().toISOString() }] }));
+          onAddOWToSong={(seedWord, body, sourceId) => {
+            setSong(p => ({ ...p, objectWritings: [...(p.objectWritings ?? []), { id: uid(), text: body, seedWord: seedWord ?? undefined, savedAt: new Date().toISOString(), imported: true, sourceId }] }));
             setTab("notes");
           }}
           owRefreshKey={owRefreshKey} />
@@ -409,9 +496,9 @@ export default function App() {
               currentProjectId={currentProjectId}
               onSignOut={signOut}
               onCreateSongFromOW={createSongFromOW}
-              onAddOWToSong={(seedWord, body) => {
-                setSong(p => ({ ...p, objectWritings: [...(p.objectWritings ?? []), { id: uid(), text: body, seedWord, savedAt: new Date().toISOString() }] }));
-                setShowOWPanel(true);
+              onAddOWToSong={(seedWord, body, sourceId) => {
+                setSong(p => ({ ...p, objectWritings: [...(p.objectWritings ?? []), { id: uid(), text: body, seedWord: seedWord ?? undefined, savedAt: new Date().toISOString(), imported: true, sourceId }] }));
+                setShowGlobalOW(true);
                 toggleSidebar();
               }}
               owRefreshKey={owRefreshKey} />

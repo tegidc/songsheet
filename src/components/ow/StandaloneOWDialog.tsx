@@ -76,13 +76,13 @@ export function StandaloneOWDialog({
   const [saveError, setSaveError] = useState("");
 
   const handleSave = async () => {
-    if (!body.trim() || !seedWord.trim()) return;
+    if (!body.trim()) return;
     setSaving(true);
     setSaveError("");
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSaving(false); setSaveError("Sign in to save sessions."); return; }
     const { data, error } = await supabase.from("standalone_ow")
-      .insert({ user_id: user.id, seed_word: seedWord.trim(), body: body.trim() })
+      .insert({ user_id: user.id, seed_word: seedWord.trim() || null, body: body.trim() })
       .select("id, seed_word, body, written_at")
       .single();
     setSaving(false);
@@ -250,7 +250,7 @@ export function StandaloneOWDialog({
                 <span className="text-[11px] text-red-500" style={{ fontFamily: MONO }}>{saveError}</span>
               )}
               <button onClick={handleSave}
-                disabled={!body.trim() || !seedWord.trim() || saving}
+                disabled={!body.trim() || saving}
                 className="text-[12px] px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors disabled:opacity-30"
                 style={{ fontFamily: MONO }}>
                 {saving ? "Saving…" : "Save session"}

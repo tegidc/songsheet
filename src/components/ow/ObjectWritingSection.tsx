@@ -4,6 +4,7 @@ import { CollapsibleSection } from "../common/CollapsibleSection";
 import { ObjectWritingBox } from "./ObjectWritingBox";
 import { MONO, SERIF } from "../../data/constants";
 import { uid } from "../../format";
+import { owLabel } from "../../lib/text/owLabel";
 import type { OWEntry } from "../../types";
 
 export function ObjectWritingSection({ entries, allSongText, onUpdate, onSaveToNotebook, isMobile }: {
@@ -50,22 +51,25 @@ export function ObjectWritingSection({ entries, allSongText, onUpdate, onSaveToN
     }, 80);
   };
 
-  // Header pills for entries with a seed word
-  const pillEntries = visibleEntries.filter(e => e.seedWord?.trim());
+  // Header pills for entries with a seed word or a body to derive a label from
+  const pillEntries = visibleEntries.filter(e => e.seedWord?.trim() || e.text.trim());
   const headerExtra = pillEntries.length > 0 ? (
     <div className="flex flex-wrap gap-1 mt-1.5" onClick={e => e.stopPropagation()}>
-      {pillEntries.map(e => (
-        <button key={e.id}
-          onClick={() => {
-            setCollapsedIds(prev => { const s = new Set(prev); s.delete(e.id); return s; });
-            setTimeout(() => entryRefs.current[e.id]?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
-          }}
-          className="text-[8px] uppercase tracking-wider border border-border/40 text-muted-foreground/50 hover:text-foreground rounded px-1.5 py-0.5 transition-colors"
-          style={{ fontFamily: MONO }}
-          title={e.seedWord}>
-          {e.seedWord}
-        </button>
-      ))}
+      {pillEntries.map(e => {
+        const label = owLabel(e.seedWord, e.text);
+        return (
+          <button key={e.id}
+            onClick={() => {
+              setCollapsedIds(prev => { const s = new Set(prev); s.delete(e.id); return s; });
+              setTimeout(() => entryRefs.current[e.id]?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+            }}
+            className="text-[8px] uppercase tracking-wider border border-border/40 text-muted-foreground/50 hover:text-foreground rounded px-1.5 py-0.5 transition-colors"
+            style={{ fontFamily: MONO }}
+            title={label}>
+            {label}
+          </button>
+        );
+      })}
     </div>
   ) : undefined;
 
@@ -89,7 +93,7 @@ export function ObjectWritingSection({ entries, allSongText, onUpdate, onSaveToN
                     <ChevronDown size={10} className="text-muted-foreground/40 -rotate-90 shrink-0" />
                     <span className="text-[10px] text-foreground/60 group-hover:text-foreground transition-colors truncate"
                       style={{ fontFamily: SERIF, fontStyle: entry.seedWord ? "italic" : "normal" }}>
-                      {entry.seedWord ?? "Object Writing"}
+                      {owLabel(entry.seedWord, entry.text) || "Object Writing"}
                     </span>
                   </button>
                 </div>

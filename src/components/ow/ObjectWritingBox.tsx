@@ -4,6 +4,7 @@ import { AutoTA } from "../common/AutoTA";
 import { MONO, SERIF } from "../../data/constants";
 import { SENSES } from "../../data/senses";
 import { pickOWWord } from "../../lib/text/owPool";
+import { owLabel } from "../../lib/text/owLabel";
 import { extractDetailWord, getDrillWords, scanText } from "../../lib/text/senses";
 import type { OWEntry, Section } from "../../types";
 
@@ -26,7 +27,7 @@ export function ObjectWritingBox({ entry, onChange, onMinimize, onDrillDown, onS
   };
   const triggerSave = () => {
     if (!entry.text.trim() || !onSaveToNotebook) return;
-    onSaveToNotebook(entry.seedWord ?? "Object Writing", entry.text);
+    onSaveToNotebook(owLabel(entry.seedWord, entry.text) || "Object Writing", entry.text);
   };
 
   const counts = scanResult ? SENSES.map((_, i) => scanResult.filter(t => t.senseIdx === i).length) : null;

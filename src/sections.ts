@@ -89,27 +89,6 @@ export function parseLyricsIntoSections(
   }));
 }
 
-export function completionScore(song: Song) {
-  let n = 0;
-  if (song.title.trim()) n += 15;
-  if (song.tempo.trim()) n += 5;
-  if (song.sections.length >= 2) n += 10;
-  const t = song.sections.length || 1;
-  n += Math.round(song.sections.filter(s => (s.chordBars ?? []).some(b => b.trim())).length / t * 35);
-  n += Math.round(song.sections.filter(s => (s.lyrics ?? "").trim()).length / t * 25);
-  if (song.generalNotes.trim()) n += 10;
-  return Math.min(100, n);
-}
-export function makeTestSections(): Section[] {
-  const intro   = { ...makeSection("intro"),   chordBars: ["Am","","","","Em","","",""] };
-  const verse   = { ...makeSection("verse"),   chordBars: ["Am","Em","F","C","Am","Em","F","F"],
-    lyrics: "She stands at the edge of the morning light\nA coat too thin for the end of October\nThe river below her holds perfectly still\nLike it's been waiting for something to happen" };
-  const chorus  = { ...makeSection("chorus"),  chordBars: ["F","C","G","Am","F","C","G","G"],
-    lyrics: "Let it go, let it go\nDown to where the water knows your name\nLet it go, let it go\nEverything you carried to the flame" };
-  const verse2  = { ...makeSection("verse", 2), chordBars: ["Am","Em","F","C","Am","Em","F","F"],
-    lyrics: "She thinks of the letters she never sent\nWords that dissolved in the back of a drawer\nSomething about leaving, something about staying\nShe can't remember which one she chose" };
-  return [intro, verse, chorus, verse2];
-}
 
 // Normalizes any raw section object (e.g. from Supabase) into a complete Section,
 // filling every field that could be missing with a safe default.

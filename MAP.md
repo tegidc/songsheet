@@ -15,10 +15,14 @@ by the line number quoted here (line numbers rot as the file changes).
     This is the only place song content lives server-side; there is no
     relational breakdown of sections/chords/lyrics.
   - RLS: `auth.uid() = user_id`, all operations.
-- **`standalone_ow`** — object-writing sessions started from the sidebar,
-  independent of any song.
-  - `id uuid`, `user_id uuid` (FK, RLS-scoped), `seed_word text`,
-    `body text`, `written_at timestamptz`.
+- **`standalone_ow`** — object-writing sessions, either started from the
+  sidebar or mirrored here from inside a song (see "The two object-writing
+  stores" below).
+  - `id uuid`, `user_id uuid` (FK, RLS-scoped), `seed_word text` (nullable —
+    a writing can exist with no focus word), `body text` (not null),
+    `written_at timestamptz`, `origin_song_id uuid` (FK `projects(id)`,
+    `on delete set null` — deliberate: deleting a song must not delete the
+    writing it produced).
   - RLS: `auth.uid() = user_id`, all operations.
 - **Storage bucket `audio-notes`** (private) — voice-note recordings.
   Objects are keyed by `<user_id>/...`; RLS policy on `storage.objects`
@@ -39,7 +43,12 @@ number-vs-letter numbering preference).
   `isEditorialBar` in `src/data/constants.ts`), `chordPositions: CP[]`
   (chord-to-lyric-character anchor points), `lyrics`, `notes`.
 - `OWEntry` — an object-writing entry *embedded in the song*:
-  `id`, `text`, `seedWord?`, `savedAt?`.
+  `id`, `text`, `seedWord?`, `savedAt?`, `cloudId?` (the mirrored
+  `standalone_ow` row — only set on entries written inside the song and
+  successfully synced; pill is "Linked"), `imported?` (true when the entry
+  came from the cloud via "Add to song" rather than being typed here; pill
+  is "Loose", never syncs back), `sourceId?` (provenance only, for imported
+  entries — the `standalone_ow` row it was copied from; not a live link).
 - `NbEntry` — a saved notebook fragment: `id`, `title`, `text`, `savedAt`.
 - `AudioNote` — a voice-note reference: `id`, `label`, `storagePath` (path
   in the `audio-notes` bucket), `url`, `duration`, `createdAt`.
@@ -49,13 +58,11 @@ number-vs-letter numbering preference).
 reader for rows coming back from Supabase — fills in any field that may be
 missing on old rows), `renumberSections`, `isAutoLabel`,
 `parseLyricsIntoSections`/`matchSectionHeader`/`SECTION_HEADER_RE` (paste-in
-detection of section headers), `completionScore`, `makeTestSections` (demo
-data).
+detection of section headers).
 
-### The two object-writing stores — one-way flow
+### The two object-writing stores — now synced both ways
 
-There are **two separate places object-writing text lives**, and they do
-**not** sync with each other:
+There are **two separate places object-writing text lives**:
 
 1. `song.objectWritings` (`OWEntry[]`) — writing sessions started from
    inside a song's Create tab, saved as part of that song's `data` jsonb.
@@ -67,14 +74,45 @@ There are **two separate places object-writing text lives**, and they do
    `src/components/sidebar/ProjectsSidebar.tsx` /
    `StandaloneOWDetail.tsx`.
 
-Data flows **cloud → song only, one way**: `ProjectsSidebar` has an
-"Add to song" action (`onAddOWToSong`) that copies a `standalone_ow` row
-into the currently-open song's `song.objectWritings` array. There is no
-reverse path — writing a session inside a song never creates or updates a
-`standalone_ow` row, and editing/deleting a `standalone_ow` entry never
-touches any song that previously imported a copy of it. The two stores can
-silently diverge (e.g. editing the copy inside a song does not affect the
-original standalone row, and vice versa).
+**Song → cloud (Linked)**: entries typed inside a song (no `cloudId`, not
+`imported`, non-empty text) get mirrored into `standalone_ow` as part of the
+song's own autosave cycle (`doSave`/`syncObjectWritingsToCloud` in
+`src/app/App.tsx`) — first save inserts a row and stamps the returned id
+back onto the entry as `cloudId`; later saves update that row by id. If the
+update matches zero rows (the cloud row was deleted independently) the code
+clears `cloudId` and inserts a fresh row rather than erroring. The song's
+existing debounced-save trigger was widened to also fire on
+non-empty/non-imported object-writing edits (previously it only watched
+title/lyrics/chords), otherwise a song containing only a writing would never
+save and the writing would never mirror.
+
+**Legacy-import guard**: entries written before `cloudId`/`imported` existed
+have neither field set, indistinguishable at a glance from a genuinely new
+in-song writing. Before inserting (the "no `cloudId`" branch above),
+`syncObjectWritingsToCloud` checks whether a `standalone_ow` row for this
+user already has an identical `body`. A match means the entry is almost
+certainly a pre-Phase-2 import (the cloud row predates it and has no
+`origin_song_id`) — it's adopted as loose (`imported: true`, `sourceId` =
+the matching row) instead of inserted as a duplicate. This was added after
+the flaw shipped and produced 3 real duplicate rows in production (see
+`scripts/repair-ow-duplicates.mjs`, a one-off fix for exactly that);
+`scripts/backfill-ow.mjs` uses the same identical-body check.
+
+**Cloud → song (Loose)**: `ProjectsSidebar`'s "Add to song" action
+(`onAddOWToSong`) still copies a `standalone_ow` row into the currently-open
+song's `song.objectWritings`, now marking the new entry `imported: true`
+and `sourceId` (the source row's id, provenance-only — not a live link,
+intentionally: the same writing imported into two songs must be able to
+diverge). Imported/Loose entries never sync back to `standalone_ow`.
+
+Only Linked entries (typed in a song) sync automatically; Loose entries
+(imported from the cloud) are one-shot copies by design. See `OWEntry`
+above for the field-level contract.
+
+**Known gap**: the sidebar's word cloud (`ProjectsSidebar`) is still keyed
+by lowercased label (now `owLabel(seed_word, body)` rather than raw
+`seed_word`, since `seed_word` can be null) with a first-match `find()` —
+unchanged in behaviour, still collapses/hides duplicates (see "Known debt").
 
 ## Module map
 
@@ -90,9 +128,16 @@ All shared interfaces/types: `SectionType`, `Tab`, `CP`, `Section`,
   `STOP_WORDS`, `FN_WORDS` (function words, used for stress-pattern
   guessing), `SECTION_IGNORE_WORDS` (excluded from word-cloud/fragment
   extraction).
-- `music.ts` — `KEYS`, `MODES`, `TSIGS`, `NOTES`, `FLAT` (flat→sharp
+- `music.ts` — `TSIGS`, `NOTES`, `FLAT` (flat→sharp
   enharmonic map), `MAJ_ST`/`MIN_ST` (diatonic scale-degree semitone
   offsets), `MAJ_Q`/`MIN_Q` (diatonic chord qualities per degree).
+  **Confirmed**: `KEYS`/`MODES` (removed as dead code) had no live feature
+  depending on them — `song.key` is a plain freeform text `<input>`
+  (`App.tsx`, placeholder `"Am"`), not a dropdown; key *detection*
+  (`lib/theory/key.ts` `detectKey`) hardcodes `["major","minor"] as const`
+  inline rather than reading `MODES` (which also listed modal names —
+  dorian, mixolydian, etc — that detection never used). Verified live in
+  the running app: the key field accepts and persists arbitrary text.
 - `constants.ts` — `SDEFS` (section-type definitions: label/short
   label/hotkey), `SCOL` (section background colour classes), `TIMER_OPTS`
   (object-writing timer choices), `CW`/`CH`/`FS` (chord-grid cell
@@ -109,8 +154,7 @@ All shared interfaces/types: `SectionType`, `Tab`, `CP`, `Section`,
   (nothing is evaluated at module-init time) but is worth untangling later.
   Also mutually circular with `substitutions.ts` for the same reason.
 - `key.ts` — `detectKey`, `parseKeyString`, `formatDetectedKey`.
-- `substitutions.ts` — `getParallelChords`, `getSecondaryDominant`,
-  `getTritoneSubstitution`.
+- `substitutions.ts` — `getParallelChords`, `getSecondaryDominant`.
 - `ideas.ts` — `IdeaResult`, `ChordFunc`, `getChordFunction`,
   `generateIdea` (the 12-technique chord-rewrite idea generator),
   `generateBridgeIdea` (bridge-section chord suggestion). Used by
@@ -124,13 +168,19 @@ All shared interfaces/types: `SectionType`, `Tab`, `CP`, `Section`,
   `extractDetailWord` (object-writing sense-scan).
 - `prosody.ts` — `countSyllables`, `getStressPattern`, `analyzeStress`,
   `lineSyllableCount`.
-- `rhyme.ts` — `FillWord`, `detectRhymeScheme`, `findRhymingWords`,
-  `buildFill` (fill-in-the-blank scaffolding for the Rhyme tool).
-- `cloud.ts` — `extractWordCloud`, `extractSensoryFragments`.
+- `owLabel.ts` — `owLabel(seedWord, body)`: pure function that picks a
+  display label for a writing — the seed word if there is one, otherwise
+  the first sensory word in the body (via `lookupSense`), otherwise the
+  first word not in `FN_WORDS`, otherwise just the first word. Used
+  anywhere a writing (linked, loose, or standalone) is labelled, since
+  `seed_word`/`seedWord` can now be empty.
 - `fragments.ts` — `pickFragmentGroup`, `buildSkeletonLyrics` (Inspiration
   panel's fragment/skeleton-verse generators). **Divergence**: not in the
-  original target module list, split out of `cloud.ts` because it's a
-  distinct concern (skeleton-verse generation vs. word-cloud extraction).
+  original target module list; a distinct concern from word-cloud
+  extraction. **Confirmed** live in the running app (Create → Lyrics →
+  Inspiration → Fragments) — this is the real implementation; `lib/text/
+  cloud.ts` (`extractWordCloud`/`extractSensoryFragments`, removed as dead
+  code) was a same-purpose module that nothing ever called.
 - `owPool.ts` — `OW_TWO_WORD`, `owPoolCache`, `owPoolReady`, `loadOWPool`
   (fetches noun pool from the Datamuse API on first load), `pickOWWord`.
   **Divergence**: not in the original target list; this is fetch/cache
@@ -142,9 +192,8 @@ random id generator used everywhere an `id` field is needed),
 `formatRelativeTime`, `defaultProjectName`.
 
 ### `src/components/`
-- `common/` — `FL` (small-caps mono field label), `II`/`SI` (labelled
-  text/select inputs), `AutoTA` (auto-growing textarea with word-select
-  callback), `CollapsibleSection`.
+- `common/` — `FL` (small-caps mono field label), `AutoTA` (auto-growing
+  textarea with word-select callback), `CollapsibleSection`.
 - `auth/AuthModal.tsx` — email/password + Google/Apple OAuth sign-in.
 - `sidebar/ProjectsSidebar.tsx` — project list (grouped by status) +
   standalone object-writing word cloud/list. Also exports `STATUS_DOT`/
@@ -165,6 +214,11 @@ random id generator used everywhere an `id` field is needed),
 - `tools/` — `InspirationPanel`, `ThesaurusPanel`, and `RhymePanel`.
   **Divergence**: `RhymePanel` wasn't in the original target list (which
   only named two of the three tool panels); added alongside its siblings.
+  **Confirmed** live in the running app (Lyrics → Rhyme & Metre) —
+  `RhymePanel.tsx` is fully self-contained, fetching directly from the
+  Datamuse API (`rel_rhy`/`rel_nry`); it never used `lib/text/rhyme.ts`
+  (`detectRhymeScheme`/`findRhymingWords`/`buildFill`, removed as dead
+  code — that module's fill-in-the-blank scaffolding has no live caller).
 
 ### `src/app/App.tsx`
 Top-level state (song, tab, auth, sidebar, autosave, undo state for chord
@@ -176,35 +230,73 @@ code.
 
 ## Known debt
 
-- **`tsc --noEmit` reports 2 pre-existing type errors** (present before
-  this refactor and unchanged by it — the build does not type-check, so
-  these have never blocked anything):
-  1. `src/components/sidebar/ProjectsSidebar.tsx` — a `setStandaloneOWs`
-     updater's callback can return `(StandaloneOW | undefined)[]` (an
-     `.filter(Boolean)`-less `.map` that can produce `undefined` entries)
-     where `StandaloneOW[]` is expected.
-  2. `src/app/App.tsx` — a reference to `setShowOWPanel`, a setter that
-     doesn't exist (likely a rename left half-done at some point;
-     the actual state/setter pair in scope is `showGlobalOW`/
-     `setShowGlobalOW`).
+- **`tsc --noEmit` is now zero-error** and wired up as `pnpm typecheck`,
+  run as a non-blocking CI step (`.github/workflows/deploy.yml`) that warns
+  without failing the deploy. The 2 pre-existing errors (a `.map` producing
+  `(StandaloneOW | undefined)[]` in `ProjectsSidebar.tsx`, and a stray
+  `setShowOWPanel` reference in `App.tsx` that should have been
+  `setShowGlobalOW`) were both typing slips, not real bugs — fixed by
+  guarding the `undefined` case and correcting the setter name.
+- **Fixed: opening a song rewrote its `YYMMDD` name prefix.** `doSave`'s
+  update branch built `projects.name` from `defaultProjectName(song.title)`
+  on every save, which always mints *today's* date — present since the
+  initial import commit (`4232483`), predates every refactor phase, not
+  introduced by Phase 2. `defaultProjectName` is gone; `src/format.ts` now
+  has `newProjectPrefix()` (today's date, insert-only), `parseProjectPrefix
+  (name)` (pulls the `YYMMDD` back out of a stored name), and
+  `projectNameWithPrefix(prefix, title)`. `App.tsx` tracks the open
+  project's prefix in `currentProjectPrefixRef`, set from the loaded row's
+  actual name in `loadProject` and reused on every subsequent save;
+  `newSong`/new-project-insert mint a fresh one. Manual renames via the
+  sidebar (`ProjectsSidebar` `renamePrj`) are untouched by this and still
+  write whatever text the user typed directly — a separate, pre-existing
+  behavior (autosave overwrites the title portion back to `song.title` on
+  the next save regardless) not addressed here.
+- **Fixed: the debounce-autosave effect could fire without any edit.**
+  `useEffect([song, user])` treated *any* change to the `song` object as
+  "user edited something" — including `loadProject` replacing it wholesale
+  with existing content, which reliably scheduled a save 2s after opening
+  any song with a title/lyrics, silently touching `updated_at` (and, before
+  the fix above, the name prefix) on a mere open. This also predates Phase
+  2 (present since the initial commit); Phase 2 only widened *what* counts
+  as meaningful content, not this root cause. Fixed two ways: (1)
+  `suppressNextAutosaveRef`, set right before `setSong()` in `loadProject`/
+  `newSong`, consumed by the debounce effect to skip scheduling exactly
+  once when the song was just replaced rather than edited (not set in
+  `createSongFromOW` — that call fills a new song with real content the
+  user asked to bring in, which should save like any other edit); (2) the
+  effect's dependency changed from `user` to `!!user`, since Supabase's
+  `onAuthStateChange` hands back a new `user` object on token refresh even
+  when nothing about the sign-in state changed, which was re-arming the
+  effect on its own. Verified directly: opened a saved scratch project,
+  waited past the debounce, confirmed `updated_at` identical before/after.
+- **Fixed: nested `<button>` in `ObjectWritingSection`/`CollapsibleSection`.**
+  `CollapsibleSection`'s header is now a `<div role="button" tabIndex={0}>`
+  with manual Enter/Space handling instead of a real `<button>`, so the
+  pill `<button>`s rendered into its `headerExtra` are siblings-in-spirit
+  rather than nested interactive elements. Verified live: 0 nested buttons
+  in the DOM, header click toggles the section, pill click doesn't.
 - **Sidebar word-cloud `find()` bug** (`src/components/sidebar/
   ProjectsSidebar.tsx`, inside the "Object Writing Sessions" block): the
-  word cloud is built from `owWordFreq`, which is keyed by lowercased,
-  trimmed `seed_word` — so two `standalone_ow` sessions with the same seed
-  word collapse into a single word-cloud entry. Clicking that entry does
-  `standaloneOWs.find(e => e.seed_word.toLowerCase().trim() === word)`,
-  which always returns the *first* matching row. If a user has written more
-  than one session for the same seed word, every session after the first
-  is unreachable from the word cloud (still visible/deletable elsewhere if
-  another list view exists, but not reachable via this click path). Not
-  fixed here per task scope — documented for a future pass.
-- **`src/imports/` PNGs** (`image.png`, `image-1.png` through `image-4.png`)
-  are not imported anywhere in `src/` (confirmed by grepping for their
-  filenames). Left in place rather than deleted — they may be Figma design
-  references worth keeping for now, but nothing in the shipped app uses
-  them.
+  word cloud is built from `owWordFreq`, now keyed by lowercased, trimmed
+  `owLabel(seed_word, body)` (changed from raw `seed_word` only because
+  `seed_word` can now be null — the dedup/lookup bug itself is untouched).
+  Two `standalone_ow` sessions with the same label still collapse into a
+  single word-cloud entry, and clicking it still does a first-match
+  `find()`, so every session after the first for a given label remains
+  unreachable from the word cloud. Not fixed here per task scope — deferred
+  to a future pass that replaces the cloud with a chronological list.
 - **Circular imports** between `lib/theory/chords.ts` ↔ `lib/theory/key.ts`
   and `lib/theory/chords.ts` ↔ `lib/theory/substitutions.ts` (see module
   map above) — harmless at runtime since all cross-references are inside
   function bodies, not module-init-time, but worth flattening in a later
   pass.
+- **Object-writing cloud sync piggybacks on the song's existing debounced
+  autosave** (`doSave` in `src/app/App.tsx`) rather than having its own
+  trigger — there wasn't an existing per-entry "save" hook to attach to (see
+  commit/PR notes for Phase 2). This means: (a) a linked entry only syncs
+  once the song's autosave actually fires, and (b) an entry created before
+  the song has ever been saved (`origin_song_id: null` at insert time) does
+  not get its `origin_song_id` backfilled once the song does get an id —
+  it stays `null` until something else touches that row. Both are edge
+  cases Phase 3 (lifecycle) is the natural place to revisit.

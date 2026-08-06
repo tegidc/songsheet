@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Copy, X } from "lucide-react";
 import { MONO, SERIF } from "../../data/constants";
+import { owLabel } from "../../lib/text/owLabel";
 import type { StandaloneOW } from "../../types";
 
 export function StandaloneOWDetail({
@@ -9,13 +10,13 @@ export function StandaloneOWDetail({
   entry: StandaloneOW;
   onClose: () => void;
   onCreateSong: (seedWord: string, body: string) => void;
-  onAddToSong?: (seedWord: string, body: string) => void;
+  onAddToSong?: (seedWord: string | null, body: string, sourceId: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [added, setAdded] = useState(false);
 
   const handleAddToSong = () => {
-    onAddToSong?.(entry.seed_word, entry.body);
+    onAddToSong?.(entry.seed_word, entry.body, entry.id);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };
@@ -30,7 +31,7 @@ export function StandaloneOWDetail({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
       <div className="w-full max-w-lg bg-background border border-border rounded-sm shadow-xl mx-4">
         <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-          <span className="text-[11px] italic text-foreground/70" style={{ fontFamily: SERIF }}>{entry.seed_word}</span>
+          <span className="text-[11px] italic text-foreground/70" style={{ fontFamily: SERIF }}>{owLabel(entry.seed_word, entry.body)}</span>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
             <X size={14} />
           </button>
@@ -52,7 +53,7 @@ export function StandaloneOWDetail({
                 className={`text-[12px] px-2.5 py-1 border rounded-sm transition-colors ${added ? "border-accent text-accent" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"}`}
                 style={{ fontFamily: MONO }}>{added ? "Added ✓" : "Add to song"}</button>
             )}
-            <button onClick={() => { onCreateSong(entry.seed_word, entry.body); onClose(); }}
+            <button onClick={() => { onCreateSong(owLabel(entry.seed_word, entry.body), entry.body); onClose(); }}
               className="text-[12px] px-2.5 py-1 border border-border rounded-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
               style={{ fontFamily: MONO }}>Create song from writing</button>
           </div>

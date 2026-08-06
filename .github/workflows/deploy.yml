@@ -33,6 +33,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Typecheck (non-blocking)
+        run: pnpm typecheck || echo "::warning::Typecheck failed — see log above"
+        continue-on-error: true
+
       - name: Build
         run: pnpm build
 

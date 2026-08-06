@@ -5,6 +5,7 @@ import { StandaloneOWDetail } from "../ow/StandaloneOWDetail";
 import { StandaloneOWDialog } from "../ow/StandaloneOWDialog";
 import { MONO, SERIF } from "../../data/constants";
 import { formatRelativeTime } from "../../format";
+import { owLabel } from "../../lib/text/owLabel";
 import type { AudioNote, Project, ProjectStatus, Song, StandaloneOW, Tab } from "../../types";
 
 export const STATUS_DOT: Record<ProjectStatus, string> = {
@@ -19,12 +20,12 @@ export const STATUS_LABEL: Record<ProjectStatus, string> = {
 };
 
 export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, onCreateSongFromOW, onAddOWToSong, owRefreshKey, mobile = false, onClose }: {
-  onLoad: (id: string, song: Song) => void;
+  onLoad: (id: string, song: Song, name: string) => void;
   onNew: () => void;
   onSignOut: () => void;
   currentProjectId: string | null;
   onCreateSongFromOW: (seedWord: string, body: string) => void;
-  onAddOWToSong?: (seedWord: string, body: string) => void;
+  onAddOWToSong?: (seedWord: string | null, body: string, sourceId: string) => void;
   owRefreshKey: number;
   mobile?: boolean;
   onClose?: () => void;
@@ -57,7 +58,7 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
   // Fetch standalone OW entries (re-runs when owRefreshKey bumps — e.g. saved from header button)
   useEffect(() => {
     supabase.from("standalone_ow")
-      .select("id, seed_word, body, written_at")
+      .select("id, seed_word, body, written_at, origin_song_id")
       .order("written_at", { ascending: false })
       .then(({ data }) => setStandaloneOWs((data as StandaloneOW[]) ?? []));
   }, [owRefreshKey]);
@@ -66,7 +67,8 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
   const owWordFreq = useMemo(() => {
     const freq: Record<string, number> = {};
     standaloneOWs.forEach(e => {
-      const w = e.seed_word.toLowerCase().trim();
+      const w = owLabel(e.seed_word, e.body).toLowerCase().trim();
+      if (!w) return;
       freq[w] = (freq[w] ?? 0) + 1;
     });
     return freq;
@@ -80,8 +82,8 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
   }, [owWordFreq]);
 
   const load = async (id: string) => {
-    const { data } = await supabase.from("projects").select("data").eq("id", id).single();
-    if (data) onLoad(id, data.data as Song);
+    const { data } = await supabase.from("projects").select("data, name").eq("id", id).single();
+    if (data) onLoad(id, data.data as Song, data.name as string);
   };
 
   const del = async (id: string, e: React.MouseEvent) => {
@@ -285,7 +287,7 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
             {owWordsSorted.length > 0 && (
               <div className="flex flex-wrap gap-x-2 gap-y-1.5">
                 {owWordsSorted.map(({ word, size }) => {
-                  const entry = standaloneOWs.find(e => e.seed_word.toLowerCase().trim() === word);
+                  const entry = standaloneOWs.find(e => owLabel(e.seed_word, e.body).toLowerCase().trim() === word);
                   return (
                     <button key={word}
                       onClick={() => entry && setOwDetail(entry)}
@@ -320,7 +322,7 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
       {owSession && (
         <StandaloneOWDialog
           onClose={() => setOwSession(false)}
-          onSaved={entry => setStandaloneOWs(prev => [entry, ...prev])}
+          onSaved={entry => entry && setStandaloneOWs(prev => [entry, ...prev])}
         />
       )}
 

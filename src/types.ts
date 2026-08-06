@@ -5,7 +5,12 @@ export interface Section {
   id: string; type: SectionType; label: string; shortLabel: string;
   chordBars: string[]; chordPositions: CP[]; lyrics: string; notes: string;
 }
-export interface OWEntry { id: string; text: string; seedWord?: string; savedAt?: string; }
+export interface OWEntry {
+  id: string; text: string; seedWord?: string; savedAt?: string;
+  cloudId?: string;   // the standalone_ow row this mirrors — linked pills only
+  imported?: boolean; // came FROM the cloud rather than being written here
+  sourceId?: string;  // provenance: the row it was copied from. NOT a live link.
+}
 export interface NbEntry { id: string; title: string; text: string; savedAt: string; }
 export interface AudioNote {
   id: string; label: string; storagePath: string; url: string;
@@ -25,4 +30,4 @@ export interface Song {
 }
 export type ProjectStatus = "working" | "finished" | "archived";
 export interface Project { id: string; name: string; updated_at: string; status: ProjectStatus }
-export interface StandaloneOW { id: string; seed_word: string; body: string; written_at: string }
+export interface StandaloneOW { id: string; seed_word: string | null; body: string; written_at: string; origin_song_id?: string | null }
