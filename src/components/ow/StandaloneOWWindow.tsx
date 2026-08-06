@@ -5,95 +5,120 @@ import { MONO } from "../../data/constants";
 import { owLabel } from "../../lib/text/owLabel";
 import type { StandaloneOW } from "../../types";
 
+const SAVE_DEBOUNCE = 800;
+
 // Container for a writing that lives in `standalone_ow` — the sidebar's two
-// entry points. `entry` null means a new writing (timed, saved on "Save
-// session"); `entry` set means an existing one (no timer, edits sync back to
-// its row, plus the copy/add/create actions).
+// entry points. `entry` null means a new writing (timed); `entry` set means an
+// existing one (no timer, plus the copy/add/create actions).
+//
+// There is no save gesture. The row is created by the first keystroke and
+// updated as the writing goes on; Done/Close/X only put the window away, and
+// dismissing it — or hiding the tab — flushes whatever hasn't been written yet.
+// A writing with no text never touches the database at all.
 export function StandaloneOWWindow({
   entry = null, timerStart = null, onClose, onSaved, onUpdated, onCreateSong, onAddToSong,
 }: {
   entry?: StandaloneOW | null;
   timerStart?: number | null;
   onClose: () => void;
-  onSaved?: (row?: StandaloneOW) => void;
+  /** Called once, when the first keystroke creates the row. */
+  onSaved?: (row: StandaloneOW) => void;
   onUpdated?: (row: StandaloneOW) => void;
   onCreateSong?: (seedWord: string, body: string) => void;
   onAddToSong?: (seedWord: string | null, body: string, sourceId: string) => void;
 }) {
   const [seedWord, setSeedWord] = useState(entry?.seed_word ?? "");
   const [body, setBody]         = useState(entry?.body ?? "");
-  const [saving, setSaving]     = useState(false);
   const [saveError, setSaveError] = useState("");
   const [copied, setCopied]     = useState(false);
   const [added, setAdded]       = useState(false);
+
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
   const latest    = useRef({ seedWord, body });
+  const rowId     = useRef<string | null>(entry?.id ?? null);
+  const written   = useRef({ seedWord: entry?.seed_word ?? "", body: entry?.body ?? "" });
+  const saving    = useRef(false);
+  const dirty     = useRef(false);
   useEffect(() => { latest.current = { seedWord, body }; }, [seedWord, body]);
 
-  // Existing writing: push edits back to its row (debounced), and flush on unmount
-  // so closing the window never drops the last keystrokes.
-  const pushUpdate = async () => {
-    if (!entry) return;
+  // Insert on the first text, update after that. Serialized through `saving`/
+  // `dirty` so a burst of keystrokes can't race two inserts into existence.
+  const persist = async () => {
     const { seedWord: sw, body: b } = latest.current;
-    if (sw === (entry.seed_word ?? "") && b === entry.body) return;
-    const { error } = await supabase.from("standalone_ow")
-      .update({ seed_word: sw.trim() || null, body: b })
-      .eq("id", entry.id);
-    if (!error) onUpdated?.({ ...entry, seed_word: sw.trim() || null, body: b });
+    if (!b.trim()) return;
+    if (sw === written.current.seedWord && b === written.current.body) return;
+    if (saving.current) { dirty.current = true; return; }
+    saving.current = true;
+    try {
+      const seed_word = sw.trim() || null;
+      if (rowId.current) {
+        const { error } = await supabase.from("standalone_ow")
+          .update({ seed_word, body: b }).eq("id", rowId.current);
+        if (error) { setSaveError("Save failed — " + error.message); return; }
+        written.current = { seedWord: sw, body: b };
+        setSaveError("");
+        onUpdated?.({
+          id: rowId.current, seed_word, body: b,
+          written_at: entry?.written_at ?? new Date().toISOString(),
+          origin_song_id: entry?.origin_song_id ?? null,
+        });
+      } else {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setSaveError("Sign in to save writings."); return; }
+        const { data, error } = await supabase.from("standalone_ow")
+          .insert({ user_id: user.id, seed_word, body: b })
+          .select("id, seed_word, body, written_at").single();
+        if (error || !data) { setSaveError("Save failed — " + (error?.message ?? "unknown")); return; }
+        rowId.current = data.id;
+        written.current = { seedWord: sw, body: b };
+        setSaveError("");
+        onSaved?.(data as StandaloneOW);
+      }
+    } finally {
+      saving.current = false;
+      if (dirty.current) { dirty.current = false; persist(); }
+    }
   };
 
   const handleChange = (text: string, seed?: string) => {
     setBody(text);
     setSeedWord(seed ?? "");
-    if (!entry) return;
+    latest.current = { seedWord: seed ?? "", body: text };
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(pushUpdate, 1500);
+    saveTimer.current = setTimeout(persist, SAVE_DEBOUNCE);
   };
 
-  useEffect(() => () => { clearTimeout(saveTimer.current); pushUpdate(); },
+  // Dismissing the window, or the tab going away, must not cost the last
+  // keystrokes — flush rather than wait out the debounce.
+  useEffect(() => {
+    const flush = () => { clearTimeout(saveTimer.current); persist(); };
+    const onHide = () => { if (document.visibilityState === "hidden") flush(); };
+    document.addEventListener("visibilitychange", onHide);
+    return () => { document.removeEventListener("visibilitychange", onHide); flush(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []);
-
-  const handleSave = async () => {
-    if (!body.trim()) return;
-    setSaving(true); setSaveError("");
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setSaving(false); setSaveError("Sign in to save sessions."); return; }
-    const { data, error } = await supabase.from("standalone_ow")
-      .insert({ user_id: user.id, seed_word: seedWord.trim() || null, body: body.trim() })
-      .select("id, seed_word, body, written_at")
-      .single();
-    setSaving(false);
-    if (error) { setSaveError("Save failed — " + error.message); return; }
-    if (data) { onSaved?.(data as StandaloneOW); onClose(); }
-  };
+  }, []);
 
   const btn = "text-[12px] px-2.5 py-1 border border-border rounded-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors";
 
-  const footer = entry ? (
+  const footer = (
     <>
-      <button onClick={() => { navigator.clipboard.writeText(body).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-        className={btn} style={{ fontFamily: MONO }}>{copied ? "Copied ✓" : "Copy text"}</button>
-      {onAddToSong && (
-        <button onClick={() => { onAddToSong(seedWord.trim() || null, body, entry.id); setAdded(true); setTimeout(() => setAdded(false), 2000); }}
-          disabled={added}
-          className={`text-[12px] px-2.5 py-1 border rounded-sm transition-colors ${added ? "border-accent text-accent" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"}`}
-          style={{ fontFamily: MONO }}>{added ? "Added ✓" : "Add to song"}</button>
+      {saveError && <span className="text-[11px] text-red-500 mr-1" style={{ fontFamily: MONO }}>{saveError}</span>}
+      {entry && (
+        <>
+          <button onClick={() => { navigator.clipboard.writeText(body).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+            className={btn} style={{ fontFamily: MONO }}>{copied ? "Copied ✓" : "Copy text"}</button>
+          {onAddToSong && (
+            <button onClick={() => { onAddToSong(seedWord.trim() || null, body, entry.id); setAdded(true); setTimeout(() => setAdded(false), 2000); }}
+              disabled={added}
+              className={`text-[12px] px-2.5 py-1 border rounded-sm transition-colors ${added ? "border-accent text-accent" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"}`}
+              style={{ fontFamily: MONO }}>{added ? "Added ✓" : "Add to song"}</button>
+          )}
+          {onCreateSong && (
+            <button onClick={() => { onCreateSong(owLabel(seedWord || null, body), body); onClose(); }}
+              className={btn} style={{ fontFamily: MONO }}>Create song from writing</button>
+          )}
+        </>
       )}
-      {onCreateSong && (
-        <button onClick={() => { onCreateSong(owLabel(seedWord || null, body), body); onClose(); }}
-          className={btn} style={{ fontFamily: MONO }}>Create song from writing</button>
-      )}
-    </>
-  ) : (
-    <>
-      {saveError && <span className="text-[11px] text-red-500" style={{ fontFamily: MONO }}>{saveError}</span>}
-      <button onClick={onClose} className="text-[12px] text-muted-foreground hover:text-foreground transition-colors mr-1"
-        style={{ fontFamily: MONO }}>Discard</button>
-      <button onClick={handleSave} disabled={!body.trim() || saving}
-        className={`${btn} disabled:opacity-30`} style={{ fontFamily: MONO }}>
-        {saving ? "Saving…" : "Save session"}
-      </button>
     </>
   );
 
@@ -106,7 +131,7 @@ export function StandaloneOWWindow({
       timerStart={timerStart}
       onDrillDown={w => handleChange(body, w)}
       footer={footer}
-      closeLabel={entry ? "Close" : null}
+      closeLabel={entry ? "Close" : "Done"}
     />
   );
 }

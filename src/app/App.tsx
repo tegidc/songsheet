@@ -235,6 +235,22 @@ export default function App() {
     return () => clearInterval(forceSaveTimer.current);
   }, [user, doSave]);
 
+  // Leaving mid-debounce shouldn't cost the last edits — an object writing is
+  // saved from its first keystroke, so a hidden tab must flush rather than wait
+  // out the 2s timer. Gated on pendingRef, which only the debounce effect sets,
+  // so this can't write for a song the user merely opened.
+  useEffect(() => {
+    if (!user) return;
+    const onHide = () => {
+      if (document.visibilityState === "hidden" && pendingRef.current) {
+        clearTimeout(autoSaveTimer.current);
+        doSave();
+      }
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, [user, doSave]);
+
   // Section management
   const updateSong = useCallback((patch: Partial<Song>) => setSong(p => ({ ...p, ...patch })), []);
 

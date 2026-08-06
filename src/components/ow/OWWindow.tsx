@@ -78,10 +78,9 @@ export function OWWindow({
   };
 
   const startTimer = () => {
-    if (!done && (seedWord ?? "").trim()) {
-      setActive(true);
-      setTimeout(() => textareaRef.current?.focus(), 0);
-    }
+    if (done) return;
+    setActive(true);
+    setTimeout(() => textareaRef.current?.focus(), 0);
   };
 
   const resetTimer = () => {
@@ -90,8 +89,11 @@ export function OWWindow({
     setScanResult(null);
   };
 
+  // The first keystroke is what starts the clock — not opening the window, and
+  // with no focus word required. From here the duration is locked (adjustTimer
+  // refuses while active) but the focus word itself stays editable.
   const handleChange = (v: string) => {
-    if (hasTimer && !active && !done && text === "" && (seedWord ?? "").trim()) setActive(true);
+    if (hasTimer && !active && !done && text === "" && v !== "") setActive(true);
     onChange(v, seedWord);
     setScanResult(null);
   };
@@ -127,7 +129,6 @@ export function OWWindow({
   const timerDisplay = done ? "0:00" : active ? `${mm}:${ss}` : `${TIMER_OPTS[timerIdx] / 60}:00`;
   const counts = scanResult ? SENSES.map((_, i) => scanResult.filter(t => t.senseIdx === i).length) : null;
   const drillWords = scanResult ? getDrillWords(scanResult) : [];
-  const seedDisabled = hasTimer && (active || done);
 
   const body = (
     <>
@@ -157,8 +158,8 @@ export function OWWindow({
                 className="text-[12px] px-2.5 py-1 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
                 style={{ fontFamily: MONO }}>Reset</button>
             ) : !active ? (
-              <button onClick={startTimer} disabled={!(seedWord ?? "").trim()}
-                className="text-[12px] px-2.5 py-1 border border-border rounded-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors disabled:opacity-30 shrink-0"
+              <button onClick={startTimer}
+                className="text-[12px] px-2.5 py-1 border border-border rounded-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors shrink-0"
                 style={{ fontFamily: MONO }}>Start →</button>
             ) : null}
           </>
@@ -170,12 +171,12 @@ export function OWWindow({
             style={{ fontFamily: MONO }}>Detail</button>
         )}
 
-        {/* Object button — hidden while the timer runs */}
-        {!(hasTimer && (active || done)) && (
-          <button onClick={handleObject} title="Random object"
-            className="text-[12px] px-2.5 py-1 border border-border rounded-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors shrink-0"
-            style={{ fontFamily: MONO }}>Object</button>
-        )}
+        {/* Object and the focus word stay live while the timer runs: typing now
+            starts the clock, so locking them at that moment would mean a writing
+            begun straight from the keyboard could never acquire a focus word. */}
+        <button onClick={handleObject} title="Random object"
+          className="text-[12px] px-2.5 py-1 border border-border rounded-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors shrink-0"
+          style={{ fontFamily: MONO }}>Object</button>
 
         {text.trim() && onSaveToNotebook && (
           <button onClick={triggerSaveToNotebook}
@@ -189,8 +190,7 @@ export function OWWindow({
           value={seedWord ?? ""}
           onChange={e => onChange(text, e.target.value || undefined)}
           placeholder="focus word…"
-          disabled={seedDisabled}
-          className={`flex-1 ${presentation === "inline" ? "min-w-[80px]" : "min-w-0"} bg-transparent border-b border-border/60 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent pb-0.5 transition-colors disabled:opacity-40`}
+          className={`flex-1 ${presentation === "inline" ? "min-w-[80px]" : "min-w-0"} bg-transparent border-b border-border/60 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent pb-0.5 transition-colors`}
           style={{ fontFamily: SERIF, fontStyle: seedWord ? "italic" : "normal" }}
           onKeyDown={hasTimer ? e => { if (e.key === "Enter") startTimer(); } : undefined}
         />
@@ -227,9 +227,7 @@ export function OWWindow({
       </div>
 
       <AutoTA value={text} onChange={handleChange} innerRef={textareaRef}
-        placeholder={hasTimer && !(seedWord ?? "").trim()
-          ? "Enter a focus word above first"
-          : "Write freely. No editing, no judgement. Anchor to the senses above…"}
+        placeholder="Write freely. No editing, no judgement. Anchor to the senses above…"
         serif rows={presentation === "inline" ? 8 : 9}
         textClass={presentation === "inline" ? "text-xs" : "text-sm"}
         dimText={active} />
