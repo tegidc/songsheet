@@ -16,6 +16,7 @@ import { LyricBlock } from "../components/lyrics/LyricBlock";
 import { MobileLyricTools } from "../components/lyrics/MobileLyricTools";
 import { FloatingOWButton } from "../components/ow/FloatingOWButton";
 import { ObjectWritingSection } from "../components/ow/ObjectWritingSection";
+import { OWCloudPicker } from "../components/ow/OWCloudPicker";
 import { OWPillRow } from "../components/ow/OWPillRow";
 import { OWWindow } from "../components/ow/OWWindow";
 import { StandaloneOWWindow } from "../components/ow/StandaloneOWWindow";
@@ -72,6 +73,7 @@ export default function App() {
   // (carrying what would be overwritten) and the one-line result afterwards.
   const [owCloudConfirm, setOwCloudConfirm] = useState<{ sourceId: string; detail: string } | null>(null);
   const [owCloudMsg, setOwCloudMsg] = useState("");
+  const [showOWPicker, setShowOWPicker] = useState(false);
   const autoSaveTimer  = useRef<ReturnType<typeof setTimeout>>();
   const forceSaveTimer = useRef<ReturnType<typeof setInterval>>();
   const pendingRef     = useRef(false);
@@ -373,6 +375,19 @@ export default function App() {
     if (owWindowRef.current?.entry.id === id) { owWindowRef.current = null; setOwWindow(null); }
   }, []);
 
+  // A writing brought in from the cloud lands loose: imported, carrying its
+  // provenance, with no cloudId — so it never syncs back and the two copies are
+  // free to diverge. The single path for every route in (picker, sidebar).
+  const importOWFromCloud = useCallback((seedWord: string | null, body: string, sourceId: string) => {
+    setSong(p => ({
+      ...p,
+      objectWritings: [...(p.objectWritings ?? []), {
+        id: uid(), text: body, seedWord: seedWord ?? undefined,
+        savedAt: new Date().toISOString(), imported: true, sourceId,
+      }],
+    }));
+  }, []);
+
   // ── Save to cloud, offered on loose pills only (linked ones already sync) ──
 
   const owSaveAsNew = useCallback(async (message: string) => {
@@ -619,7 +634,7 @@ export default function App() {
           onSignOut={signOut}
           onCreateSongFromOW={createSongFromOW}
           onAddOWToSong={(seedWord, body, sourceId) => {
-            setSong(p => ({ ...p, objectWritings: [...(p.objectWritings ?? []), { id: uid(), text: body, seedWord: seedWord ?? undefined, savedAt: new Date().toISOString(), imported: true, sourceId }] }));
+            importOWFromCloud(seedWord, body, sourceId);
             setTab("notes");
           }}
           owRefreshKey={owRefreshKey} />
@@ -638,7 +653,7 @@ export default function App() {
               onSignOut={signOut}
               onCreateSongFromOW={createSongFromOW}
               onAddOWToSong={(seedWord, body, sourceId) => {
-                setSong(p => ({ ...p, objectWritings: [...(p.objectWritings ?? []), { id: uid(), text: body, seedWord: seedWord ?? undefined, savedAt: new Date().toISOString(), imported: true, sourceId }] }));
+                importOWFromCloud(seedWord, body, sourceId);
                 setShowGlobalOW(true);
                 toggleSidebar();
               }}
@@ -1018,6 +1033,7 @@ export default function App() {
               {/* 6. Object Writing area */}
               <ObjectWritingSection
                 onNew={() => newObjectWriting()}
+                onOpenPicker={user ? () => setShowOWPicker(true) : undefined}
                 isMobile={isMobile} />
             </div>
           );
@@ -1080,6 +1096,11 @@ export default function App() {
             </>
           ) : undefined}
           isMobile={isMobile} />
+      )}
+      {showOWPicker && (
+        <OWCloudPicker
+          onImport={row => importOWFromCloud(row.seed_word, row.body, row.id)}
+          onClose={() => setShowOWPicker(false)} />
       )}
       {owCloudConfirm && (
         <ConfirmDialog
