@@ -329,6 +329,7 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
       {/* Existing standalone writing */}
       {owDetail && (
         <StandaloneOWWindow
+          key={owDetail.id}
           entry={owDetail}
           onClose={() => setOwDetail(null)}
           onUpdated={row => setStandaloneOWs(prev => prev.map(e => e.id === row.id ? { ...e, ...row } : e))}

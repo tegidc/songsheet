@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
-import { X, ChevronUp, ChevronDown, Minus } from "lucide-react";
+import { X, ChevronUp, ChevronDown } from "lucide-react";
 import { AutoTA } from "../common/AutoTA";
 import { MONO, SERIF, TIMER_OPTS } from "../../data/constants";
 import { SENSES } from "../../data/senses";
@@ -12,17 +12,16 @@ import { extractDetailWord, getDrillWords, scanText } from "../../lib/text/sense
 // ObjectWritingBox) differed only in which actions they offered and whether
 // they ran a timer, so both of those are props now:
 //
-//   entry point                      timerStart   footer
-//   new writing (sidebar/header)     TIMER_OPTS   Discard · Save session
-//   existing writing, Create page    null         (none — Done closes)
-//   existing writing, sidebar        null         Copy · Add to song · Create song
+//   entry point                     timerStart      footer
+//   new writing                     10 min          (none — Done closes)
+//   new writing from a chosen word  2 min           (none — Done closes)
+//   existing writing, in-song       null            (none — Done closes)
+//   existing writing, sidebar       null            Copy · Add to song · Create song
 //
-// `presentation="inline"` is a temporary accommodation for the Create page,
-// which still renders writings in place; Part 3 makes every entry point a
-// modal and it goes away.
+// A collapsed pill is this component in a collapsed state, not a summary of
+// one — expanded it is always this editor, timer or no timer.
 export function OWWindow({
   text, seedWord, onChange, onClose,
-  presentation = "modal",
   timerStart = null,
   onDrillDown, onSaveToNotebook, allSongText,
   footer, closeLabel = "Done",
@@ -31,9 +30,8 @@ export function OWWindow({
   text: string;
   seedWord?: string;
   onChange: (text: string, seedWord?: string) => void;
-  /** Done / Close / Minimise — "put this away", never a save gesture. */
+  /** Done / Close — "put this away", never a save gesture. */
   onClose: () => void;
-  presentation?: "modal" | "inline";
   /** Seconds to count down from, or null for an existing writing (no timer). */
   timerStart?: number | null;
   /** Parent decides what a drill word does: reseed this writing, or open a new one. */
@@ -133,7 +131,7 @@ export function OWWindow({
   const body = (
     <>
       {/* Controls row: timer · start · detail · object · notebook · seed word */}
-      <div className={`flex items-center gap-2 ${presentation === "inline" ? "flex-wrap mb-4" : ""}`}>
+      <div className="flex items-center gap-2">
         {hasTimer && (
           <>
             <div className="flex items-center gap-1 shrink-0">
@@ -190,22 +188,16 @@ export function OWWindow({
           value={seedWord ?? ""}
           onChange={e => onChange(text, e.target.value || undefined)}
           placeholder="focus word…"
-          className={`flex-1 ${presentation === "inline" ? "min-w-[80px]" : "min-w-0"} bg-transparent border-b border-border/60 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent pb-0.5 transition-colors`}
+          className={`flex-1 min-w-0 bg-transparent border-b border-border/60 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent pb-0.5 transition-colors`}
           style={{ fontFamily: SERIF, fontStyle: seedWord ? "italic" : "normal" }}
           onKeyDown={hasTimer ? e => { if (e.key === "Enter") startTimer(); } : undefined}
         />
-
-        {presentation === "inline" && (
-          <button onClick={onClose} title="Minimise" className="text-muted-foreground/40 hover:text-foreground transition-colors shrink-0">
-            <Minus size={12} />
-          </button>
-        )}
       </div>
 
       {detailMsg && <p className="text-[12px] text-muted-foreground" style={{ fontFamily: MONO }}>{detailMsg}</p>}
 
       {/* Sense badges */}
-      <div className={`flex flex-wrap gap-1.5 relative ${presentation === "inline" ? "mb-4" : ""}`}>
+      <div className="flex flex-wrap gap-1.5 relative">
         {SENSES.map(s => (
           <span key={s.label}
             className={`${s.tw} text-[10px] px-2 py-0.5 rounded-full cursor-default relative select-none`}
@@ -228,20 +220,19 @@ export function OWWindow({
 
       <AutoTA value={text} onChange={handleChange} innerRef={textareaRef}
         placeholder="Write freely. No editing, no judgement. Anchor to the senses above…"
-        serif rows={presentation === "inline" ? 8 : 9}
-        textClass={presentation === "inline" ? "text-xs" : "text-sm"}
+        serif rows={9} textClass="text-sm"
         dimText={active} />
 
       {text.trim() && !scanResult && (
         <button onClick={() => setScanResult(scanText(text))}
-          className={`self-start text-[12px] px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors ${presentation === "inline" ? "mt-3" : ""}`}
+          className="self-start text-[12px] px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
           style={{ fontFamily: MONO }}>
           Scan for senses
         </button>
       )}
 
       {scanResult && (
-        <div className={presentation === "inline" ? "mt-4" : ""}>
+        <div>
           <div className="flex items-center justify-between mb-2">
             <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground" style={{ fontFamily: MONO }}>Sense scan</span>
             <button onClick={() => setScanResult(null)} className="text-muted-foreground hover:text-foreground transition-colors"><X size={12} /></button>
@@ -279,10 +270,6 @@ export function OWWindow({
       )}
     </>
   );
-
-  if (presentation === "inline") {
-    return <div className="px-4 pt-3 pb-4">{body}</div>;
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">

@@ -15,6 +15,7 @@ import { FinalSectionView } from "../components/final/FinalSectionView";
 import { LyricBlock } from "../components/lyrics/LyricBlock";
 import { MobileLyricTools } from "../components/lyrics/MobileLyricTools";
 import { ObjectWritingSection } from "../components/ow/ObjectWritingSection";
+import { OWWindow } from "../components/ow/OWWindow";
 import { StandaloneOWWindow } from "../components/ow/StandaloneOWWindow";
 import { ProjectsSidebar } from "../components/sidebar/ProjectsSidebar";
 import { InspirationPanel } from "../components/tools/InspirationPanel";
@@ -54,6 +55,10 @@ export default function App() {
   const [sectionCollapsed, setSectionCollapsed] = useState<Record<string, boolean>>({});
   const [showGlobalOW, setShowGlobalOW]         = useState(false);
   const [owRefreshKey, setOwRefreshKey]         = useState(0);
+  // The in-song writing currently open in a window, if any. `committed` says
+  // whether it has made it into song.objectWritings yet (see openOW below).
+  const [owWindow, setOwWindow] = useState<{ entry: OWEntry; timer: number | null; committed: boolean } | null>(null);
+  const owWindowRef = useRef<typeof owWindow>(null);
   const autoSaveTimer  = useRef<ReturnType<typeof setTimeout>>();
   const forceSaveTimer = useRef<ReturnType<typeof setInterval>>();
   const pendingRef     = useRef(false);
@@ -327,12 +332,43 @@ export default function App() {
     });
   };
 
-  const handleObjectWrite = useCallback((word: string) => {
-    setSong(s => ({
-      ...s,
-      objectWritings: [...(s.objectWritings ?? []), { id: uid(), text: "", seedWord: word }],
-    }));
-    setTab("notes");
+  // A writing opened from inside the song. While it is empty it lives only
+  // here, as a draft — it is appended to song.objectWritings by the keystroke
+  // that gives it text, so opening a window and closing it again leaves the
+  // song (and its updated_at) untouched.
+  const openOW = useCallback((entry: OWEntry, timer: number | null, committed: boolean) => {
+    owWindowRef.current = { entry, timer, committed };
+    setOwWindow(owWindowRef.current);
+  }, []);
+
+  const newObjectWriting = useCallback((seedWord?: string, timer: number = TIMER_OPTS[3]) =>
+    openOW({ id: uid(), text: "", seedWord }, timer, false), [openOW]);
+
+  // From a selected word — the Lyrics "Object Write [word]" button and the
+  // thesaurus. Short timer: the word is already chosen, so the writing starts.
+  const handleObjectWrite = useCallback((word: string) =>
+    newObjectWriting(word, TIMER_OPTS[1]), [newObjectWriting]);
+
+  const changeOW = useCallback((text: string, seedWord?: string) => {
+    const w = owWindowRef.current;
+    if (!w) return;
+    const entry = { ...w.entry, text, seedWord };
+    const commit = !w.committed && !!text.trim();
+    const next = { ...w, entry, committed: w.committed || commit };
+    owWindowRef.current = next;   // set eagerly so the next keystroke sees it
+    setOwWindow(next);
+    if (commit) setSong(p => ({ ...p, objectWritings: [...(p.objectWritings ?? []), entry] }));
+    else if (w.committed) setSong(p => ({ ...p, objectWritings: (p.objectWritings ?? []).map(e => e.id === entry.id ? { ...e, text, seedWord } : e) }));
+  }, []);
+
+  // Done / X — put the writing away. A committed entry the user emptied out
+  // again has nothing left to be, so it leaves the song with the window.
+  const closeOW = useCallback(() => {
+    const w = owWindowRef.current;
+    if (w?.committed && !w.entry.text.trim())
+      setSong(p => ({ ...p, objectWritings: (p.objectWritings ?? []).filter(e => e.id !== w.entry.id) }));
+    owWindowRef.current = null;
+    setOwWindow(null);
   }, []);
 
   const addVerseFromFill = (lyrics: string) => {
@@ -422,6 +458,20 @@ export default function App() {
   }, []);
 
   const toggleSidebar = () => setShowSidebar(s => !s);
+
+  // Everything the songwriter has written here — the pool the "Detail" button
+  // pulls a word from. Needed outside the Create tab now that a writing can be
+  // opened from the Lyrics tab too.
+  const allSongText = useMemo(() => {
+    const s = song.story ?? { beginning: "", middle: "", end: "" };
+    return [song.generalNotes, song.bigIdea, s.beginning, s.middle, s.end,
+      ...song.sections.map(sec => sec.lyrics)].join(" ");
+  }, [song.generalNotes, song.bigIdea, song.story, song.sections]);
+
+  const saveOWToNotebook = useCallback((title: string, text: string) => {
+    const nb: NbEntry = { id: uid(), title, text, savedAt: new Date().toISOString() };
+    setSong(p => ({ ...p, notebookSections: [...(p.notebookSections ?? []), nb] }));
+  }, []);
 
   // Analysis
   const allChords = song.sections.flatMap(s => s.chordBars).filter(b => b.trim() && !isEditorialBar(b));
@@ -849,11 +899,6 @@ export default function App() {
         {/* ── Notes ── */}
         {tab === "notes" && (() => {
           const s = song.story ?? { beginning: "", middle: "", end: "" };
-          const allSongText = [
-            song.generalNotes, song.bigIdea,
-            s.beginning, s.middle, s.end,
-            ...song.sections.map(sec => sec.lyrics),
-          ].join(" ");
           return (
             <div className="flex flex-col gap-4">
               {/* 1. Story + Big Idea */}
@@ -888,12 +933,11 @@ export default function App() {
               {/* 5. Object Writing */}
               <ObjectWritingSection
                 entries={song.objectWritings ?? []}
-                allSongText={allSongText}
-                onUpdate={entries => updateSong({ objectWritings: entries })}
-                onSaveToNotebook={(title, text) => {
-                  const nb: NbEntry = { id: uid(), title, text, savedAt: new Date().toISOString() };
-                  updateSong({ notebookSections: [...(song.notebookSections ?? []), nb] });
+                onOpen={id => {
+                  const entry = (song.objectWritings ?? []).find(e => e.id === id);
+                  if (entry) openOW(entry, null, true);
                 }}
+                onNew={() => newObjectWriting()}
                 isMobile={isMobile} />
             </div>
           );
@@ -926,6 +970,19 @@ export default function App() {
 
       {/* Modals */}
       {authModal && <AuthModal onClose={() => setAuthModal(false)} />}
+      {owWindow && (
+        <OWWindow
+          key={owWindow.entry.id}   /* a different writing is a fresh window: timer state must not carry over */
+          text={owWindow.entry.text}
+          seedWord={owWindow.entry.seedWord}
+          onChange={changeOW}
+          onClose={closeOW}
+          timerStart={owWindow.timer}
+          onDrillDown={(word: string) => newObjectWriting(word, TIMER_OPTS[1])}
+          onSaveToNotebook={saveOWToNotebook}
+          allSongText={allSongText}
+          isMobile={isMobile} />
+      )}
       {showGlobalOW && (
         <StandaloneOWWindow
           timerStart={TIMER_OPTS[3]}
