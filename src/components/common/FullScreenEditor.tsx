@@ -57,15 +57,22 @@ export function FullScreenEditor({
   // word was for. A caret that stops moving inside a word raises nothing, so
   // that is the trigger — and it only ever *offers*. Nothing is looked up, and
   // nothing moves under the writer, until they tap the offer.
+  //
+  // Only a caret that arrived by tapping (or arrow-keying) is worth answering.
+  // One that arrived by typing is composition — the caret is just sitting where
+  // the last keystroke left it, and a pause there means the writer is thinking,
+  // not asking. So the timer only ever arms on a pointer/touch move or an arrow
+  // key; typing withdraws any standing offer but never starts a new one.
   const restRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const offerRef = useRef(onWordOffer);
   offerRef.current = onWordOffer;
 
-  const noteCaret = useCallback(() => {
+  const noteCaret = useCallback((arm: boolean) => {
     if (restRef.current) clearTimeout(restRef.current);
     // Any movement withdraws the standing offer first — an offer that outlived
     // the caret that made it would name a word the writer has already left.
     offerRef.current?.(null);
+    if (!arm) return;
     const ta = taRef.current;
     if (!ta) return;
     const { selectionStart: start, selectionEnd: end, value } = ta;
@@ -75,6 +82,11 @@ export function FullScreenEditor({
       offerRef.current?.(wordAtCaret(value, start));
     }, CARET_REST_MS);
   }, []);
+
+  const onCaretKeyUp = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const isArrow = e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown";
+    noteCaret(isArrow);
+  }, [noteCaret]);
 
   useEffect(() => () => {
     if (restRef.current) clearTimeout(restRef.current);
@@ -108,8 +120,9 @@ export function FullScreenEditor({
     ta.setSelectionRange(ta.value.length, ta.value.length);
     // Explicitly, rather than trusting the focus to produce an onSelect: a
     // timer still running from the previous section holds that section's text,
-    // and would offer a word from a verse you have already left.
-    noteCaret();
+    // and would offer a word from a verse you have already left. Arriving at a
+    // new field is neither a tap nor an arrow key, so this only withdraws.
+    noteCaret(false);
   }, [index, noteCaret]);
 
   useEffect(() => {
@@ -139,18 +152,18 @@ export function FullScreenEditor({
       <textarea
         ref={taRef}
         value={field.value}
-        onChange={e => { onChange(field.id, e.target.value); noteCaret(); }}
+        onChange={e => { onChange(field.id, e.target.value); noteCaret(false); }}
         placeholder={field.placeholder}
         className="flex-1 min-h-0 w-full bg-transparent px-4 py-4 text-foreground placeholder:text-muted-foreground/35 focus:outline-none resize-none leading-[1.85]"
         /* 16px exactly: below this iOS zooms the viewport on focus, which is
            what put the tools off screen in the first place. */
         style={{ fontFamily: field.serif ? SERIF : MONO, fontSize: 16 }}
-        /* onSelect covers every way the caret moves that React reports — taps,
-           arrow keys, typing — and onKeyUp/onClick are belt and braces for the
-           cases where a caret move leaves the selection shallow-equal. */
-        onSelect={noteCaret}
-        onKeyUp={noteCaret}
-        onClick={noteCaret} />
+        /* Arming is conditional on how the caret got here — see noteCaret above
+           — so each source of movement reports itself instead of sharing one
+           handler: a tap arms unconditionally, a keyup arms only for arrow keys,
+           and typing (onChange) never arms. */
+        onKeyUp={onCaretKeyUp}
+        onClick={() => noteCaret(true)} />
 
       {/* Navigation, above the keyboard because the overlay ends where the
           keyboard begins. The buttons say where they go rather than which

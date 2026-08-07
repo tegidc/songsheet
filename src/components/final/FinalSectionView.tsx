@@ -181,7 +181,14 @@ export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
       )}
 
       <div style={{ fontFamily: MONO, fontSize: FS }}>
-        {lines.map((line, li) => (
+        {lines.map((line, li) => {
+          // Mobile forces the lyric-line input to 16px (theme.css's zoom-prevention
+          // floor) while this chord row still positions with `ch` units at the
+          // ambient 12px (FS). Matching the row's font-size to the input's while
+          // that line is being edited keeps chord-over-letter alignment true —
+          // otherwise the two disagree on how wide a `ch` is and chords drift.
+          const chordFS = isMobile && editLine === li ? 16 : FS;
+          return (
           <div key={li} className="mb-2">
             <div
               className={`relative select-none ${isMobile ? "cursor-default" : "cursor-crosshair"}`}
@@ -190,7 +197,7 @@ export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
               onTouchEnd={isMobile ? e => handleRowTap(e, li) : undefined}>
               {lineChords(li).map(cp => (
                 <span key={cp.id}
-                  style={{ position: "absolute", left: `${cp.charIdx}ch`, fontFamily: MONO, fontSize: FS, top: -2, whiteSpace: "nowrap" }}
+                  style={{ position: "absolute", left: `${cp.charIdx}ch`, fontFamily: MONO, fontSize: chordFS, top: -2, whiteSpace: "nowrap" }}
                   className={`cursor-pointer transition-colors px-1 py-1 rounded ${selId === cp.id ? "text-foreground bg-accent/20" : "text-accent hover:bg-accent/10"}`}
                   onClick={e => { e.stopPropagation(); setSelId(cp.id); setEditId(null); }}
                   onDoubleClick={isMobile ? undefined : e => { e.stopPropagation(); setSelId(cp.id); setEditId(cp.id); }}>
@@ -200,7 +207,7 @@ export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
                       onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setEditId(null); }}
                       autoFocus
                       className="bg-transparent focus:outline-none border-b border-accent text-foreground"
-                      style={{ width: `${Math.max(cp.chord.length + 1, 3)}ch`, fontFamily: MONO, fontSize: FS }} />
+                      style={{ width: `${Math.max(cp.chord.length + 1, 3)}ch`, fontFamily: MONO, fontSize: chordFS }} />
                   ) : cp.chord}
                 </span>
               ))}
@@ -224,7 +231,8 @@ export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Mobile: chord placement drawer */}
