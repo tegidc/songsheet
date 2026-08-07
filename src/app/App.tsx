@@ -275,9 +275,26 @@ export default function App() {
       suppressNextAutosaveRef.current = false;
       return;
     }
-    const hasMeaningful = song.title.trim() ||
+    // Once a cloud row exists it has to track the song, full stop — otherwise
+    // deleting the last piece of content of some kind (the last fretboard
+    // chord, the last lyric line) makes the song look pristine again and the
+    // deletion is silently never saved. The "does this look like a fresh,
+    // still-blank song" question below only matters before that row exists,
+    // to decide whether an edit should mint one. See `isPristineSong` in
+    // `sections.ts` for the sibling check this mirrors — kept separate
+    // because that one deliberately counts imported writings and this one
+    // deliberately doesn't (an import alone shouldn't mint a project).
+    const hasMeaningful = currentProjectIdRef.current !== null ||
+      song.title.trim() ||
+      (song.artist ?? "").trim() ||
+      (song.generalNotes ?? "").trim() ||
+      (song.bigIdea ?? "").trim() ||
+      (song.productionNotes ?? "").trim() ||
+      Object.values(song.story ?? {}).some(v => (v ?? "").trim()) ||
       song.sections.some(s => (s.lyrics ?? "").trim() || (s.chordBars ?? []).some(b => b.trim())) ||
       (song.objectWritings ?? []).some(e => !e.imported && e.text.trim()) ||
+      (song.notebookSections ?? []).length > 0 ||
+      (song.audioNotes ?? []).length > 0 ||
       (song.fretboardChords ?? []).length > 0;
     if (!hasMeaningful) return;
     pendingRef.current = true;
