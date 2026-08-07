@@ -37,7 +37,7 @@ import type { IdeaResult } from "../lib/theory/ideas";
 import { generateBridgeIdea, generateIdea } from "../lib/theory/ideas";
 import { detectKey, formatDetectedKey } from "../lib/theory/key";
 import { distributeChords, sortCP, syncBarsToPositions } from "../lib/theory/layout";
-import { EMPTY_SONG, makeEmptySong, makeSection, normalizeSection, renumberSections } from "../sections";
+import { EMPTY_SONG, isPristineSong, makeEmptySong, makeSection, normalizeSection, renumberSections } from "../sections";
 import type { NbEntry, OWEntry, Section, SectionType, Song, Tab } from "../types";
 
 export default function App() {
@@ -125,7 +125,17 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signOut = async () => { await supabase.auth.signOut(); currentProjectPrefixRef.current = null; setCurrentProjectId(null); setShowSidebar(false); };
+  // Signing out clears the sheet as well as the session. Leaving the previous
+  // account's song on screen is wrong on its own, and it would also block the
+  // auto-open above from firing if someone signed back in without reloading.
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    currentProjectPrefixRef.current = null;
+    suppressNextAutosaveRef.current = true;
+    setSong(makeEmptySong());
+    setCurrentProjectId(null);
+    setShowSidebar(false);
+  };
 
   // Mirror writings composed inside this song ("linked" entries) into standalone_ow,
   // so they stop being invisible to the cloud. Runs alongside the song's own autosave —
@@ -518,7 +528,8 @@ export default function App() {
     setTab(t);
   };
 
-  const loadProject = (id: string, loadedSong: Song, name: string, createdAt?: string | null) => {
+  const loadProject = (id: string, loadedSong: Song, name: string, createdAt?: string | null,
+                       opts: { auto?: boolean } = {}) => {
     // created_at is the song's genuine start date; the name is only consulted
     // for rows that somehow have no usable one.
     currentProjectPrefixRef.current =
@@ -543,8 +554,10 @@ export default function App() {
     };
     suppressNextAutosaveRef.current = true;
     setSong(merged); setCurrentProjectId(id); setTab("lyrics");
-    // On desktop keep the sidebar pinned open; on mobile close the overlay after picking.
-    setShowSidebar(!isMobile);
+    // On desktop keep the sidebar pinned open; on mobile close the overlay after
+    // picking. Skipped when the song opened itself on sign-in — the user didn't
+    // ask for the sidebar, so its state is left as it was.
+    if (!opts.auto) setShowSidebar(!isMobile);
   };
 
   const newSong = () => {
@@ -552,6 +565,44 @@ export default function App() {
     suppressNextAutosaveRef.current = true;
     setSong(makeEmptySong()); setCurrentProjectId(null);
   };
+
+  // Signing in — or arriving with a session already stored — lands you back in
+  // the song you were last working on, rather than on a blank sheet you have to
+  // navigate away from.
+  //
+  // Once per sign-in, not once per `user` object: `onAuthStateChange` also fires
+  // on token refresh, and re-running this would yank a song out from under
+  // someone mid-edit. The ref re-arms on sign-out so signing back in works.
+  //
+  // "Last worked on" is `updated_at` desc, the same order the sidebar shows,
+  // minus archived songs — archiving one is a statement that you're done with
+  // it, so it shouldn't be what greets you. Rows predating the status column
+  // have `status` null and are treated as working.
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (!user) { autoOpenedRef.current = false; return; }
+    if (autoOpenedRef.current) return;
+    autoOpenedRef.current = true;
+
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.from("projects")
+        .select("id, data, name, created_at")
+        .or("status.is.null,status.neq.archived")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled || error || !data) return;
+      // The fetch is in flight while the app is already usable, so re-check
+      // rather than assume: a song opened by hand, or a blank sheet written
+      // into, must not be replaced by this.
+      if (currentProjectIdRef.current || !isPristineSong(songRef.current)) return;
+      loadProject(data.id, data.data as Song, data.name as string,
+        data.created_at as string | null, { auto: true });
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!user]);
 
   const createSongFromOW = useCallback((seedWord: string, body: string) => {
     currentProjectPrefixRef.current = null;

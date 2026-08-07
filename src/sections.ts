@@ -126,3 +126,25 @@ export const makeEmptySong = (): Song => ({
   audioNotes: [],
 });
 export const EMPTY_SONG = makeEmptySong();
+
+/**
+ * Nothing has been written into this sheet yet — safe to replace wholesale.
+ *
+ * Deliberately broader than the autosave trigger's "is there anything worth
+ * saving" test in `App.tsx`, which ignores imported writings on purpose (an
+ * import alone shouldn't mint a project). Here the question is the opposite —
+ * "could replacing this lose something the user did?" — so an imported
+ * writing, a notebook fragment or a voice note all count.
+ */
+export function isPristineSong(s: Song): boolean {
+  return !s.title.trim()
+    && !(s.artist ?? "").trim()
+    && !(s.generalNotes ?? "").trim()
+    && !(s.bigIdea ?? "").trim()
+    && !(s.productionNotes ?? "").trim()
+    && !Object.values(s.story ?? {}).some(v => (v ?? "").trim())
+    && !s.sections.some(x => (x.lyrics ?? "").trim() || (x.chordBars ?? []).some(b => b.trim()))
+    && (s.objectWritings ?? []).length === 0
+    && (s.notebookSections ?? []).length === 0
+    && (s.audioNotes ?? []).length === 0;
+}

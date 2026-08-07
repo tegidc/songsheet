@@ -308,6 +308,31 @@ random id generator used everywhere an `id` field is needed),
   (`detectRhymeScheme`/`findRhymingWords`/`buildFill`, removed as dead
   code — that module's fill-in-the-blank scaffolding has no live caller).
 
+### Opening on the last song
+
+Signing in — or arriving with a stored session — loads the most recently
+worked song rather than a blank sheet (`App.tsx`, the `autoOpenedRef`
+effect). `updated_at` desc, the same order the sidebar shows, excluding
+`archived` (archiving is a statement you're done with it; rows predating the
+status column have `status` null and count as working). It reuses
+`loadProject` with `{ auto: true }`, which skips only the sidebar side
+effect — the user didn't ask for the sidebar, so its state is left alone.
+
+Two guards make it safe. It fires **once per sign-in**, not once per `user`
+object, because `onAuthStateChange` also fires on token refresh and
+re-running it would replace a song mid-edit. And because the fetch is in
+flight while the app is already usable, it re-checks `currentProjectIdRef`
+and `isPristineSong(songRef.current)` before loading — a song opened by hand
+or a blank sheet already written into is never clobbered. `loadProject`
+already sets `suppressNextAutosaveRef`, so the auto-open keeps the zero-write
+invariant: verified live, a song opened this way and left alone for 78s
+(past both the 2s debounce and the 30s force-save) had an unchanged
+`updated_at`.
+
+`signOut` now blanks the song as well as the session — leaving the previous
+account's song on screen is wrong on its own, and it would also stop the
+auto-open firing for someone signing back in without a reload.
+
 ### `src/app/App.tsx`
 Top-level state (song, tab, auth, sidebar, autosave, undo state for chord
 ideas/bridge ideas), the autosave effect (debounced + periodic forced save
