@@ -111,7 +111,19 @@ to branch on mobile layout receives it as a prop from its parent
 `CollapsibleSection`, `NotebookSection`, `ProductionSection`,
 `StoryAndBigIdea`, `ObjectWritingBox`, `ObjectWritingSection`, `LyricBlock`,
 `VoiceNotesSection`, etc. all take it). Some components (`MobileChordSection`,
-`MobileLyricTools`) are entirely separate mobile-only implementations
-rather than a single component branching internally — the split happens at
-the call site in `App.tsx`/parent components, not inside a shared
-component via conditional rendering everywhere.
+`InspirationStrip`, `FullScreenEditor`) are entirely separate mobile-only
+implementations rather than a single component branching internally — the
+split happens at the call site in `App.tsx`/parent components, not inside a
+shared component via conditional rendering everywhere.
+
+Two mobile sizes are not free choices:
+
+- **16px is the floor for anything a phone will focus.** Below it iOS Safari
+  zooms the visual viewport on focus, which carries every `position: fixed`
+  element off screen. The full-screen editor's textarea is exactly 16px for
+  this reason, and any new full-width writing surface should be too. The
+  small type elsewhere is fine precisely because those boxes are `readOnly`
+  on mobile and never take focus.
+- **`100vh` is wrong on iOS** — it is the height as though no keyboard
+  existed. Anything that must sit above the keyboard is sized from
+  `window.visualViewport` instead (`FullScreenEditor`).

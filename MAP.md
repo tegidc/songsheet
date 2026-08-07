@@ -213,8 +213,8 @@ All shared interfaces/types: `SectionType`, `Tab`, `CP`, `Section`,
   well as `window.getSelection()`, since a selection inside a textarea is
   invisible to the latter in some browsers and most of this app's text is in
   textareas. Multi-word selections return null rather than guessing. Passed
-  `enabled: !isMobile` — on touch, selecting text raises the OS copy/paste
-  bar and needs a different trigger (Phase 5).
+  `enabled: !isMobile` — see "The selected-word variant on touch" under
+  Known debt for what was investigated in Phase 5 and why it still stands.
 
 ### `src/lib/theory/`
 - `chords.ts` — `parseChord`, `normNote`, `getDiatonic`, `inKey`,
@@ -267,7 +267,9 @@ random id generator used everywhere an `id` field is needed),
 
 ### `src/components/`
 - `common/` — `FL` (small-caps mono field label), `AutoTA` (auto-growing
-  textarea with word-select callback), `CollapsibleSection`, `ConfirmDialog`
+  textarea with word-select callback; its `onTapToEdit` makes the box
+  readOnly and hands the tap to the full-screen editor — see "Writing full
+  screen" below), `FullScreenEditor`, `CollapsibleSection`, `ConfirmDialog`
   (a confirm carrying a `detail` line — what is about to be replaced or
   deleted — and a `note` about what the negative answer does; with `onDeny`
   it becomes a three-way Yes/No/dismiss, where the negative button *acts*
@@ -295,15 +297,19 @@ random id generator used everywhere an `id` field is needed),
   seeded on 2).
 - `create/` — `StoryAndBigIdea`, `NotebookSection`, `ProductionSection`,
   `VoiceNotesSection` (records/uploads to the `audio-notes` bucket).
-- `lyrics/` — `LyricBlock` (per-section lyrics editor), `MobileLyricTools`
-  (bottom-sheet Inspire/Rhyme/Synonyms switcher for mobile).
+- `lyrics/` — `LyricBlock` (per-section lyrics editor). `MobileLyricTools`
+  is gone (Phase 5): its only real content was the inspiration strip, now
+  `tools/InspirationStrip`, and its `onAddVerse`/`onObjectWrite` props were
+  already dead.
 - `chords/` — `BarCell`, `ChordRowGrid`, `ChordChip`, `ChordPickerSheet`,
   `MobileChordSection`, and `AnalyseChordsPanel` (chord-idea generator UI).
   **Divergence**: `AnalyseChordsPanel` wasn't in the original target list;
   it's the render layer for `lib/theory/ideas.ts` and fits naturally here.
 - `final/FinalSectionView.tsx` — the read-only "Final" tab layout combining
   lyrics + chords for one section.
-- `tools/` — `InspirationPanel`, `ThesaurusPanel`, and `RhymePanel`.
+- `tools/` — `InspirationPanel`, `ThesaurusPanel`, `RhymePanel`, and
+  `InspirationStrip` (the mobile one-line form of the first three; see
+  "The inspiration strip" below).
   **Divergence**: `RhymePanel` wasn't in the original target list (which
   only named two of the three tool panels); added alongside its siblings.
   **Confirmed** live in the running app (Lyrics → Rhyme & Metre) —
@@ -311,6 +317,57 @@ random id generator used everywhere an `id` field is needed),
   Datamuse API (`rel_rhy`/`rel_nry`); it never used `lib/text/rhyme.ts`
   (`detectRhymeScheme`/`findRhymingWords`/`buildFill`, removed as dead
   code — that module's fill-in-the-blank scaffolding has no live caller).
+
+### Writing full screen (mobile, Phase 5)
+
+Tapping a text box on a phone used to focus it in place. iOS zooms the
+*visual* viewport to any field under 16px on focus, and everything fixed to
+the layout viewport — the inspiration strip included — travels off screen
+with that zoom, so the tools could only be reached by scrolling away from
+the line being written. The box therefore stops being a box: on mobile it
+opens `common/FullScreenEditor`, which owns the whole screen.
+
+Three details are load-bearing, not decoration:
+
+- **Sized from `visualViewport`, not `100vh`.** On iOS `100vh` is the height
+  as though no keyboard existed, so a footer pinned to it sits *behind* the
+  keyboard. The overlay reads `visualViewport.height`/`offsetTop` and ends
+  where the keyboard begins, which is what puts Prev/Next/Done above it.
+- **The textarea is exactly 16px.** Below that Safari zooms on focus — the
+  zoom being the original bug, the fix is not to trip it.
+- **The strip and the footer are siblings of the textarea, not ancestors.**
+  Only the textarea scrolls, so neither can scroll away.
+
+The tapped box is `readOnly` on mobile (`AutoTA`'s `onTapToEdit`, and the
+same two attributes inline on the Create-page boxes). That is what keeps the
+OS keyboard down between the tap and the overlay appearing — a focusable
+textarea would raise it, and zoom, first.
+
+`App` holds `fsEdit: { kind: "lyrics" | "create"; index }`. `kind` picks
+which list Prev/Next steps through: the song's sections, or the six
+Create-page boxes (`CREATE_BOXES` — Big Idea, Beginning, Middle, End,
+Production, Notebook, in on-screen order). `changeFsField` writes back by
+id. Nothing else in the app opens this way — not the chord grid, not the
+object-writing window, which is its own modal with its own tools.
+
+### The inspiration strip (mobile, Phase 5)
+
+`tools/InspirationStrip` is the mobile one-line form of the Inspiration /
+Rhyme / Thesaurus panels. It is mounted twice: fixed under the header on the
+Lyrics tab, and pinned inside the full-screen editor. `App` measures the
+header (`headerH`, a `ResizeObserver` on it) rather than assuming a height —
+the header is no longer fixed-height now it carries the title.
+
+- **One whole fragment, never a trimmed one.** It used to show up to three
+  cut to twelve characters each ("and complic…"). It now picks the first
+  fragment that fits (≤34 chars), falling back to the shortest available,
+  and wraps rather than truncating.
+- **The mode control is a word, not a glyph.** It was `✦`, which is the
+  object-writing glyph — one sparkle meaning two things. `INSPIRE` /
+  `RHYME` / `SYNONYM` in the app's small-caps mono says which kind of
+  suggestion is on screen, which no glyph can.
+- **Inspiration first, then refresh**, so refresh reads as acting on
+  whatever the control beside it names.
 
 ### Opening on the last song
 
@@ -441,6 +498,24 @@ code.
   unreachable. Phase 4 replaced the cloud with a chronological list keyed by
   row `id` (newest first, uncapped, scrolling), which removes the
   possibility rather than patching the lookup.
+- **The selected-word variant on touch — investigated, still off (Phase 5).**
+  `useSelectedWord(!isMobile)` means the floating button's `✦ word` form
+  never appears on a phone; the plain `✦` does. Three routes were considered.
+  *A long-press trigger* is not available: on iOS long-press on text **is**
+  the selection gesture, so overloading it means suppressing selection
+  itself. *Coexisting with the OS bar* is physically fine — the callout
+  floats by the selection, the button is bottom-right — but the button
+  cannot survive the tap: tapping it collapses the selection, that fires
+  `selectionchange`, `useSelectedWord` clears to null, and the button starts
+  an *empty* writing instead of a seeded one. (Desktop only escapes this
+  because `onMouseDown` is prevented, which has no touch equivalent that
+  still yields a click.) Making it work therefore means holding the last
+  word for a grace period after the selection collapses — real, but it
+  invents a stale-word window on top of the one already listed below.
+  *Dropping the variant on mobile* is the current behaviour and costs
+  nothing, because the Lyrics tab's "Object Write [word]" button is driven
+  by the textarea's own `onSelect` (not `useSelectedWord`) and works on
+  touch. Left as is.
 - **`FloatingOWButton` can hold a stale word.** `useSelectedWord` re-reads
   on `selectionchange`, but unmounting the element a selection sits in
   (switching tabs, collapsing a section) doesn't always fire that event, so
