@@ -350,6 +350,46 @@ Production, Notebook, in on-screen order). `changeFsField` writes back by
 id. Nothing else in the app opens this way — not the chord grid, not the
 object-writing window, which is its own modal with its own tools.
 
+### How a word gets picked on a phone (Phase 6)
+
+Selection cannot do it. On iOS, selecting text **is** how you raise the
+Cut/Copy/Paste/Replace callout, and that callout floats over the inspiration
+strip — the very thing the selected word was for. Worse, it never reached the
+strip anyway: React's `onSelect` is a synthesized event that only dispatches
+for the *focused* element (its `SelectEventPlugin` records the element on
+`focusin` and drops any `selectionchange` that doesn't match), and on mobile
+the lyric boxes are deliberately `readOnly` and never focus. Selecting a word
+in one produced a `selectionchange` with `document.activeElement === <body>`,
+which React discarded. Verified live: with focus, the lookup ran; without it,
+nothing.
+
+So the caret picks the word instead, in two beats:
+
+- **Rest offers.** `FullScreenEditor` watches the caret (`onSelect` plus
+  `onKeyUp`/`onClick`/`onChange` as belt and braces) and starts a
+  `CARET_REST_MS` (2s) timer on every move. When it expires with the caret
+  still collapsed inside a word, `wordAtCaret` (`src/lib/text/caretWord.ts`)
+  names it and `onWordOffer` hands it up. Any movement withdraws the standing
+  offer first, so an offer never outlives the caret that made it. There is no
+  selection at any point, so the OS callout never appears.
+- **Tap commits.** The offer is drawn by `InspirationStrip` as a dashed,
+  dimmed chip reading *word* · LOOK UP, and it is the only thing on the
+  strip's line while it stands. Until it is tapped nothing has happened: no
+  lookup, no change to the active word, no mode change. Tapping calls
+  `onCommitWord` (App's `commitWordOffer`, which bumps `lyricSelection`) and
+  cycles the mode *off fragments only* — `mode === "inspire" ? cycleMode(m) : m`,
+  reusing the same `cycleMode` the mode button uses. Committing on Rhyme or
+  Synonym leaves it there.
+
+Two suppressions matter: an offer equal to the already-active word is never
+made (it would say nothing, and since committing doesn't move the caret the
+same word would otherwise be re-offered immediately), and the editor clears
+the offer on unmount so a closed editor can't leave one standing.
+
+Desktop is untouched — `AutoTA`'s `onWordSelect` still feeds `lyricSelection`
+from a real selection, because a mouse drag focuses the box and raises no
+callout.
+
 ### The inspiration strip (mobile, Phase 5)
 
 `tools/InspirationStrip` is the mobile one-line form of the Inspiration /

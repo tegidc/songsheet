@@ -47,9 +47,16 @@ function fitItems(items: string[], budget: number, max: number): string[] {
   return out;
 }
 
-export function InspirationStrip({ song, selectionWord, className = "" }: {
+export function InspirationStrip({ song, selectionWord, offerWord = null, onCommitWord, className = "" }: {
   song: Song;
   selectionWord: { word: string; seq: number } | null;
+  /**
+   * The word the caret is resting in, offered but not applied. Provisional on
+   * purpose: it is drawn as an offer, no lookup runs for it, and it vanishes
+   * the moment the caret moves. Tapping it is what makes it real.
+   */
+  offerWord?: string | null;
+  onCommitWord?: (w: string) => void;
   className?: string;
 }) {
   const [mode, setMode] = useState<MobileTool>("inspire");
@@ -122,12 +129,31 @@ export function InspirationStrip({ song, selectionWord, className = "" }: {
     }).catch(() => {}).finally(() => setSynLoading(false));
   }, [mode, selectionWord?.word]);
 
+  const cycleMode = (m: MobileTool) => MOBILE_MODES[(MOBILE_MODES.indexOf(m) + 1) % MOBILE_MODES.length];
+
   const nextMode = () => {
-    setMode(m => MOBILE_MODES[(MOBILE_MODES.indexOf(m) + 1) % MOBILE_MODES.length]);
+    setMode(cycleMode);
     setCycleIdx(0);
   };
 
   const word = selectionWord?.word;
+
+  // An offer for the word already in play would say nothing, so it isn't made.
+  // This is also what stops the offer springing back the instant it is taken:
+  // committing does not move the caret, so the same word would rest again.
+  const offer = offerWord && offerWord !== word ? offerWord : null;
+
+  // Taking the offer is the only thing that changes anything, and it changes
+  // both halves at once: the word becomes the active one, and the strip leaves
+  // fragments — asking for a word means a word tool is wanted. Reusing the same
+  // cycle the mode button uses is deliberate; there is no second path here,
+  // just a push off the one mode a committed word has nothing to say about.
+  const commitOffer = () => {
+    if (!offer) return;
+    onCommitWord?.(offer);
+    setMode(m => (m === "inspire" ? cycleMode(m) : m));
+    setCycleIdx(0);
+  };
 
   // One complete fragment: the first that fits the strip, else the shortest
   // there is. Never trimmed — a phrase cut mid-word is worse than a shorter one.
@@ -177,8 +203,23 @@ export function InspirationStrip({ song, selectionWord, className = "" }: {
       {/* The suggestion itself. Serif, because it is the songwriter's own
           words coming back to them — not a control. */}
       <div className={`flex-1 min-w-0 flex items-center gap-2 overflow-hidden transition-opacity duration-300 ${fading ? "opacity-0" : "opacity-100"}`}>
+        {/* An offer takes the strip's line while it stands. Dashed and dim so
+            it reads as not-yet-applied; the word in the writer's own serif
+            because it is their word, and the action named in the interface's
+            own mono because tapping is the interface's part. */}
+        {offer ? (
+          <button onClick={commitOffer}
+            className="min-w-0 flex items-center gap-2 px-2 py-1 rounded-sm border border-dashed border-accent/45 active:bg-accent/10 transition-colors">
+            <span className="min-w-0 truncate text-[13px] italic text-foreground/75" style={{ fontFamily: SERIF }}>
+              {offer}
+            </span>
+            <span className="shrink-0 text-[8px] uppercase tracking-[0.14em] text-muted-foreground/55" style={{ fontFamily: MONO }}>
+              look up
+            </span>
+          </button>
+        ) : <>
         {loading && hint("…")}
-        {!loading && noWord && hint("select a word above")}
+        {!loading && noWord && hint("rest the cursor in a word")}
 
         {!loading && !noWord && mode === "inspire" && (
           phrase
@@ -205,6 +246,7 @@ export function InspirationStrip({ song, selectionWord, className = "" }: {
                 </button>
               ))
         )}
+        </>}
       </div>
 
       {/* Inspiration first, then refresh — refresh acts on whatever this names. */}

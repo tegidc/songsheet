@@ -63,6 +63,14 @@ export default function App() {
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [autoSaveState, setAutoSaveState] = useState<"idle"|"saving"|"saved"|"error">("idle");
   const [lyricSelection,   setLyricSelection]   = useState<{ word: string; seq: number } | null>(null);
+  // The word the caret is resting in on mobile — offered by the strip, applied
+  // only if tapped. Deliberately separate from lyricSelection: an offer that
+  // wrote straight into the active word would be the thing this replaces.
+  const [wordOffer,        setWordOffer]        = useState<string | null>(null);
+  const commitWordOffer = (w: string) => {
+    setLyricSelection(prev => ({ word: w, seq: (prev?.seq ?? 0) + 1 }));
+    setWordOffer(null);
+  };
   const [sectionCollapsed, setSectionCollapsed] = useState<Record<string, boolean>>({});
   const [showGlobalOW, setShowGlobalOW]         = useState(false);
   const [owRefreshKey, setOwRefreshKey]         = useState(0);
@@ -1272,8 +1280,9 @@ export default function App() {
           onIndexChange={i => setFsEdit(f => (f ? { ...f, index: i } : f))}
           onChange={changeFsField}
           onClose={() => setFsEdit(null)}
-          onWordSelect={w => setLyricSelection(prev => ({ word: w, seq: (prev?.seq ?? 0) + 1 }))}
-          tools={<InspirationStrip song={song} selectionWord={lyricSelection} />} />
+          onWordOffer={setWordOffer}
+          tools={<InspirationStrip song={song} selectionWord={lyricSelection}
+            offerWord={wordOffer} onCommitWord={commitWordOffer} />} />
       )}
 
       {/* Capture a writing from anywhere, without leaving the tab you're on */}
