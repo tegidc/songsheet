@@ -34,7 +34,8 @@ import { applyCloudDeleteToEntries, deleteStandaloneOW, fetchOWRow, saveAsNew, u
 import { owLabel } from "../lib/text/owLabel";
 import { loadOWPool } from "../lib/text/owPool";
 import { useSelectedWord } from "../lib/useSelectedWord";
-import { buildChordSuggestions, parseChord } from "../lib/theory/chords";
+import type { ChordRow } from "../lib/theory/chords";
+import { buildChordSuggestions, cycleChordRow, parseChord } from "../lib/theory/chords";
 import type { IdeaResult } from "../lib/theory/ideas";
 import { generateBridgeIdea, generateIdea } from "../lib/theory/ideas";
 import { detectKey, formatDetectedKey, parseDeclaredKey } from "../lib/theory/key";
@@ -751,8 +752,18 @@ export default function App() {
     () => declaredKey ? { key: declaredKey.root, mode: declaredKey.mode } : liveDetected,
     [declaredKey, liveDetected]);
   const activeKeyName = activeKey ? formatDetectedKey(activeKey.key, activeKey.mode) : "";
-  const pickerSuggestions = useMemo(() => buildChordSuggestions(activeKey, allChords),
+  // Three of the selector's four rows share one slot and take turns in it.
+  // The choice is the app's, not each section's — every grid shows the same
+  // set, so cycling from one row does not leave the others disagreeing.
+  const [chordRow, setChordRow] = useState<ChordRow>("inKey");
+  const cycleRow = useCallback(() => setChordRow(cycleChordRow), []);
+  const builtSuggestions = useMemo(() => buildChordSuggestions(activeKey, allChords),
     [activeKey?.key, activeKey?.mode, allChords.join("|")]);
+  // The fretboard row is the song's own log, not anything derived from the key
+  const pickerSuggestions = useMemo(() => ({
+    ...builtSuggestions,
+    fretboard: (song.fretboardChords ?? []).map(c => ({ chord: c.name, label: "" })),
+  }), [builtSuggestions, song.fretboardChords]);
   const verseFirst  = song.sections.find(s => s.type === "verse")?.chordBars.find(b => b.trim());
   const chorusFirst = song.sections.find(s => s.type === "chorus")?.chordBars.find(b => b.trim());
   const sameFirst = !!verseFirst && !!chorusFirst && (() => {
@@ -1163,6 +1174,8 @@ export default function App() {
                   activeKey={activeKey}
                   warnFirst={!!sameFirst && (s.type === "verse" || s.type === "chorus")}
                   suggestions={pickerSuggestions}
+                  chordRow={chordRow}
+                  onCycleChordRow={cycleRow}
                   onCopyBars={() => setChordsClipboard([...s.chordBars])}
                   onPasteBars={chordsClipboard ? () => updateSection(s.id, { chordBars: [...chordsClipboard] }) : null}
                   onRepeatBars={() => {
@@ -1183,6 +1196,7 @@ export default function App() {
                   warnFirst={!!sameFirst && (s.type === "verse" || s.type === "chorus")}
                   nashville={nashville} songKey={activeKeyName}
                   suggestions={pickerSuggestions} showSuggest={showChordSuggest}
+                  chordRow={chordRow} onCycleChordRow={cycleRow}
                   onCopyBars={() => setChordsClipboard([...s.chordBars])}
                   onPasteBars={chordsClipboard ? () => updateSection(s.id, { chordBars: [...chordsClipboard] }) : null}
                   onRepeatBars={() => {

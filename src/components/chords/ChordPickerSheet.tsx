@@ -3,12 +3,13 @@ import { ChevronUp } from "lucide-react";
 import { Drawer, DrawerContent, DrawerTitle, DrawerDescription } from "../../app/components/ui/drawer";
 import { ChordChip } from "./ChordChip";
 import { MONO } from "../../data/constants";
-import type { ChordSuggestion } from "../../lib/theory/chords";
-import { inKey } from "../../lib/theory/chords";
+import type { ChordRow, ChordSuggestion, ChordSuggestionSets } from "../../lib/theory/chords";
+import { CHORD_ROW_HEADING } from "../../lib/theory/chords";
 
-export function ChordPickerSheet({ open, title, value, suggestions, onClose, onSet, onClear, onDelete, onStep, canPrev, canNext }: {
+export function ChordPickerSheet({ open, title, value, suggestions, chordRow, onCycleChordRow, onClose, onSet, onClear, onDelete, onStep, canPrev, canNext }: {
   open: boolean; title: string; value: string;
-  suggestions: { inKey: ChordSuggestion[]; used: ChordSuggestion[]; colour: ChordSuggestion[] };
+  suggestions: ChordSuggestionSets;
+  chordRow: ChordRow; onCycleChordRow: () => void;
   onClose: () => void;
   onSet: (chord: string, advance: boolean) => void;   // set current bar; advance to next when true
   onClear: () => void;
@@ -19,15 +20,12 @@ export function ChordPickerSheet({ open, title, value, suggestions, onClose, onS
   const [draft, setDraft] = useState(value);
   useEffect(() => { setDraft(value); }, [value, open]);
 
-  const Group = ({ heading, items }: { heading: string; items: ChordSuggestion[] }) =>
-    items.length ? (
-      <div className="mb-4">
-        <div className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground mb-2" style={{ fontFamily: MONO }}>{heading}</div>
-        <div className="flex flex-wrap gap-2">
-          {items.map(s => <ChordChip key={s.chord + s.label} chord={s.chord} label={s.label} onTap={() => onSet(s.chord, true)} />)}
-        </div>
-      </div>
-    ) : null;
+  const Chips = ({ items }: { items: ChordSuggestion[] }) => (
+    <div className="flex flex-wrap gap-2">
+      {items.map(s => <ChordChip key={s.chord + s.label} chord={s.chord} label={s.label} onTap={() => onSet(s.chord, true)} />)}
+    </div>
+  );
+  const HEADING = "text-[9px] uppercase tracking-[0.14em] text-muted-foreground mb-2";
 
   return (
     <Drawer open={open} onOpenChange={o => !o && onClose()}>
@@ -56,9 +54,26 @@ export function ChordPickerSheet({ open, title, value, suggestions, onClose, onS
               style={{ fontFamily: MONO }}>Set</button>
           </div>
 
-          <Group heading="In key" items={suggestions.inKey} />
-          <Group heading="Used so far" items={suggestions.used} />
-          <Group heading="More colour" items={suggestions.colour} />
+          {/* The rotating slot — the label is the control, same as on desktop */}
+          <div className="mb-4">
+            <button onClick={onCycleChordRow} className={`${HEADING} block active:text-foreground transition-colors`}
+              style={{ fontFamily: MONO }}>
+              {CHORD_ROW_HEADING[chordRow]} ›
+            </button>
+            {suggestions[chordRow].length
+              ? <Chips items={suggestions[chordRow]} />
+              : <span className="text-[11px] text-muted-foreground/45 italic" style={{ fontFamily: MONO }}>
+                  {chordRow === "fretboard" ? "Nothing added from the fretboard yet" : "Nothing here yet"}
+                </span>}
+          </div>
+
+          {/* USED stays where it is */}
+          {suggestions.used.length > 0 && (
+            <div className="mb-4">
+              <div className={HEADING} style={{ fontFamily: MONO }}>Used so far</div>
+              <Chips items={suggestions.used} />
+            </div>
+          )}
 
           <div className="flex items-center gap-2 pt-2 border-t border-border">
             <button onClick={onClear}

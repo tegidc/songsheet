@@ -67,6 +67,42 @@ export function degreeLabel(degIdx: number, q: "maj"|"min"|"dim"|"aug"): string 
 }
 export interface ChordSuggestion { chord: string; label: string }
 
+/**
+ * The four sets the chord selector offers. `fretboard` is not derived from the
+ * key — it is the song's own log of chords found on the neck — so it is
+ * composed by the caller rather than by `buildChordSuggestions` below.
+ */
+export interface ChordSuggestionSets {
+  inKey: ChordSuggestion[]; used: ChordSuggestion[];
+  colour: ChordSuggestion[]; fretboard: ChordSuggestion[];
+}
+
+/**
+ * Three of the four rows share one slot on screen and take turns in it; USED
+ * is always visible and is not part of the rotation.
+ */
+export type ChordRow = "inKey" | "colour" | "fretboard";
+export const CHORD_ROW_ORDER: ChordRow[] = ["inKey", "colour", "fretboard"];
+export const CHORD_ROW_HEADING: Record<ChordRow, string> = {
+  inKey: "In key", colour: "Colour", fretboard: "From fretboard",
+};
+/**
+ * A row of the keyboard each. The number row is In Key and the top letter row
+ * is Colour, both long-standing; From Fretboard takes the bottom letter row,
+ * which completes the shape geometrically and — unlike the home row — costs
+ * only two note letters rather than four, leaving A D F G free to type.
+ *
+ * All three stay bound whether or not their row is the one showing. Muscle
+ * memory should not depend on what is on screen.
+ */
+export const CHORD_ROW_KEYS: Record<ChordRow, string[]> = {
+  inKey:     ["1", "2", "3", "4", "5", "6", "7"],
+  colour:    ["q", "w", "e", "r", "t", "y", "u"],
+  fretboard: ["z", "x", "c", "v", "b", "n", "m"],
+};
+export const cycleChordRow = (r: ChordRow): ChordRow =>
+  CHORD_ROW_ORDER[(CHORD_ROW_ORDER.indexOf(r) + 1) % CHORD_ROW_ORDER.length];
+
 // Build categorised chord suggestions for the picker, given the key in force
 // (declared by the songwriter) and the chords already used in the song.
 export function buildChordSuggestions(

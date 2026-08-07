@@ -2,20 +2,21 @@ import { useState } from "react";
 import { Plus, Trash2, Copy, ChevronDown, ChevronUp, Repeat2, ClipboardPaste } from "lucide-react";
 import { ChordPickerSheet } from "./ChordPickerSheet";
 import { MONO, PHRASE_MARKER, ROW_BREAK, SCOL, isEditorialBar } from "../../data/constants";
-import type { ChordSuggestion } from "../../lib/theory/chords";
+import type { ChordRow, ChordSuggestionSets } from "../../lib/theory/chords";
 import { inKey } from "../../lib/theory/chords";
-import type { Section, Tab } from "../../types";
+import type { Section } from "../../types";
 
 export function MobileChordSection({ section, idx, total, onBarsChange, onShortLabelChange,
   onDuplicate, onDelete, onMove, onToggleNaming, namingStyle, activeKey, warnFirst,
-  onCopyBars, onPasteBars, onRepeatBars, suggestions }: {
+  onCopyBars, onPasteBars, onRepeatBars, suggestions, chordRow, onCycleChordRow }: {
   section: Section; idx: number; total: number;
   onBarsChange: (b: string[]) => void; onShortLabelChange: (v: string) => void;
   onDuplicate: () => void; onDelete: () => void; onMove: (dir: -1|1) => void;
   onToggleNaming: () => void; namingStyle: "number" | "letter";
   activeKey: { key: string; mode: "major"|"minor" } | null; warnFirst: boolean;
   onCopyBars: () => void; onPasteBars: (() => void) | null; onRepeatBars: () => void;
-  suggestions: { inKey: ChordSuggestion[]; used: ChordSuggestion[]; colour: ChordSuggestion[] };
+  suggestions: ChordSuggestionSets;
+  chordRow: ChordRow; onCycleChordRow: () => void;
 }) {
   const [showActions, setShowActions] = useState(false);
   const [sel, setSel] = useState<number | null>(null);
@@ -116,6 +117,8 @@ export function MobileChordSection({ section, idx, total, onBarsChange, onShortL
         title={`${section.shortLabel || section.label} · bar ${sel !== null ? bars.slice(0, sel + 1).filter(b => !isEditorialBar(b)).length : ""}`}
         value={sel !== null ? bars[sel] ?? "" : ""}
         suggestions={suggestions}
+        chordRow={chordRow}
+        onCycleChordRow={onCycleChordRow}
         onClose={() => setSel(null)}
         onSet={setSelected}
         onClear={() => { if (sel !== null) setBar(sel, ""); }}

@@ -2,13 +2,13 @@ import { useState, useRef } from "react";
 import { Plus, Trash2, Copy, ChevronDown, ChevronUp, Repeat2, ClipboardPaste } from "lucide-react";
 import { BarCell } from "./BarCell";
 import { CH, CW, MONO, PHRASE_MARKER, ROW_BREAK, SCOL, isEditorialBar } from "../../data/constants";
-import type { ChordSuggestion } from "../../lib/theory/chords";
-import { inKey } from "../../lib/theory/chords";
-import type { Section, Tab } from "../../types";
+import type { ChordRow, ChordSuggestion, ChordSuggestionSets } from "../../lib/theory/chords";
+import { CHORD_ROW_HEADING, CHORD_ROW_KEYS, inKey } from "../../lib/theory/chords";
+import type { Section } from "../../types";
 
 export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelChange,
   onDuplicate, onDelete, onMove, onToggleNaming, namingStyle, activeKey, warnFirst, nashville, songKey,
-  onCopyBars, onPasteBars, onRepeatBars, suggestions, showSuggest }: {
+  onCopyBars, onPasteBars, onRepeatBars, suggestions, showSuggest, chordRow, onCycleChordRow }: {
   section: Section; idx: number; total: number;
   onBarsChange: (b: string[]) => void; onShortLabelChange: (v: string) => void;
   onDuplicate: () => void; onDelete: () => void; onMove: (dir: -1|1) => void;
@@ -16,8 +16,9 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
   activeKey: { key: string; mode: "major"|"minor" } | null; warnFirst: boolean;
   nashville?: boolean; songKey?: string;
   onCopyBars: () => void; onPasteBars: (() => void) | null; onRepeatBars: () => void;
-  suggestions?: { inKey: ChordSuggestion[]; used: ChordSuggestion[]; colour: ChordSuggestion[] };
+  suggestions?: ChordSuggestionSets;
   showSuggest?: boolean;
+  chordRow: ChordRow; onCycleChordRow: () => void;
 }) {
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const [focusedBarIdx, setFocusedBarIdx] = useState<number | null>(null);
@@ -48,24 +49,18 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
     if (focusedBarIdx !== null) applyChordAt(focusedBarIdx, chord);
   };
 
-  // Keys for chord shortcut rows (mirrors a QWERTY keyboard layout)
-  const INKEY_KEYS  = ["1","2","3","4","5","6","7"];
-  const COLOUR_KEYS = ["q","w","e","r","t","y","u"];
-
   const kd = (i: number) => (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Chord suggestion shortcuts — only when panel is active and bar is empty or modifier held
+    // Chord shortcuts, while the selector is open. Every row stays bound
+    // whether or not it is the one on screen — which row is showing is a
+    // question about the screen, and the hands should not have to ask it.
     if (showSuggest && suggestions && !e.metaKey && !e.ctrlKey && !e.altKey) {
-      const kidx = INKEY_KEYS.indexOf(e.key);
-      if (kidx !== -1 && suggestions.inKey[kidx]) {
-        e.preventDefault();
-        applyChordAt(i, suggestions.inKey[kidx].chord);
-        return;
-      }
-      const cidx = COLOUR_KEYS.indexOf(e.key.toLowerCase());
-      if (cidx !== -1 && suggestions.colour[cidx]) {
-        e.preventDefault();
-        applyChordAt(i, suggestions.colour[cidx].chord);
-        return;
+      for (const row of ["inKey", "colour", "fretboard"] as const) {
+        const idx = CHORD_ROW_KEYS[row].indexOf(e.key.toLowerCase());
+        if (idx !== -1 && suggestions[row][idx]) {
+          e.preventDefault();
+          applyChordAt(i, suggestions[row][idx].chord);
+          return;
+        }
       }
     }
 
@@ -238,38 +233,51 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
               </p>
             )}
             {(() => {
-              const SuggestGroup = ({ heading, items, keyRow }: { heading: string; items: ChordSuggestion[]; keyRow?: string[] }) =>
-                items.length ? (
-                  <div className="flex items-start gap-2 mr-5 mb-1">
-                    <span className="text-[8px] uppercase tracking-[0.14em] text-muted-foreground shrink-0 mt-2 w-9 text-right leading-tight" style={{ fontFamily: MONO }}>{heading}</span>
-                    <div className="flex flex-wrap gap-1">
-                      {items.map((s, si) => (
-                        <button key={s.chord + s.label} onClick={() => onSuggestChord(s.chord)}
-                          className="relative flex flex-col items-center justify-center min-w-[42px] px-2 pt-3 pb-1 rounded border border-border bg-background hover:bg-muted hover:border-foreground/30 transition-colors"
-                          style={{ fontFamily: MONO }}>
-                          {keyRow?.[si] && (
-                            <span className="absolute top-0.5 right-1 text-[7px] text-muted-foreground/50 leading-none" style={{ fontFamily: MONO }}>{keyRow[si]}</span>
-                          )}
-                          <span className="text-[11px] text-foreground leading-tight">{s.chord}</span>
-                          {s.label && <span className="text-[7px] uppercase tracking-[0.1em] text-muted-foreground mt-0.5">{s.label}</span>}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null;
+              const Chords = ({ items, keyRow }: { items: ChordSuggestion[]; keyRow?: string[] }) => (
+                <div className="flex flex-wrap gap-1">
+                  {items.map((s, si) => (
+                    <button key={s.chord + s.label} onClick={() => onSuggestChord(s.chord)}
+                      className="relative flex flex-col items-center justify-center min-w-[42px] px-2 pt-3 pb-1 rounded border border-border bg-background hover:bg-muted hover:border-foreground/30 transition-colors"
+                      style={{ fontFamily: MONO }}>
+                      {keyRow?.[si] && (
+                        <span className="absolute top-0.5 right-1 text-[7px] text-muted-foreground/50 leading-none" style={{ fontFamily: MONO }}>{keyRow[si]}</span>
+                      )}
+                      <span className="text-[11px] text-foreground leading-tight">{s.chord}</span>
+                      {s.label && <span className="text-[7px] uppercase tracking-[0.1em] text-muted-foreground mt-0.5">{s.label}</span>}
+                    </button>
+                  ))}
+                </div>
+              );
+              const HEADING = "text-[8px] uppercase tracking-[0.14em] text-muted-foreground shrink-0 mt-2 w-14 text-right leading-tight";
 
               return (
                 <div>
                   <div className="flex flex-wrap">
-                    <SuggestGroup heading="In key" items={suggestions.inKey} keyRow={INKEY_KEYS} />
-                    <SuggestGroup heading="Used" items={suggestions.used} />
-                    <SuggestGroup heading="Colour" items={suggestions.colour} keyRow={COLOUR_KEYS} />
+                    {/* The rotating slot. Its label is the control: tapping it
+                        moves to the next set, and it is drawn whether or not
+                        the set has anything in it — a label that vanished when
+                        its row was empty would be a cycle you could fall out
+                        of and not get back into. */}
+                    <div className="flex items-start gap-2 mr-5 mb-1">
+                      <button onClick={onCycleChordRow} title="Show the next set of chords"
+                        className={`${HEADING} hover:text-foreground transition-colors`} style={{ fontFamily: MONO }}>
+                        {CHORD_ROW_HEADING[chordRow]}
+                      </button>
+                      {suggestions[chordRow].length
+                        ? <Chords items={suggestions[chordRow]} keyRow={CHORD_ROW_KEYS[chordRow]} />
+                        : <span className="text-[10px] text-muted-foreground/45 italic mt-1.5" style={{ fontFamily: MONO }}>
+                            {chordRow === "fretboard" ? "Nothing added from the fretboard yet" : "Nothing here yet"}
+                          </span>}
+                    </div>
+
+                    {/* USED does not join the rotation — it stays where it is */}
+                    {suggestions.used.length > 0 && (
+                      <div className="flex items-start gap-2 mr-5 mb-1">
+                        <span className={HEADING} style={{ fontFamily: MONO }}>Used</span>
+                        <Chords items={suggestions.used} />
+                      </div>
+                    )}
                   </div>
-                  {suggestions.inKey.length === 0 && suggestions.used.length === 0 && suggestions.colour.length === 0 && (
-                    <p className="text-[10px] text-muted-foreground/60 italic" style={{ fontFamily: MONO }}>
-                      Add chords to see suggestions
-                    </p>
-                  )}
                 </div>
               );
             })()}
