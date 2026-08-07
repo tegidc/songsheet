@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { ChevronDown } from "lucide-react";
 import { MONO, SERIF } from "../../data/constants";
+import { owWordSet } from "../../lib/text/songText";
 import type { Song } from "../../types";
 
 export interface RhymeResult { word: string; syl: number; ow: boolean; near: boolean }
@@ -18,13 +19,7 @@ export function RhymePanel({ song, selectionWord }: { song: Song; selectionWord?
   }, [selectionWord]);
 
   // All words appearing in Object Writing entries
-  const owWords = useMemo(() => {
-    const s = new Set<string>();
-    (song.objectWritings ?? []).forEach(o =>
-      (o.text ?? "").toLowerCase().match(/\b[a-z]{3,}\b/g)?.forEach(w => s.add(w))
-    );
-    return s;
-  }, [song.objectWritings]);
+  const owWords = useMemo(() => owWordSet(song), [song.objectWritings]);
 
   const fetchRhymes = useCallback(async (q: string) => {
     const w = q.trim().toLowerCase();

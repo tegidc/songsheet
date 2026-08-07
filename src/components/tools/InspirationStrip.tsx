@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, typ
 import { RefreshCw } from "lucide-react";
 import { MONO, SERIF } from "../../data/constants";
 import { pickFragmentGroup } from "../../lib/text/fragments";
+import { fragmentSourceText } from "../../lib/text/songText";
 import { usePrefersReducedMotion } from "../../lib/usePrefersReducedMotion";
 import type { Song } from "../../types";
 
@@ -109,14 +110,8 @@ export function InspirationStrip({ song, selectionWord, offerWord = null, onComm
   const reduceMotion = usePrefersReducedMotion();
 
   // ── Inspire state ──────────────────────────────────────────────────────────
-  const fragmentSource = useMemo(() => [
-    song.generalNotes ?? "",
-    song.bigIdea ?? "",
-    song.story?.beginning ?? "",
-    song.story?.middle ?? "",
-    song.story?.end ?? "",
-    ...(song.objectWritings ?? []).map(o => o.text),
-  ].join(" "), [song.generalNotes, song.bigIdea, song.story, song.objectWritings]);
+  const fragmentSource = useMemo(() => fragmentSourceText(song),
+    [song.generalNotes, song.bigIdea, song.story, song.objectWritings]);
 
   // One roll of one half: a fresh group from the pool, reduced by the same
   // fits-or-shortest rule the single fragment used — the first that fits the

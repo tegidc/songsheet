@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { ChevronDown } from "lucide-react";
 import { MONO, SERIF } from "../../data/constants";
 import { buildSkeletonLyrics, pickFragmentGroup } from "../../lib/text/fragments";
+import { fragmentSourceText } from "../../lib/text/songText";
 import type { Song } from "../../types";
 
 export type InspirationMode = "fragments" | "form";
@@ -12,14 +13,8 @@ export function InspirationPanel({ song, onAddVerse }: { song: Song; onAddVerse:
 
   // ── Fragments ──────────────────────────────────────────────────────────────
   // Source: Notebook + OW + Big Idea + Story — deliberately NOT Production Notes
-  const fragmentSource = useMemo(() => [
-    song.generalNotes ?? "",
-    song.bigIdea ?? "",
-    song.story?.beginning ?? "",
-    song.story?.middle ?? "",
-    song.story?.end ?? "",
-    ...(song.objectWritings ?? []).map(o => o.text),
-  ].join(" "), [song.generalNotes, song.bigIdea, song.story, song.objectWritings]);
+  const fragmentSource = useMemo(() => fragmentSourceText(song),
+    [song.generalNotes, song.bigIdea, song.story, song.objectWritings]);
 
   const hasFragmentContent = fragmentSource.replace(/\s/g, "").length > 20;
 

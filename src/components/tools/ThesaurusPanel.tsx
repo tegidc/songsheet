@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { ChevronDown } from "lucide-react";
 import { MONO, SERIF } from "../../data/constants";
+import { owWordSet } from "../../lib/text/songText";
 import type { Song } from "../../types";
 
 export interface ThesaurusResult { word: string; syl: number; type: "syn" | "ant" | "rel" }
@@ -17,13 +18,7 @@ export function ThesaurusPanel({ song, selectionWord, onObjectWrite }: {
   const debounceRef               = useRef<ReturnType<typeof setTimeout>>();
 
   // Words appearing in Object Writing (highlighted in results)
-  const owWords = useMemo(() => {
-    const s = new Set<string>();
-    (song.objectWritings ?? []).forEach(o =>
-      (o.text ?? "").toLowerCase().match(/\b[a-z]{3,}\b/g)?.forEach(w => s.add(w))
-    );
-    return s;
-  }, [song.objectWritings]);
+  const owWords = useMemo(() => owWordSet(song), [song.objectWritings]);
 
   // Adopt highlighted word from lyrics
   useEffect(() => {
