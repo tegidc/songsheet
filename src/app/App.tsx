@@ -822,10 +822,13 @@ export default function App() {
 
           {/* Compact meta + structure index */}
           <div className="flex flex-col md:flex-row items-start gap-4 md:gap-8 mt-5">
-            {/* Left: meta fields */}
-            <div className="flex flex-col gap-2">
+            {/* Left: meta fields. min-w-0 + wrapping throughout: at 375px the
+                Key/Time/Tempo run is wider than the sheet, and a non-wrapping
+                row of shrink-0 controls is exactly what pushes the page
+                sideways. */}
+            <div className="flex flex-col gap-2 w-full md:w-auto min-w-0">
               {/* Row 1: Key · Time · Tempo */}
-              <div className="flex items-center gap-5">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
                 {/* Key */}
                 <label className="flex items-center gap-1.5">
                   <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70" style={{ fontFamily: MONO }}>Key</span>
@@ -858,11 +861,12 @@ export default function App() {
                 </label>
               </div>
 
-              {/* Row 2: Feel */}
-              <label className="flex items-center gap-1.5">
-                <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70" style={{ fontFamily: MONO }}>Feel</span>
+              {/* Row 2: Feel — max-w rather than a fixed w-56, which at 375px
+                  is wider than the space the label leaves it. */}
+              <label className="flex items-center gap-1.5 min-w-0">
+                <span className="shrink-0 text-[9px] uppercase tracking-widest text-muted-foreground/70" style={{ fontFamily: MONO }}>Feel</span>
                 <input value={song.feel} onChange={e => updateSong({ feel: e.target.value })} placeholder="slow burn, anthemic, late night…"
-                  className="bg-transparent text-[12px] text-foreground/60 placeholder:text-muted-foreground/30 focus:outline-none border-b border-border/50 focus:border-muted-foreground/50 pb-px w-56 transition-colors"
+                  className="bg-transparent text-[12px] text-foreground/60 placeholder:text-muted-foreground/30 focus:outline-none border-b border-border/50 focus:border-muted-foreground/50 pb-px flex-1 min-w-0 max-w-56 transition-colors"
                   style={{ fontFamily: MONO }} />
               </label>
             </div>

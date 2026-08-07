@@ -136,8 +136,11 @@ export function OWWindow({
 
   const body = (
     <>
-      {/* Controls row: timer · start · detail · object · notebook · seed word */}
-      <div className="flex items-center gap-2">
+      {/* Controls row: timer · start · detail · object · notebook · seed word.
+          Wraps: every control here is shrink-0, and at 375px they add up to
+          more than the window is wide once "Save to Notebook" appears — which
+          squeezed the focus-word input to nothing and pushed the row out. */}
+      <div className="flex flex-wrap items-center gap-2">
         {hasTimer && (
           <>
             <div className="flex items-center gap-1 shrink-0">
@@ -194,7 +197,7 @@ export function OWWindow({
           value={seedWord ?? ""}
           onChange={e => onChange(text, e.target.value || undefined)}
           placeholder="focus word…"
-          className={`flex-1 min-w-0 bg-transparent border-b border-border/60 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent pb-0.5 transition-colors`}
+          className={`flex-1 basis-24 min-w-0 bg-transparent border-b border-border/60 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent pb-0.5 transition-colors`}
           style={{ fontFamily: SERIF, fontStyle: seedWord ? "italic" : "normal" }}
           onKeyDown={hasTimer ? e => { if (e.key === "Enter") startTimer(); } : undefined}
         />
@@ -299,7 +302,7 @@ export function OWWindow({
         <div className="px-5 py-4 flex flex-col gap-4 overflow-y-auto">{body}</div>
 
         {/* Actions */}
-        <div className="px-5 py-3 border-t border-border/40 flex items-center justify-end gap-2 shrink-0">
+        <div className="px-5 py-3 border-t border-border/40 flex flex-wrap items-center justify-end gap-2 shrink-0">
           {footer}
           {closeLabel !== null && (
             <button onClick={onClose}

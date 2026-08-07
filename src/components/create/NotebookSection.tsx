@@ -87,7 +87,7 @@ export function NotebookSection({ value, onChange, nbSections, onDeleteNbSection
               </div>
               {openIds.has(s.id) && (
                 <div className="px-4 py-3">
-                  <p className="text-xs leading-[1.9] text-foreground/80 whitespace-pre-wrap" style={{ fontFamily: SERIF }}>
+                  <p className="text-xs leading-[1.9] text-foreground/80 whitespace-pre-wrap break-words" style={{ fontFamily: SERIF }}>
                     {s.text}
                   </p>
                 </div>
