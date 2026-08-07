@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Plus, Music, Music2, AlertCircle, ChevronDown, FolderOpen, LogIn } from "lucide-react";
+import { Plus, Music, Music2, AlertCircle, ChevronDown, FolderOpen, LogIn, X } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { useIsMobile } from "./components/ui/use-mobile";
@@ -38,7 +38,7 @@ import type { IdeaResult } from "../lib/theory/ideas";
 import { generateBridgeIdea, generateIdea } from "../lib/theory/ideas";
 import { detectKey, formatDetectedKey, parseDeclaredKey } from "../lib/theory/key";
 import { distributeChords, sortCP, syncBarsToPositions } from "../lib/theory/layout";
-import { EMPTY_SONG, isPristineSong, makeEmptySong, makeSection, normalizeSection, renumberSections } from "../sections";
+import { EMPTY_SONG, abbreviateSectionLabel, isPristineSong, makeEmptySong, makeSection, normalizeSection, renumberSections } from "../sections";
 import type { NbEntry, OWEntry, Section, SectionType, Song, Tab } from "../types";
 
 export default function App() {
@@ -1273,17 +1273,37 @@ export default function App() {
 
       {/* Writing full screen, with the tools pinned above the keyboard. Mobile
           only, and only for the boxes the songwriter actually composes in. */}
-      {isMobile && fsEdit && fsFields.length > 0 && (
+      {isMobile && fsEdit && fsFields.length > 0 && (() => {
+        const fsIndex = Math.min(fsEdit.index, fsFields.length - 1);
+        // Sections abbreviate — the banner has one row for the label, the
+        // suggestion and three controls, and "Pre-Chorus 2" would take the
+        // suggestion's half of it. The Create boxes keep their names: they are
+        // already short, and "The Big Idea" has no shape to abbreviate to.
+        const bannerLabel = fsEdit.kind === "lyrics"
+          ? abbreviateSectionLabel(fsFields[fsIndex]?.label ?? "")
+          : (fsFields[fsIndex]?.label ?? "");
+        return (
         <FullScreenEditor
           fields={fsFields}
-          index={Math.min(fsEdit.index, fsFields.length - 1)}
+          index={fsIndex}
           onIndexChange={i => setFsEdit(f => (f ? { ...f, index: i } : f))}
           onChange={changeFsField}
           onClose={() => setFsEdit(null)}
           onWordOffer={setWordOffer}
           tools={<InspirationStrip song={song} selectionWord={lyricSelection}
-            offerWord={wordOffer} onCommitWord={commitWordOffer} />} />
-      )}
+            offerWord={wordOffer} onCommitWord={commitWordOffer}
+            leading={
+              <span className="shrink-0 text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70 tabular-nums"
+                style={{ fontFamily: MONO }}>{bannerLabel}</span>
+            }
+            trailing={
+              <button onClick={() => setFsEdit(null)} aria-label="Close editor"
+                className="shrink-0 -mr-1 p-1 text-muted-foreground active:text-foreground transition-colors">
+                <X size={16} />
+              </button>
+            } />} />
+        );
+      })()}
 
       {/* Capture a writing from anywhere, without leaving the tab you're on */}
       <FloatingOWButton

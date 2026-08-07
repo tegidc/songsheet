@@ -2,6 +2,25 @@ import type { SectionType, Section, Song } from "./types";
 import { SDEFS } from "./data/constants";
 import { uid } from "./format";
 
+/**
+ * The two-character form a section takes when it has to share a line with
+ * everything else — `Verse 1` → `V1`, `Chorus 1` → `C1`, `Pre-Chorus 2` → `P2`,
+ * `Verse A` → `VA`. Read off the label rather than the type, so a renamed
+ * section abbreviates to its own name (`Drop` → `D1`) instead of to the type
+ * it happens to be built on.
+ *
+ * An unnumbered label still gets a 1 (`Bridge` → `B1`): the number is part of
+ * the shape, and one bridge is the first bridge.
+ */
+export function abbreviateSectionLabel(label: string): string {
+  const text = label.trim();
+  if (!text) return "—";
+  const suffix = text.match(/\s+(\d+|[A-Za-z])$/);
+  const head = (suffix ? text.slice(0, suffix.index) : text).trim();
+  const initial = head.match(/[A-Za-z0-9]/)?.[0] ?? head[0] ?? "—";
+  return initial.toUpperCase() + (suffix ? suffix[1].toUpperCase() : "1");
+}
+
 export function isAutoLabel(label: string, type: SectionType): boolean {
   const def = SDEFS.find(d => d.v === type);
   if (!def) return false;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { MONO, SERIF } from "../../data/constants";
 import { CARET_REST_MS, wordAtCaret } from "../../lib/text/caretWord";
 
@@ -116,25 +116,20 @@ export function FullScreenEditor({
 
   if (!field) return null;
 
+  const prev = fields[index - 1];
+  const next = fields[index + 1];
+
   const navBtn = "flex items-center gap-0.5 text-[11px] px-2 py-1.5 border border-border rounded-sm text-muted-foreground active:bg-muted disabled:opacity-25 transition-colors";
 
   return (
     <div className="fixed inset-x-0 z-50 bg-background flex flex-col"
       style={{ top: vv?.top ?? 0, height: vv ? vv.h : "100dvh" }}>
 
-      {/* Chrome: what you are writing into, and the way out */}
-      <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 border-b border-border">
-        <span className="flex-1 min-w-0 truncate text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
-          style={{ fontFamily: MONO }}>
-          {field.label}
-        </span>
-        <button onClick={onClose} aria-label="Close editor"
-          className="shrink-0 -mr-1 p-1.5 text-muted-foreground active:text-foreground transition-colors">
-          <X size={18} />
-        </button>
-      </div>
-
-      {/* The tools, pinned. This is the whole point of the mode. */}
+      {/* One banner, not two. What you are writing into, what the app is
+          suggesting, and the way out all share the strip's single row — the
+          caller composes the section name and the close control into it. Two
+          stacked bands of chrome above the text was 90px of a 812px phone
+          spent saying where you are. */}
       {tools}
 
       <textarea
@@ -154,15 +149,19 @@ export function FullScreenEditor({
         onClick={noteCaret} />
 
       {/* Navigation, above the keyboard because the overlay ends where the
-          keyboard begins */}
+          keyboard begins. The buttons say where they go rather than which
+          direction they go: "Prev" and "Next" made you press one to find out,
+          which on a phone means losing the line you were on to look. */}
       <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-t border-border bg-muted/30">
-        <button onClick={() => onIndexChange(index - 1)} disabled={index === 0}
-          className={navBtn} style={{ fontFamily: MONO }}>
-          <ChevronLeft size={12} /> Prev
+        <button onClick={() => onIndexChange(index - 1)} disabled={!prev}
+          className={`${navBtn} min-w-0 max-w-[38%]`} style={{ fontFamily: MONO }}>
+          <ChevronLeft size={12} className="shrink-0" />
+          {prev && <span className="min-w-0 truncate">{prev.label}</span>}
         </button>
-        <button onClick={() => onIndexChange(index + 1)} disabled={index >= fields.length - 1}
-          className={navBtn} style={{ fontFamily: MONO }}>
-          Next <ChevronRight size={12} />
+        <button onClick={() => onIndexChange(index + 1)} disabled={!next}
+          className={`${navBtn} min-w-0 max-w-[38%]`} style={{ fontFamily: MONO }}>
+          {next && <span className="min-w-0 truncate">{next.label}</span>}
+          <ChevronRight size={12} className="shrink-0" />
         </button>
         <span className="flex-1 min-w-0 text-center text-[10px] text-muted-foreground/45 tabular-nums"
           style={{ fontFamily: MONO }}>

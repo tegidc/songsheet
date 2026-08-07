@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, type ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 import { FRAGMENT_INTERVAL } from "./InspirationPanel";
 import { MONO, SERIF } from "../../data/constants";
@@ -47,7 +47,8 @@ function fitItems(items: string[], budget: number, max: number): string[] {
   return out;
 }
 
-export function InspirationStrip({ song, selectionWord, offerWord = null, onCommitWord, className = "" }: {
+export function InspirationStrip({ song, selectionWord, offerWord = null, onCommitWord,
+  leading, trailing, className = "" }: {
   song: Song;
   selectionWord: { word: string; seq: number } | null;
   /**
@@ -57,6 +58,14 @@ export function InspirationStrip({ song, selectionWord, offerWord = null, onComm
    */
   offerWord?: string | null;
   onCommitWord?: (w: string) => void;
+  /**
+   * The banner is one row, not two. Inside the full-screen editor the caller
+   * puts the abbreviated section name here and the way out in `trailing`, so
+   * the label, the suggestion and the controls share a single 44px band rather
+   * than stacking two of them above the writing.
+   */
+  leading?: ReactNode;
+  trailing?: ReactNode;
   className?: string;
 }) {
   const [mode, setMode] = useState<MobileTool>("inspire");
@@ -200,9 +209,16 @@ export function InspirationStrip({ song, selectionWord, offerWord = null, onComm
     <div className={`flex items-center gap-2 px-3 bg-muted/50 border-b border-border ${className}`}
       style={{ height: STRIP_H }}>
 
+      {leading}
+
       {/* The suggestion itself. Serif, because it is the songwriter's own
-          words coming back to them — not a control. */}
-      <div className={`flex-1 min-w-0 flex items-center gap-2 overflow-hidden transition-opacity duration-300 ${fading ? "opacity-0" : "opacity-100"}`}>
+          words coming back to them — not a control.
+
+          `justify-center` is the point of the whole row: the suggestion sits in
+          the optical middle of the space the label and INSPIRE leave it, rather
+          than pinned against the label. It is the thing being read, so it gets
+          the middle; the controls are furniture and keep the edges. */}
+      <div className={`flex-1 min-w-0 flex items-center justify-center gap-2 overflow-hidden transition-opacity duration-300 ${fading ? "opacity-0" : "opacity-100"}`}>
         {/* An offer takes the strip's line while it stands. Dashed and dim so
             it reads as not-yet-applied; the word in the writer's own serif
             because it is their word, and the action named in the interface's
@@ -262,6 +278,8 @@ export function InspirationStrip({ song, selectionWord, offerWord = null, onComm
         title="Another one">
         <RefreshCw size={13} />
       </button>
+
+      {trailing}
     </div>
   );
 }

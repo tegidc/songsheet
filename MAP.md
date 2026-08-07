@@ -350,6 +350,29 @@ Production, Notebook, in on-screen order). `changeFsField` writes back by
 id. Nothing else in the app opens this way — not the chord grid, not the
 object-writing window, which is its own modal with its own tools.
 
+**One banner, and doors that say where they go (Phase 6).** The editor had
+two bands of chrome above the text — a label row, then the strip — for about
+90px of an 812px phone spent saying where you are. They are one row now:
+`FullScreenEditor` renders `{tools}` and nothing above it, and `App` composes
+the section name into the strip's `leading` slot and the close × into its
+`trailing` slot. Order across it is label · fragment · INSPIRE · refresh · ×,
+and the fragment's container is `justify-center` so it sits in the optical
+middle of the space the label and INSPIRE leave — it is the thing being read,
+so it gets the middle and the controls keep the edges.
+
+Section names abbreviate to fit that row (`abbreviateSectionLabel` in
+`src/sections.ts`): `Verse 1` → `V1`, `Chorus 1` → `C1`, `Bridge` → `B1`
+(unnumbered still gets a 1 — one bridge is the first bridge), `Verse A` →
+`VA`. It reads the *label*, not the type, so a renamed section abbreviates to
+its own name. Create boxes keep their full names: they are already short and
+"The Big Idea" has no shape to abbreviate to.
+
+Prev/Next carry the adjacent field's name (`‹ Verse 1`, `Chorus 1 ›`) rather
+than the words Prev and Next, which made you press one to find out where it
+went — on a phone that means losing the line you were on to look. Each is
+capped at 38% of the row and truncates; at the ends the button is disabled
+and shows only its chevron. The `n / total` counter is unchanged.
+
 ### How a word gets picked on a phone (Phase 6)
 
 Selection cannot do it. On iOS, selecting text **is** how you raise the
