@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { X, ChevronUp, ChevronDown, Trash2 } from "lucide-react";
 import { AutoTA } from "../common/AutoTA";
+import { FL } from "../common/FL";
 import { MONO, SERIF, TIMER_OPTS } from "../../data/constants";
 import { SENSES } from "../../data/senses";
 import { pickOWWord } from "../../lib/text/owPool";
@@ -243,7 +244,7 @@ export function OWWindow({
       {scanResult && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground" style={{ fontFamily: MONO }}>Sense scan</span>
+            <FL className="text-muted-foreground">Sense scan</FL>
             <button onClick={() => setScanResult(null)} className="text-muted-foreground hover:text-foreground transition-colors"><X size={12} /></button>
           </div>
           <div className="text-xs leading-[1.9] mb-3 p-3 bg-muted/20 rounded-sm border border-border/60" style={{ fontFamily: SERIF }}>

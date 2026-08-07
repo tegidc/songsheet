@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { ChevronDown } from "lucide-react";
+import { FL } from "../common/FL";
 import { MONO, SERIF } from "../../data/constants";
 import { buildSkeletonLyrics, pickFragmentGroup } from "../../lib/text/fragments";
 import { fragmentSourceText } from "../../lib/text/songText";
@@ -79,9 +80,9 @@ export function InspirationPanel({ song, onAddVerse }: { song: Song; onAddVerse:
     <div className="border border-border rounded-sm overflow-hidden">
       {/* Header */}
       <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
-        <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground" style={{ fontFamily: MONO }}>
+        <FL className="text-muted-foreground">
           Inspiration
-        </span>
+        </FL>
         {mode === "fragments" && !collapsed && (
           <div className="flex items-center gap-2">
             <button onClick={() => setPaused(p => !p)} title={paused ? "Resume" : "Pause"}

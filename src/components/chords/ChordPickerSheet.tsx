@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ChevronUp } from "lucide-react";
 import { Drawer, DrawerContent, DrawerTitle, DrawerDescription } from "../../app/components/ui/drawer";
 import { ChordChip } from "./ChordChip";
+import { FL } from "../common/FL";
 import { MONO } from "../../data/constants";
 import type { ChordRow, ChordSuggestion, ChordSuggestionSets } from "../../lib/theory/chords";
 import { CHORD_ROW_HEADING } from "../../lib/theory/chords";
@@ -77,7 +78,7 @@ export function ChordPickerSheet({ open, title, value, suggestions, chordRow, on
           {/* USED stays where it is */}
           {suggestions.used.length > 0 && (
             <div className="mb-4">
-              <div className={HEADING} style={{ fontFamily: MONO }}>Used so far</div>
+              <FL className="block text-muted-foreground mb-2">Used so far</FL>
               <Chips items={suggestions.used} />
             </div>
           )}
