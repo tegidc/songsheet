@@ -233,6 +233,14 @@ All shared interfaces/types: `SectionType`, `Tab`, `CP`, `Section`,
   `generateIdea` (the 12-technique chord-rewrite idea generator),
   `generateBridgeIdea` (bridge-section chord suggestion). Used by
   `components/chords/AnalyseChordsPanel.tsx`.
+- `identify.ts` — `identifyChord`, `ChordReading`, `Identification`. The one
+  module that runs *from* notes *to* a name, where the rest of `theory/` reads
+  names and works outward from them. See "Naming a shape" below.
+- `tuning.ts` — `Tuning` helpers: `TUNING_PRESETS` (Standard and DADGAD, the
+  only two), `soundingMidi`, `tuningLetters`, `tuningLabel`,
+  `tuningSignature`, `normalizeTuning`, and `PC_NAMES`/`pcName`/`noteName`
+  (one fixed spelling per pitch class — flats for Eb/Ab/Bb, sharps for C#/F#,
+  because a fretboard shape is named before any key is known).
 - `layout.ts` — `distributeChords`, `syncBarsToPositions`,
   `resolveOverlaps`, `sortCP`, `lcsAlign` (chord-position ↔ lyric-character
   anchoring, used when bar counts change under an existing chord layout).
@@ -547,6 +555,67 @@ scale-relative, standard Nashville and Roman-numeral practice) where it used
 to read `1- 3 6 7` off the minor scale's own degrees. Chord suffixes are still
 ignored throughout (`7`, `sus2`, `add9` — only the root's degree is rendered).
 
+### Naming a shape, and where the fretboard lives
+
+`components/chords/FretboardIdentifier.tsx` sits under the chords box on the
+Chords tab. A flat neck laid out like tablature; click a fret to place a
+finger, click it again to take it off. **Strings are numbered 1–6 with 1 as
+the thick low string** — the opposite of the usual convention, deliberately,
+and `Tuning.midi[0]` is string 1 so the array order matches the numbering.
+Two things carry that without a legend: string 1 is drawn at the *bottom*,
+and the six lines taper from thickest at 1 to thinnest at 6. Markers show the
+note, not the fret — the fret is a coordinate, the note is the thing you
+cannot work out in your head in an alternate tuning.
+
+There is no Clear button: the nut is one control doing two beats, opening all
+six strings on the first click and taking them all off on the second.
+
+Tuning is a preset **plus a detune** rather than a list of every combination —
+`Standard` and `DADGAD` are the only presets, every string is individually
+editable without disturbing the others *or losing the preset selection*, and
+the semitone control drops whatever is selected, so "DADGAD down to C" is one
+tuning and a number. The preset name stays highlighted after a string is
+edited (by requirement); the note letters beside it are what stay honest.
+
+**Naming (`lib/theory/identify.ts`) is a vocabulary, not a generator.** A
+fixed table of formulas is tried against every root in the shape, and a
+formula only counts if it explains *every* note. That is what caps the
+complexity of the name: each table entry carries at most one addition, so a
+name with two of them cannot be produced at all, and `(no5)` combined with an
+`add` is refused outright. Two further rules do most of the work — the root
+must be sounding (a name whose root is absent is a theory exercise), and a
+shape may only omit anything once three of the formula's tones are ringing,
+without which a lone string reads as `G5(no5)`. Readings are scored; the best
+is the name, the rest go on an "also reads as" line whose band is tuned by
+hand (wide enough to keep `Dm7/F` under `F6`, narrow enough that `Am7` stops
+volunteering `A7#9(no3)`). Verified against all five C G C E A C shapes.
+
+**Saved tunings are read back off the songs** (`lib/tunings.ts`
+`fetchSongTunings`), not stored anywhere new: a song has a
+`data.fretboardTuning`, so "tunings I use" falls out of the work with no
+table, no migration, and syncing because the songs already sync. PostgREST
+projects the jsonb path (`data->fretboardTuning`), so it reads six numbers per
+row rather than every lyric. The cost: a tuning is only remembered once it is
+on a song, which is what the + beside the dropdown does.
+
+`song.fretboardChords` is the working log — name, fingering and **the tuning
+it was found in**, because the same six numbers are a different chord in
+DADGAD than in C G C E A C. Seven or eight per song is the expected size.
+Adding a name already present is a no-op. There is currently no way to remove
+one (see "Known debt").
+
+**The selector's rows take turns** (`ChordRow`/`CHORD_ROW_*`/`cycleChordRow`
+in `lib/theory/chords.ts`, state in `App.tsx` so every section agrees). In
+Key, Colour and From Fretboard share one slot and the row's own label is the
+control that moves between them; **USED does not join the rotation** and is
+always visible. The label renders even when its set is empty — a label that
+vanished with its row would be a cycle you could fall out of, and From
+Fretboard is empty until the first chord is added. **Every row's shortcuts
+stay bound whether or not that row is showing**: `1`–`7` In Key, `q`–`u`
+Colour, `z x c v b n m` From Fretboard. The bottom letter row completes the
+geometric shape and costs only two note letters (c, b) where the home row
+would have cost four, leaving A D F G free to type.
+
 ### `src/app/App.tsx`
 Top-level state (song, tab, auth, sidebar, autosave, undo state for chord
 ideas/bridge ideas), the autosave effect (debounced + periodic forced save
@@ -559,6 +628,16 @@ code.
 
 ## Known debt
 
+- **A fretboard chord cannot be removed once added.** `song.fretboardChords`
+  only grows (adding a name already there is a no-op, so it cannot duplicate,
+  but a mistake is permanent). A working log you cannot prune is the obvious
+  gap; no delete control was specified, so none was invented.
+- **The preset name can disagree with the tuning.** Editing a string
+  deliberately does not clear the selected preset — "changing one string must
+  not knock you out of a preset" — so the neck can read `Standard` while it is
+  tuned to C G C E A C. The note letters next to it are always right, and are
+  the intended source of truth; if the stale name reads badly in use, showing
+  the preset as modified rather than dropping it is the change to make.
 - **`tsc --noEmit` is now zero-error** and wired up as `pnpm typecheck`,
   run as a non-blocking CI step (`.github/workflows/deploy.yml`) that warns
   without failing the deploy. The 2 pre-existing errors (a `.map` producing
