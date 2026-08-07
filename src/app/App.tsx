@@ -1031,9 +1031,11 @@ export default function App() {
             )}
           </div>
         )}
-        {/* Mobile inspiration strip — fixed directly under the header */}
+        {/* Mobile inspiration strip — fixed directly under the header. The
+            wrapper carries bg-background because the strip's own tint is
+            translucent and content scrolls underneath it. */}
         {isMobile && tab === "lyrics" && (
-          <div className="fixed inset-x-0 z-30" style={{ top: headerH }}>
+          <div className="fixed inset-x-0 z-30 bg-background" style={{ top: headerH }}>
             <InspirationStrip song={song} selectionWord={lyricSelection} />
           </div>
         )}
