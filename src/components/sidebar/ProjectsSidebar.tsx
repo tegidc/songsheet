@@ -18,6 +18,80 @@ export const STATUS_LABEL: Record<ProjectStatus, string> = {
   archived: "Archived",
 };
 
+function StatusPicker({ id, current, onSetStatus }: { id: string; current: ProjectStatus; onSetStatus: (id: string, next: ProjectStatus) => void }) {
+  return (
+    <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+      {(["working","finished","archived"] as ProjectStatus[]).map(s => (
+        <button key={s} onClick={e => { e.stopPropagation(); onSetStatus(id, s); }}
+          className="flex items-center justify-center w-3.5 h-3.5 rounded-full transition-all"
+          title={STATUS_LABEL[s]}>
+          <span className={`rounded-full transition-all ${
+            s === current
+              ? `w-2.5 h-2.5 ${STATUS_DOT[s]} ring-1 ring-offset-1 ring-foreground/20`
+              : `w-1.5 h-1.5 ${STATUS_DOT[s]} opacity-35 hover:opacity-70`
+          }`} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ProjectRow({ p, onLoad, onRename, onSetStatus, onDelete }: {
+  p: Project;
+  onLoad: (id: string) => void;
+  onRename: (id: string, name: string) => void;
+  onSetStatus: (id: string, next: ProjectStatus) => void;
+  onDelete: (id: string, e: React.MouseEvent) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [nameVal, setNameVal] = useState(p.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
+
+  const commitRename = () => {
+    setEditing(false);
+    onRename(p.id, nameVal || p.name);
+  };
+
+  return (
+    <div onClick={() => !editing && onLoad(p.id)}
+      className="w-full text-left px-3 py-2 border-b border-border/30 hover:bg-foreground/[0.04] transition-colors group cursor-pointer">
+      <div className="flex items-center gap-1 min-w-0">
+        {editing ? (
+          <input ref={inputRef} value={nameVal}
+            onChange={e => setNameVal(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={e => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") { setEditing(false); setNameVal(p.name); } }}
+            onClick={e => e.stopPropagation()}
+            className="flex-1 min-w-0 bg-transparent border-b border-accent text-[10px] text-foreground focus:outline-none pb-px"
+            style={{ fontFamily: MONO }} />
+        ) : (
+          <span className="text-[10px] text-foreground/60 truncate leading-snug flex-1 min-w-0"
+            style={{ fontFamily: MONO }}>{p.name}</span>
+        )}
+        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={e => { e.stopPropagation(); setEditing(true); }}
+            className="text-muted-foreground/40 hover:text-foreground transition-colors p-0.5"
+            title="Rename">
+            <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8.5 1.5a1.414 1.414 0 0 1 2 2L3.5 10.5l-3 .5.5-3z"/>
+            </svg>
+          </button>
+          <StatusPicker id={p.id} current={p.status ?? "working"} onSetStatus={onSetStatus} />
+          <button onClick={e => onDelete(p.id, e)}
+            className="text-muted-foreground/40 hover:text-destructive transition-colors p-0.5">
+            <X size={9} />
+          </button>
+        </div>
+      </div>
+      <span className="text-[9px] text-muted-foreground/40" style={{ fontFamily: MONO }}>
+        {formatRelativeTime(p.updated_at)}
+      </span>
+    </div>
+  );
+}
+
 export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, onCreateSongFromOW, onAddOWToSong, onDeleteCloudOW, owRefreshKey, mobile = false, onClose }: {
   onLoad: (id: string, song: Song, name: string, createdAt?: string | null) => void;
   onNew: () => void;
@@ -98,73 +172,6 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
   const others = projects.filter(p => p.id !== currentProjectId);
   const groups: ProjectStatus[] = ["working", "finished", "archived"];
 
-  /* ── Sub-components ── */
-  const StatusPicker = ({ id, current }: { id: string; current: ProjectStatus }) => (
-    <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
-      {(["working","finished","archived"] as ProjectStatus[]).map(s => (
-        <button key={s} onClick={e => { e.stopPropagation(); setStatus(id, s); }}
-          className="flex items-center justify-center w-3.5 h-3.5 rounded-full transition-all"
-          title={STATUS_LABEL[s]}>
-          <span className={`rounded-full transition-all ${
-            s === current
-              ? `w-2.5 h-2.5 ${STATUS_DOT[s]} ring-1 ring-offset-1 ring-foreground/20`
-              : `w-1.5 h-1.5 ${STATUS_DOT[s]} opacity-35 hover:opacity-70`
-          }`} />
-        </button>
-      ))}
-    </div>
-  );
-
-  const ProjectRow = ({ p }: { p: Project }) => {
-    const [editing, setEditing] = useState(false);
-    const [nameVal, setNameVal] = useState(p.name);
-    const inputRef = useRef<HTMLInputElement>(null);
-
-    useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
-
-    const commitRename = () => {
-      setEditing(false);
-      renamePrj(p.id, nameVal || p.name);
-    };
-
-    return (
-      <div onClick={() => !editing && load(p.id)}
-        className="w-full text-left px-3 py-2 border-b border-border/30 hover:bg-foreground/[0.04] transition-colors group cursor-pointer">
-        <div className="flex items-center gap-1 min-w-0">
-          {editing ? (
-            <input ref={inputRef} value={nameVal}
-              onChange={e => setNameVal(e.target.value)}
-              onBlur={commitRename}
-              onKeyDown={e => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") { setEditing(false); setNameVal(p.name); } }}
-              onClick={e => e.stopPropagation()}
-              className="flex-1 min-w-0 bg-transparent border-b border-accent text-[10px] text-foreground focus:outline-none pb-px"
-              style={{ fontFamily: MONO }} />
-          ) : (
-            <span className="text-[10px] text-foreground/60 truncate leading-snug flex-1 min-w-0"
-              style={{ fontFamily: MONO }}>{p.name}</span>
-          )}
-          <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={e => { e.stopPropagation(); setEditing(true); }}
-              className="text-muted-foreground/40 hover:text-foreground transition-colors p-0.5"
-              title="Rename">
-              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8.5 1.5a1.414 1.414 0 0 1 2 2L3.5 10.5l-3 .5.5-3z"/>
-              </svg>
-            </button>
-            <StatusPicker id={p.id} current={p.status ?? "working"} />
-            <button onClick={e => del(p.id, e)}
-              className="text-muted-foreground/40 hover:text-destructive transition-colors p-0.5">
-              <X size={9} />
-            </button>
-          </div>
-        </div>
-        <span className="text-[9px] text-muted-foreground/40" style={{ fontFamily: MONO }}>
-          {formatRelativeTime(p.updated_at)}
-        </span>
-      </div>
-    );
-  };
-
   return (
     <aside className={mobile
         ? "w-full max-w-[85vw] h-full border-r border-border flex flex-col bg-background shadow-2xl"
@@ -202,7 +209,7 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
               <span className="text-[10px] text-foreground/80 truncate leading-tight flex-1 min-w-0"
                 style={{ fontFamily: MONO }}>{active.name}</span>
               <span className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                <StatusPicker id={active.id} current={active.status ?? "working"} />
+                <StatusPicker id={active.id} current={active.status ?? "working"} onSetStatus={setStatus} />
               </span>
             </div>
             <span className="text-[9px] text-muted-foreground/50 ml-3" style={{ fontFamily: MONO }}>
@@ -236,7 +243,9 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
                   <ChevronDown size={9}
                     className={`text-muted-foreground/40 transition-transform ${isOpen ? "rotate-180" : ""}`} />
                 </button>
-                {isOpen && group.map(p => <ProjectRow key={p.id} p={p} />)}
+                {isOpen && group.map(p => (
+                  <ProjectRow key={p.id} p={p} onLoad={load} onRename={renamePrj} onSetStatus={setStatus} onDelete={del} />
+                ))}
               </div>
             );
           })
