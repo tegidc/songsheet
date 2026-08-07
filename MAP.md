@@ -266,7 +266,13 @@ random id generator used everywhere an `id` field is needed),
 `formatRelativeTime`, `defaultProjectName`.
 
 ### `src/components/`
-- `common/` — `FL` (small-caps mono field label), `AutoTA` (auto-growing
+- `common/` — `CollapsibleSection` takes a `ReactNode` for both `title` and
+  `subtitle` (Phase 6): the title so the Object Writing heading can carry the
+  same accent `✦` its header button, floating button and sidebar entry use —
+  one glyph, one meaning — and the subtitle so a collapsed section can show
+  what it holds instead of a sentence about it. The subtitle wrapper is a
+  `div`, not a `p`, since pills are not phrasing content.
+  Also `FL` (small-caps mono field label), `AutoTA` (auto-growing
   textarea with word-select callback; its `onTapToEdit` makes the box
   readOnly and hands the tap to the full-screen editor — see "Writing full
   screen" below), `FullScreenEditor`, `CollapsibleSection`, `ConfirmDialog`
@@ -288,7 +294,17 @@ random id generator used everywhere an `id` field is needed),
   `standalone_ow` rows, and the only place the cloud-delete confirm lives),
   `OWPillRow` (the song's writings as pills, between the Notebook and the
   object writing area; loose ones carry a hollow dot, and the delete × takes
-  a pill out of *this song only*, whichever kind it is), `ObjectWritingSection`
+  a pill out of *this song only*, whichever kind it is. **Collapsed it shows
+  the writings rather than describing them** (Phase 6): three or four of the
+  labels themselves in place of the "Pills written here…" subtitle, with the
+  description kept for the empty case only. Four only when the fourth fits —
+  a preview that wraps to two lines is not a glimpse — and the sample is
+  *shuffled*, re-drawn on every collapse, because always showing the first few
+  makes the same writings the only ones ever seen. A muted `+n` says how many
+  were left out, so a sample can't be mistaken for the whole. They are spans,
+  not buttons: this sits inside the header's own `role="button"` and nesting
+  interactive elements was a real bug here once — see "Known debt"),
+  `ObjectWritingSection`
   (what remains of the old section: the two ways to acquire a writing — start
   one, or open the picker), `OWCloudPicker` (shuffled handful + Shuffle, plus
   a search box; one import at a time and the picker stays open, since a batch

@@ -1,8 +1,32 @@
+import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { CollapsibleSection } from "../common/CollapsibleSection";
-import { SERIF } from "../../data/constants";
+import { MONO, SERIF } from "../../data/constants";
 import { owLabel } from "../../lib/text/owLabel";
 import type { OWEntry } from "../../types";
+
+// The collapsed glimpse: three or four of the writings themselves rather than a
+// sentence about them. Four only when the fourth fits — a preview that wraps to
+// two lines is not a glimpse.
+const MIN_GLIMPSE = 3, MAX_GLIMPSE = 4, GLIMPSE_CHARS = 34;
+
+function sample(labels: string[]): { picks: string[]; more: number } {
+  // Shuffled, not sliced: always showing the first few makes the same writings
+  // the only ones ever seen. A rotating glimpse is worth more than a fixed one.
+  const pool = [...labels];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const picks: string[] = [];
+  for (const label of pool) {
+    if (picks.length >= MAX_GLIMPSE) break;
+    const used = picks.reduce((n, p) => n + p.length + 3, 0);
+    if (picks.length >= MIN_GLIMPSE && used + label.length > GLIMPSE_CHARS) break;
+    picks.push(label);
+  }
+  return { picks, more: labels.length - picks.length };
+}
 
 // The song's writings as a row of pills. A pill is a collapsed OWWindow, not a
 // summary of one — clicking it opens the writing in that same editor.
@@ -22,10 +46,50 @@ export function OWPillRow({ entries, onOpen, onDelete, isMobile }: {
   onDelete: (id: string) => void;
   isMobile?: boolean;
 }) {
+  // Controlled, because the header has to know whether it is closed: a closed
+  // section that holds writings shows them instead of describing them.
+  const [open, setOpen] = useState(!isMobile);
+  // Bumped on every close, so each collapse is a fresh handful rather than the
+  // same four for ever.
+  const [glimpse, setGlimpse] = useState(0);
+
+  const labels = useMemo(
+    () => entries.map(e => owLabel(e.seedWord, e.text) || "Object Writing"),
+    [entries]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const preview = useMemo(() => sample(labels), [labels, glimpse]);
+
   return (
     <CollapsibleSection
       title="Imported & Written Object Writings"
-      subtitle="Pills written here sync to the cloud. Imported ones stay with this song."
+      open={open}
+      onOpenChange={v => { setOpen(v); if (!v) setGlimpse(g => g + 1); }}
+      subtitle={
+        entries.length === 0
+          // The description is for the empty case only. Once there are
+          // writings, saying what a pill is matters less than showing one.
+          ? "Pills written here sync to the cloud. Imported ones stay with this song."
+          : open ? undefined : (
+            <span className="flex flex-wrap items-center gap-1 mt-1">
+              {/* Spans, not buttons: this sits inside the header's own
+                  role="button", and nesting interactive elements was a real
+                  bug here once. Tapping anywhere opens the section, which is
+                  where the live pills are. */}
+              {preview.picks.map((label, i) => (
+                <span key={`${label}-${i}`}
+                  className="px-2 py-0.5 border border-border/70 rounded-full text-[11px] text-foreground/55 max-w-[9rem] truncate"
+                  style={{ fontFamily: SERIF }}>
+                  {label}
+                </span>
+              ))}
+              {preview.more > 0 && (
+                <span className="text-[10px] text-muted-foreground/45" style={{ fontFamily: MONO }}>
+                  +{preview.more}
+                </span>
+              )}
+            </span>
+          )
+      }
       isMobile={isMobile}>
       <div className="px-4 py-3">
         {entries.length === 0 ? (

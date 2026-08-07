@@ -14,7 +14,13 @@ export function ObjectWritingSection({ onNew, onOpenPicker, isMobile }: {
 }) {
   return (
     <CollapsibleSection
-      title="Object Writing"
+      title={<>
+        {/* The same ✦ the header button, the floating button and the sidebar
+            use — one glyph, one meaning, so the heading and the ways into it
+            read as the same thing. */}
+        <span aria-hidden className="text-accent/70 mr-1.5">✦</span>
+        Object Writing
+      </>}
       subtitle="Pick an object. Write freely through the senses. No editing, no judgement."
       isMobile={isMobile}>
       <div className="px-4 py-3 flex items-center gap-4">
