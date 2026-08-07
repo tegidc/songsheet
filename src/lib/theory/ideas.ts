@@ -24,7 +24,7 @@ export function getChordFunction(chord: string, key: string, mode: "major" | "mi
   const deg = diat.findIndex(d => d.root === p.root && d.q === p.q);
   return deg >= 0 ? DEGREE_FUNC[deg] : "X";
 }
-export function generateIdea(song: Song, detected: { key: string; mode: "major"|"minor" } | null, targetSectionId?: string): IdeaResult | null {
+export function generateIdea(song: Song, activeKey: { key: string; mode: "major"|"minor" } | null, targetSectionId?: string): IdeaResult | null {
   const candidates = song.sections.filter(s => (s.chordBars ?? []).some(b => b.trim() && !isEditorialBar(b)));
   if (!candidates.length) return null;
 
@@ -32,8 +32,8 @@ export function generateIdea(song: Song, detected: { key: string; mode: "major"|
     ? (candidates.find(s => s.id === targetSectionId) ?? candidates[Math.floor(Math.random() * candidates.length)])
     : candidates[Math.floor(Math.random() * candidates.length)];
   const bars    = section.chordBars;
-  const key     = detected?.key  ?? "C";
-  const mode    = detected?.mode ?? "major";
+  const key     = activeKey?.key  ?? "C";
+  const mode    = activeKey?.mode ?? "major";
   const ki      = NOTES.indexOf(key);
   const diat    = getDiatonic(key, mode);
   const par     = mode === "major" ? "minor" : "major";
@@ -46,7 +46,7 @@ export function generateIdea(song: Song, detected: { key: string; mode: "major"|
 
   // Function per real bar
   const funcs: ChordFunc[] = realBars.map(({ bar }) =>
-    detected ? getChordFunction(bar, key, mode) : "X"
+    activeKey ? getChordFunction(bar, key, mode) : "X"
   );
   const hasF = (f: ChordFunc) => funcs.includes(f);
 
@@ -68,7 +68,7 @@ export function generateIdea(song: Song, detected: { key: string; mode: "major"|
   const pool: (() => Tech | null)[] = [];
 
   // ── 1. Tonic swap (I ↔ vi) — Tonic bucket ─────────────────────────────
-  if (hasF("T") && detected) pool.push(() => {
+  if (hasF("T") && activeKey) pool.push(() => {
     const patch: { [k: number]: string } = {};
     realBars.forEach(({ bar, i }, j) => {
       if (funcs[j] !== "T") return;
@@ -85,7 +85,7 @@ export function generateIdea(song: Song, detected: { key: string; mode: "major"|
   });
 
   // ── 2. Predominant swap (IV ↔ ii) — only where next chord is D or T ──
-  if (hasF("P") && detected) pool.push(() => {
+  if (hasF("P") && activeKey) pool.push(() => {
     const patch: { [k: number]: string } = {};
     realBars.forEach(({ bar, i }, j) => {
       if (funcs[j] !== "P") return;
@@ -103,7 +103,7 @@ export function generateIdea(song: Song, detected: { key: string; mode: "major"|
   });
 
   // ── 3. Dominant swap (V ↔ vii°) — only when next is T ────────────────
-  if (hasF("D") && detected) pool.push(() => {
+  if (hasF("D") && activeKey) pool.push(() => {
     const patch: { [k: number]: string } = {};
     realBars.forEach(({ bar, i }, j) => {
       if (funcs[j] !== "D") return;
@@ -120,7 +120,7 @@ export function generateIdea(song: Song, detected: { key: string; mode: "major"|
   });
 
   // ── 4. Secondary dominant — V/X inserted before a non-tonic diatonic bar
-  if (detected && realBars.length >= 2) pool.push(() => {
+  if (activeKey && realBars.length >= 2) pool.push(() => {
     const targets = realBars.filter((_, j) => funcs[j] === "P" || funcs[j] === "D");
     if (!targets.length) return null;
     const lateTargets = targets.filter((_, j) => j >= Math.floor(targets.length / 2));
@@ -139,7 +139,7 @@ export function generateIdea(song: Song, detected: { key: string; mode: "major"|
   });
 
   // ── 5. Tritone sub — Dominant-function bars only ──────────────────────
-  if (hasF("D") && detected) pool.push(() => {
+  if (hasF("D") && activeKey) pool.push(() => {
     const patch: { [k: number]: string } = {};
     realBars.forEach(({ bar, i }, j) => {
       if (funcs[j] !== "D") return;
@@ -156,7 +156,7 @@ export function generateIdea(song: Song, detected: { key: string; mode: "major"|
   });
 
   // ── 6. Backdoor dominant (bVII7) — final cadence only ─────────────────
-  if (detected) pool.push(() => {
+  if (activeKey) pool.push(() => {
     const bVIIr = NOTES[(ki + 10) % 12];
     let targetI = realBars[realBars.length - 1].i;
     for (let j = realBars.length - 1; j >= 0; j--) {
@@ -170,7 +170,7 @@ export function generateIdea(song: Song, detected: { key: string; mode: "major"|
   });
 
   // ── 7. Neapolitan (bII) — exactly one P-function bar, cap at 1 ────────
-  if (detected) pool.push(() => {
+  if (activeKey) pool.push(() => {
     const naplR = NOTES[(ki + 1) % 12];
     const pBars = realBars.filter((_, j) => funcs[j] === "P");
     const fallback = realBars.filter((_, j) => j > 0 && j < realBars.length - 1);
@@ -185,7 +185,7 @@ export function generateIdea(song: Song, detected: { key: string; mode: "major"|
   });
 
   // ── 8. Modal mixture — cap at 1–2 bars, weight toward the turn ────────
-  if (detected && realBars.length >= 2) pool.push(() => {
+  if (activeKey && realBars.length >= 2) pool.push(() => {
     const cnt = Math.min(2, Math.max(1, Math.round(realBars.length * 0.35)));
     const laterBars = realBars.slice(Math.max(0, realBars.length - Math.ceil(realBars.length * 0.55)));
     const shuffled = [...laterBars].sort(() => Math.random() - 0.5).slice(0, cnt);
@@ -223,7 +223,7 @@ export function generateIdea(song: Song, detected: { key: string; mode: "major"|
   });
 
   // ── 10. Deceptive resolution (V → vi instead of V → I) ───────────────
-  if (hasF("D") && hasF("T") && detected) pool.push(() => {
+  if (hasF("D") && hasF("T") && activeKey) pool.push(() => {
     const patch: { [k: number]: string } = {};
     for (let j = 0; j < realBars.length - 1; j++) {
       if (funcs[j] === "D" && funcs[j + 1] === "T") {
@@ -241,7 +241,7 @@ export function generateIdea(song: Song, detected: { key: string; mode: "major"|
   });
 
   // ── 11. Tonic pedal (slash chords over root) — non-T chords only ─────
-  if (detected) pool.push(() => {
+  if (activeKey) pool.push(() => {
     const patch: { [k: number]: string } = {};
     realBars.forEach(({ bar, i }, j) => {
       if (funcs[j] === "T") return;
@@ -257,7 +257,7 @@ export function generateIdea(song: Song, detected: { key: string; mode: "major"|
   });
 
   // ── 12. Full parallel-key recast (whole-section bucket) ──────────────
-  if (detected) pool.push(() => {
+  if (activeKey) pool.push(() => {
     const patch: { [k: number]: string } = {};
     realBars.forEach(({ bar, i }) => { patch[i] = csStr(dp[findDeg(bar)]); });
     return {
@@ -277,9 +277,9 @@ export function generateIdea(song: Song, detected: { key: string; mode: "major"|
 }
 
 // ─── Bridge Generator ─────────────────────────────────────────────────────────
-export function generateBridgeIdea(song: Song, detected: { key: string; mode: "major"|"minor" } | null): IdeaResult | null {
-  if (!detected) return null;
-  const { key, mode } = detected;
+export function generateBridgeIdea(song: Song, activeKey: { key: string; mode: "major"|"minor" } | null): IdeaResult | null {
+  if (!activeKey) return null;
+  const { key, mode } = activeKey;
   const ki = NOTES.indexOf(key);
   const diat = getDiatonic(key, mode);
 

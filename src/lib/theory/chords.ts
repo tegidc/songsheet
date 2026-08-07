@@ -25,22 +25,33 @@ export function inKey(chord: string, key: string, mode: "major"|"minor") {
   return getDiatonic(key, mode).some(d => d.root === p.root && d.q === p.q);
 }
 
-// ─── Chord Picker Suggestions (mobile input tool) ──────────────────────────────
+// ─── Nashville numbering ───────────────────────────────────────────────────────
+// All twelve semitone distances from the tonic, one fixed spelling each. Once a
+// key is declared freely most chords may be non-diatonic, so the numbering needs
+// accidentals to express them at all — and the spelling is a property of the
+// distance, never of how the chord was typed: Gb and F# in C both read #4.
+export const NASHVILLE_DEGREES = ["1","b2","2","b3","3","4","#4","5","b6","6","b7","7"];
+
+// Semitone distance tonic → chord root, as a degree number. Pure; null only when
+// either name isn't a note this app knows.
+export function nashvilleDegree(tonic: string, chordRoot: string): string | null {
+  const ri = NOTES.indexOf(normNote(tonic));
+  const ci = NOTES.indexOf(normNote(chordRoot));
+  if (ri === -1 || ci === -1) return null;
+  return NASHVILLE_DEGREES[(ci - ri + 12) % 12];
+}
+
 export function toNashville(chord: string, key: string): string {
   if (!key.trim() || !chord.trim()) return chord;
-  const { root: keyRoot, mode: keyMode } = parseKeyString(key);
   const p = parseChord(chord);
   if (!p) return chord;
-  const ri = NOTES.indexOf(keyRoot);
-  const ci = NOTES.indexOf(p.root);
-  if (ri === -1 || ci === -1) return chord;
-  const interval = (ci - ri + 12) % 12;
-  const steps = keyMode === "major" ? MAJ_ST : MIN_ST;
-  const degIdx = steps.indexOf(interval);
-  if (degIdx === -1) return chord;
+  const deg = nashvilleDegree(parseKeyString(key).root, p.root);
+  if (!deg) return chord;
   const qual = p.q === "min" ? "-" : p.q === "dim" ? "°" : p.q === "aug" ? "+" : "";
-  return `${degIdx + 1}${qual}`;
+  return `${deg}${qual}`;
 }
+
+// ─── Chord Picker Suggestions (mobile input tool) ──────────────────────────────
 export const ROMAN = ["I","II","III","IV","V","VI","VII"];
 export function chordToken(root: string, q: "maj"|"min"|"dim"|"aug"): string {
   return `${root}${q === "maj" ? "" : q === "min" ? "m" : q === "dim" ? "°" : "+"}`;
@@ -56,24 +67,24 @@ export function degreeLabel(degIdx: number, q: "maj"|"min"|"dim"|"aug"): string 
 }
 export interface ChordSuggestion { chord: string; label: string }
 
-// Build categorised chord suggestions for the picker, given the detected key
-// and the chords already used in the song.
+// Build categorised chord suggestions for the picker, given the key in force
+// (declared by the songwriter) and the chords already used in the song.
 export function buildChordSuggestions(
-  detected: { key: string; mode: "major"|"minor" } | null,
+  activeKey: { key: string; mode: "major"|"minor" } | null,
   usedChords: string[],
 ): { inKey: ChordSuggestion[]; used: ChordSuggestion[]; colour: ChordSuggestion[] } {
   const seen = new Set<string>();
   const norm = (c: string) => { const p = parseChord(c); return p ? chordToken(p.root, p.q) : c.trim(); };
 
   // In-key diatonic chords with roman labels
-  const inKey: ChordSuggestion[] = detected
-    ? getDiatonic(detected.key, detected.mode).map((d, i) => {
+  const inKey: ChordSuggestion[] = activeKey
+    ? getDiatonic(activeKey.key, activeKey.mode).map((d, i) => {
         const chord = chordToken(d.root, d.q as "maj"|"min"|"dim"|"aug");
         seen.add(chord);
         return { chord, label: degreeLabel(i, d.q as "maj"|"min"|"dim"|"aug") };
       })
     : NOTES.map(r => ({ chord: r, label: "" }));
-  if (!detected) NOTES.forEach(r => seen.add(r));
+  if (!activeKey) NOTES.forEach(r => seen.add(r));
 
   // Chords already used in the song (unique, excluding ones already in-key)
   const usedSeen = new Set<string>();
@@ -82,7 +93,7 @@ export function buildChordSuggestions(
     const n = norm(c);
     if (!n || usedSeen.has(n)) continue;
     usedSeen.add(n);
-    if (!seen.has(n)) used.push({ chord: n, label: detected ? (inKey.some(k => k.chord === n) ? "" : "•") : "" });
+    if (!seen.has(n)) used.push({ chord: n, label: activeKey ? (inKey.some(k => k.chord === n) ? "" : "•") : "" });
   }
 
   // "More colour" — secondary dominants of diatonic degrees + borrowed from parallel
@@ -94,15 +105,15 @@ export function buildChordSuggestions(
     seen.add(n);
     colour.push({ chord: n, label });
   };
-  if (detected) {
-    const diat = getDiatonic(detected.key, detected.mode);
+  if (activeKey) {
+    const diat = getDiatonic(activeKey.key, activeKey.mode);
     // Secondary dominants toward the pillar degrees (ii, IV, V, vi)
     [1, 3, 4, 5].forEach(i => {
       const d = diat[i];
       if (d) push(getSecondaryDominant(chordToken(d.root, d.q as "maj"|"min"|"dim"|"aug")), `V/${degreeLabel(i, d.q as "maj"|"min"|"dim"|"aug")}`);
     });
     // Borrowed from the parallel mode
-    getParallelChords(detected.key, detected.mode).forEach(c => push(c, "borrowed"));
+    getParallelChords(activeKey.key, activeKey.mode).forEach(c => push(c, "borrowed"));
   }
 
   return { inKey, used, colour: colour.slice(0, 8) };

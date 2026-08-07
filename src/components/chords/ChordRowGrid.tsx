@@ -7,13 +7,13 @@ import { inKey } from "../../lib/theory/chords";
 import type { Section, Tab } from "../../types";
 
 export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelChange,
-  onDuplicate, onDelete, onMove, onToggleNaming, namingStyle, detected, warnFirst, nashville, songKey,
+  onDuplicate, onDelete, onMove, onToggleNaming, namingStyle, activeKey, warnFirst, nashville, songKey,
   onCopyBars, onPasteBars, onRepeatBars, suggestions, showSuggest }: {
   section: Section; idx: number; total: number;
   onBarsChange: (b: string[]) => void; onShortLabelChange: (v: string) => void;
   onDuplicate: () => void; onDelete: () => void; onMove: (dir: -1|1) => void;
   onToggleNaming: () => void; namingStyle: "number" | "letter";
-  detected: { key: string; mode: "major"|"minor" } | null; warnFirst: boolean;
+  activeKey: { key: string; mode: "major"|"minor" } | null; warnFirst: boolean;
   nashville?: boolean; songKey?: string;
   onCopyBars: () => void; onPasteBars: (() => void) | null; onRepeatBars: () => void;
   suggestions?: { inKey: ChordSuggestion[]; used: ChordSuggestion[]; colour: ChordSuggestion[] };
@@ -212,7 +212,7 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
                   onKD={kd(barIdx)}
                   onFocus={() => setFocusedBarIdx(barIdx)}
                   reff={el => { refs.current[barIdx] = el; }}
-                  isDiatonic={!detected || !bar.trim() || isEditorialBar(bar) || inKey(bar, detected.key, detected.mode as "major"|"minor")}
+                  isDiatonic={!activeKey || !bar.trim() || isEditorialBar(bar) || inKey(bar, activeKey.key, activeKey.mode)}
                   warnWavy={warnFirst && barIdx === 0 && !isEditorialBar(bar)}
                   nashville={nashville} songKey={songKey} />
               )

@@ -192,7 +192,9 @@ All shared interfaces/types: `SectionType`, `Tab`, `CP`, `Section`,
   (`lib/theory/key.ts` `detectKey`) hardcodes `["major","minor"] as const`
   inline rather than reading `MODES` (which also listed modal names —
   dorian, mixolydian, etc — that detection never used). Verified live in
-  the running app: the key field accepts and persists arbitrary text.
+  the running app: the key field accepts and persists arbitrary text. That
+  field is now also the source of truth for every chord calculation — see
+  "The declared key is the lens" below.
 - `constants.ts` — `SDEFS` (section-type definitions: label/short
   label/hotkey), `SCOL` (section background colour classes), `TIMER_OPTS`
   (object-writing timer choices), `CW`/`CH`/`FS` (chord-grid cell
@@ -216,14 +218,16 @@ All shared interfaces/types: `SectionType`, `Tab`, `CP`, `Section`,
 
 ### `src/lib/theory/`
 - `chords.ts` — `parseChord`, `normNote`, `getDiatonic`, `inKey`,
-  `toNashville`, plus `ROMAN`/`chordToken`/`degreeLabel`/`ChordSuggestion`/
+  `NASHVILLE_DEGREES`/`nashvilleDegree`/`toNashville`, plus `ROMAN`/`chordToken`/`degreeLabel`/`ChordSuggestion`/
   `buildChordSuggestions` (mobile chord-picker suggestion lists). Note: has
   a mutual (function-body-only) circular import with `key.ts` — `chords.ts`
   needs `parseKeyString` for `toNashville`, `key.ts` needs `parseChord`/
   `getDiatonic`/`normNote` for `detectKey`. This works fine at runtime
   (nothing is evaluated at module-init time) but is worth untangling later.
   Also mutually circular with `substitutions.ts` for the same reason.
-- `key.ts` — `detectKey`, `parseKeyString`, `formatDetectedKey`.
+- `key.ts` — `detectKey`, `parseDeclaredKey` (strict: null when the field is
+  empty or names nothing readable), `parseKeyString` (the lenient wrapper —
+  falls back to C major), `formatDetectedKey`.
 - `substitutions.ts` — `getParallelChords`, `getSecondaryDominant`.
 - `ideas.ts` — `IdeaResult`, `ChordFunc`, `getChordFunction`,
   `generateIdea` (the 12-technique chord-rewrite idea generator),
@@ -332,6 +336,42 @@ invariant: verified live, a song opened this way and left alone for 78s
 `signOut` now blanks the song as well as the session — leaving the previous
 account's song on screen is wrong on its own, and it would also stop the
 auto-open firing for someone signing back in without a reload.
+
+### The declared key is the lens, not a fact about the song
+
+`song.key` is a freeform text field, and it is what every chord calculation
+reads through: Nashville numbers, the grid's in-key/out-of-key treatment, the
+picker's suggestion groups, the analysis panel's Common/Parallel pills, the
+Ideas generator and the Bridge button. `App.tsx` resolves it once —
+`declaredKey = parseDeclaredKey(song.key)`, then
+`activeKey = declaredKey ?? liveDetected` — and threads `activeKey` everywhere
+those used to receive `detectKey`'s output. Declaring a different key
+transposes nothing; the chords are untouched and only their numbering moves.
+
+Detection never writes to `song.key`; it only proposes. Two controls in the
+Analyse Chords footer, both always visible:
+
+- **Detect** — the proposal, plus a ↻ that re-runs detection. Clicking the
+  proposal itself is what adopts it (it writes the key like any other declare).
+  The proposal is *pinned* the moment a key is declared, so filling in more bars
+  never moves anything under the analysis; ↻ is then the only thing that
+  re-runs it. With no key declared there is no lens of the songwriter's
+  choosing yet, so the app reads live detection, exactly as it always has.
+- **Set key as ──** — a plain input, committed on Enter or blur. Freeform: it
+  never validates or rejects, and an unreadable key simply isn't a lens
+  (`parseDeclaredKey` returns null and the live reading is used) rather than
+  being corrected or flagged.
+
+`toNashville` covers all twelve semitone distances from the tonic against a
+fixed table (`NASHVILLE_DEGREES`: `1 b2 2 b3 3 4 #4 5 b6 6 b7 7`), because once
+a key is declared freely most chords may be non-diatonic — that is expected,
+not an error state. One spelling per degree always: the number comes from the
+pitch distance, not from how the chord was typed, so `Gb` and `F#` in C both
+read `#4`. Mode no longer affects the numbering, which does change what a
+*minor* declared key shows — F#m/A/D/E in F#m now reads `1- b3 b6 b7` (major-
+scale-relative, standard Nashville and Roman-numeral practice) where it used
+to read `1- 3 6 7` off the minor scale's own degrees. Chord suffixes are still
+ignored throughout (`7`, `sus2`, `add9` — only the root's degree is rendered).
 
 ### `src/app/App.tsx`
 Top-level state (song, tab, auth, sidebar, autosave, undo state for chord

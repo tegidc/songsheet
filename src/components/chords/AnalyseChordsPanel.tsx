@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { CH, CW, MONO, PHRASE_MARKER, ROW_BREAK, SERIF, isEditorialBar } from "../../data/constants";
 import { getDiatonic } from "../../lib/theory/chords";
@@ -7,10 +7,13 @@ import { formatDetectedKey } from "../../lib/theory/key";
 import { getParallelChords } from "../../lib/theory/substitutions";
 import type { Section, Song } from "../../types";
 
-export function AnalyseChordsPanel({ song, detected, idea, ideaUndo, onReroll, onApply, onUndo,
-  bridge, bridgeUndo, onBridgeGenerate, onBridgeApply, onBridgeUndo, onClose, onSetKey }: {
+export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo, onReroll, onApply, onUndo,
+  bridge, bridgeUndo, onBridgeGenerate, onBridgeApply, onBridgeUndo, onClose, onSetKey, onRedetect }: {
   song: Song;
-  detected: { key: string; mode: "major"|"minor" } | null;
+  // The key everything here is read through — the declared one, whenever the
+  // songwriter has declared one. `suggestion` is only ever a proposal.
+  activeKey: { key: string; mode: "major"|"minor" } | null;
+  suggestion: { key: string; mode: "major"|"minor" } | null;
   idea: IdeaResult | null;
   ideaUndo: { newSectionId: string } | null;
   onReroll: (sectionId?: string) => void;
@@ -22,10 +25,18 @@ export function AnalyseChordsPanel({ song, detected, idea, ideaUndo, onReroll, o
   onBridgeApply: (sectionId: string, bars: string[]) => void;
   onBridgeUndo: () => void;
   onClose: () => void;
-  onSetKey: () => void;
+  onSetKey: (key: string) => void;
+  onRedetect: () => void;
 }) {
   const [ideasOpen, setIdeasOpen] = useState(false);
   const [bridgeOpen, setBridgeOpen] = useState(false);
+
+  // Freeform: whatever is typed is declared verbatim on Enter or on leaving the
+  // field. Nothing is validated or rejected. Reseeded when the key changes from
+  // elsewhere (adopting the suggestion, opening another song).
+  const [keyDraft, setKeyDraft] = useState(song.key);
+  useEffect(() => { setKeyDraft(song.key); }, [song.key]);
+  const commitKey = () => { if (keyDraft !== song.key) onSetKey(keyDraft); };
 
   const sectionsWithChords = song.sections.filter(s => (s.chordBars ?? []).some(b => b.trim() && !isEditorialBar(b)));
   const [selectedSectionId, setSelectedSectionId] = useState<string>(() => sectionsWithChords[0]?.id ?? "");
@@ -43,11 +54,11 @@ export function AnalyseChordsPanel({ song, detected, idea, ideaUndo, onReroll, o
     if (ideasOpen) setIdeasOpen(false);
   };
 
-  const diatonicChords = detected
-    ? getDiatonic(detected.key, detected.mode).map(d =>
+  const diatonicChords = activeKey
+    ? getDiatonic(activeKey.key, activeKey.mode).map(d =>
         `${d.root}${d.q === "maj" ? "" : d.q === "min" ? "m" : "°"}`)
     : [];
-  const parallelChords = detected ? getParallelChords(detected.key, detected.mode) : [];
+  const parallelChords = activeKey ? getParallelChords(activeKey.key, activeKey.mode) : [];
   const noChords = !song.sections.some(s => (s.chordBars ?? []).some(b => b.trim()));
 
   const ChordPill = ({ chord, dim }: { chord: string; dim?: boolean }) => (
@@ -71,8 +82,8 @@ export function AnalyseChordsPanel({ song, detected, idea, ideaUndo, onReroll, o
       </div>
 
       <div className="px-4 py-3">
-        {!detected ? (
-          <p className="text-[12px] text-muted-foreground/40 italic py-1" style={{ fontFamily: SERIF }}>
+        {!activeKey ? (
+          <p className="text-[12px] text-muted-foreground/40 italic py-1 mb-3" style={{ fontFamily: SERIF }}>
             Fill in more bars to detect a key.
           </p>
         ) : (
@@ -80,10 +91,10 @@ export function AnalyseChordsPanel({ song, detected, idea, ideaUndo, onReroll, o
             {/* Key name */}
             <div className="flex items-baseline gap-2.5 mb-4">
               <span className="text-[22px] font-medium leading-none text-foreground" style={{ fontFamily: SERIF }}>
-                {formatDetectedKey(detected.key, detected.mode)}
+                {formatDetectedKey(activeKey.key, activeKey.mode)}
               </span>
               <span className="text-[10px] text-muted-foreground/45 uppercase tracking-widest" style={{ fontFamily: MONO }}>
-                {detected.mode}
+                {activeKey.mode}
               </span>
             </div>
 
@@ -100,7 +111,7 @@ export function AnalyseChordsPanel({ song, detected, idea, ideaUndo, onReroll, o
             {/* Parallel chords */}
             <div className="mb-3">
               <div className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/45 mb-1.5" style={{ fontFamily: MONO }}>
-                Parallel · {detected.mode === "major" ? `${detected.key}m` : detected.key}
+                Parallel · {activeKey.mode === "major" ? `${activeKey.key}m` : activeKey.key}
               </div>
               <div className="flex flex-wrap gap-1">
                 {parallelChords.map((ch, i) => <ChordPill key={i} chord={ch} dim />)}
@@ -108,39 +119,64 @@ export function AnalyseChordsPanel({ song, detected, idea, ideaUndo, onReroll, o
             </div>
 
             <div className="mb-4" />
-
-            {/* Footer actions */}
-            <div className="flex items-center gap-2">
-              <button onClick={onSetKey}
-                className="text-[10px] text-muted-foreground/55 hover:text-foreground transition-colors border border-border/40 rounded-sm px-2.5 py-1"
-                style={{ fontFamily: MONO }}>
-                Set {formatDetectedKey(detected.key, detected.mode)} as key
-              </button>
-              <div className="ml-auto flex items-center gap-1.5">
-                <button
-                  onClick={handleBridgeToggle}
-                  className={`text-[10px] px-3 py-1 border rounded-sm transition-colors ${
-                    bridgeOpen
-                      ? "border-foreground/30 text-foreground bg-muted/40"
-                      : "border-border/50 text-muted-foreground/70 hover:text-foreground hover:border-foreground/20"
-                  }`}
-                  style={{ fontFamily: MONO }}>
-                  Bridge {bridgeOpen ? "▴" : "▾"}
-                </button>
-                <button
-                  onClick={handleIdeasToggle}
-                  className={`text-[10px] px-3 py-1 border rounded-sm transition-colors ${
-                    ideasOpen
-                      ? "border-foreground/30 text-foreground bg-muted/40"
-                      : "border-border/50 text-muted-foreground/70 hover:text-foreground hover:border-foreground/20"
-                  }`}
-                  style={{ fontFamily: MONO }}>
-                  Ideas {ideasOpen ? "▴" : "▾"}
-                </button>
-              </div>
-            </div>
           </>
         )}
+
+        {/* Footer actions — the two key controls stay visible whatever is declared */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Detect — a proposal, adopted only by clicking it */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground/45" style={{ fontFamily: MONO }}>
+              Detect
+            </span>
+            <button onClick={() => suggestion && onSetKey(formatDetectedKey(suggestion.key, suggestion.mode))}
+              disabled={!suggestion}
+              title={suggestion ? `Set ${formatDetectedKey(suggestion.key, suggestion.mode)} as key` : "Not enough chords to detect a key"}
+              className="text-[10px] text-muted-foreground/55 enabled:hover:text-foreground transition-colors border border-border/40 rounded-sm px-2.5 py-1 disabled:text-muted-foreground/30"
+              style={{ fontFamily: MONO }}>
+              {suggestion ? formatDetectedKey(suggestion.key, suggestion.mode) : "—"}
+            </button>
+            <button onClick={onRedetect} title="Re-run detection on the chords as they stand"
+              className="text-[11px] text-muted-foreground/55 hover:text-foreground transition-colors border border-border/40 rounded-sm px-1.5 py-1 leading-none hover:border-foreground/30"
+              style={{ fontFamily: MONO }}>↻</button>
+          </div>
+
+          {/* Set key as — freeform, never validated */}
+          <label className="flex items-center gap-1.5">
+            <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground/45" style={{ fontFamily: MONO }}>
+              Set key as
+            </span>
+            <input value={keyDraft} onChange={e => setKeyDraft(e.target.value)}
+              onBlur={commitKey}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); commitKey(); e.currentTarget.blur(); } }}
+              placeholder="——"
+              className="w-12 bg-transparent text-[10px] text-foreground/70 placeholder:text-muted-foreground/30 focus:outline-none border-b border-border/50 focus:border-muted-foreground/50 pb-px transition-colors"
+              style={{ fontFamily: MONO }} />
+          </label>
+
+          <div className="ml-auto flex items-center gap-1.5">
+            <button
+              onClick={handleBridgeToggle}
+              className={`text-[10px] px-3 py-1 border rounded-sm transition-colors ${
+                bridgeOpen
+                  ? "border-foreground/30 text-foreground bg-muted/40"
+                  : "border-border/50 text-muted-foreground/70 hover:text-foreground hover:border-foreground/20"
+              }`}
+              style={{ fontFamily: MONO }}>
+              Bridge {bridgeOpen ? "▴" : "▾"}
+            </button>
+            <button
+              onClick={handleIdeasToggle}
+              className={`text-[10px] px-3 py-1 border rounded-sm transition-colors ${
+                ideasOpen
+                  ? "border-foreground/30 text-foreground bg-muted/40"
+                  : "border-border/50 text-muted-foreground/70 hover:text-foreground hover:border-foreground/20"
+              }`}
+              style={{ fontFamily: MONO }}>
+              Ideas {ideasOpen ? "▴" : "▾"}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Ideas — inline expansion */}

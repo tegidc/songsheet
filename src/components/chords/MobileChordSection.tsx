@@ -7,13 +7,13 @@ import { inKey } from "../../lib/theory/chords";
 import type { Section, Tab } from "../../types";
 
 export function MobileChordSection({ section, idx, total, onBarsChange, onShortLabelChange,
-  onDuplicate, onDelete, onMove, onToggleNaming, namingStyle, detected, warnFirst,
+  onDuplicate, onDelete, onMove, onToggleNaming, namingStyle, activeKey, warnFirst,
   onCopyBars, onPasteBars, onRepeatBars, suggestions }: {
   section: Section; idx: number; total: number;
   onBarsChange: (b: string[]) => void; onShortLabelChange: (v: string) => void;
   onDuplicate: () => void; onDelete: () => void; onMove: (dir: -1|1) => void;
   onToggleNaming: () => void; namingStyle: "number" | "letter";
-  detected: { key: string; mode: "major"|"minor" } | null; warnFirst: boolean;
+  activeKey: { key: string; mode: "major"|"minor" } | null; warnFirst: boolean;
   onCopyBars: () => void; onPasteBars: (() => void) | null; onRepeatBars: () => void;
   suggestions: { inKey: ChordSuggestion[]; used: ChordSuggestion[]; colour: ChordSuggestion[] };
 }) {
@@ -93,7 +93,7 @@ export function MobileChordSection({ section, idx, total, onBarsChange, onShortL
                   className={[
                     "min-w-[56px] h-11 px-2 rounded-md border flex items-center justify-center transition-colors",
                     sel === barIdx ? "border-foreground/50 bg-muted/50" : "border-border active:bg-muted/40",
-                    detected && bar.trim() && !inKey(bar, detected.key, detected.mode) ? "text-amber-700" : "text-foreground",
+                    activeKey && bar.trim() && !inKey(bar, activeKey.key, activeKey.mode) ? "text-amber-700" : "text-foreground",
                     warnFirst && barIdx === 0 && bar.trim() ? "underline decoration-red-400 decoration-wavy" : "",
                   ].join(" ")}
                   style={{ fontFamily: MONO, fontSize: 14 }}>

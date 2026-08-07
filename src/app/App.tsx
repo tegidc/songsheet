@@ -35,7 +35,7 @@ import { useSelectedWord } from "../lib/useSelectedWord";
 import { buildChordSuggestions, parseChord } from "../lib/theory/chords";
 import type { IdeaResult } from "../lib/theory/ideas";
 import { generateBridgeIdea, generateIdea } from "../lib/theory/ideas";
-import { detectKey, formatDetectedKey } from "../lib/theory/key";
+import { detectKey, formatDetectedKey, parseDeclaredKey } from "../lib/theory/key";
 import { distributeChords, sortCP, syncBarsToPositions } from "../lib/theory/layout";
 import { EMPTY_SONG, isPristineSong, makeEmptySong, makeSection, normalizeSection, renumberSections } from "../sections";
 import type { NbEntry, OWEntry, Section, SectionType, Song, Tab } from "../types";
@@ -553,6 +553,8 @@ export default function App() {
       audioNotes: Array.isArray(loadedSong.audioNotes) ? loadedSong.audioNotes : [],
     };
     suppressNextAutosaveRef.current = true;
+    // Drop the previous song's pinned proposal; this one re-pins from its own chords.
+    setPinnedSuggestion(null);
     setSong(merged); setCurrentProjectId(id); setTab("lyrics");
     // On desktop keep the sidebar pinned open; on mobile close the overlay after
     // picking. Skipped when the song opened itself on sign-in — the user didn't
@@ -563,6 +565,7 @@ export default function App() {
   const newSong = () => {
     currentProjectPrefixRef.current = null;
     suppressNextAutosaveRef.current = true;
+    setPinnedSuggestion(null);
     setSong(makeEmptySong()); setCurrentProjectId(null);
   };
 
@@ -632,11 +635,31 @@ export default function App() {
     setSong(p => ({ ...p, notebookSections: [...(p.notebookSections ?? []), nb] }));
   }, []);
 
-  // Analysis
+  // ── Analysis: the key is a lens, not a fact about the song ─────────────────
+  // Everything chord-related — Nashville numbers, diatonic membership, parallel
+  // chords, Ideas, Bridge — reads through `activeKey`, which is the key the
+  // songwriter declared whenever they have declared one. Detection only ever
+  // proposes: it never writes to `song.key`, and adding chords never moves the
+  // lens under the analysis.
   const allChords = song.sections.flatMap(s => s.chordBars).filter(b => b.trim() && !isEditorialBar(b));
-  const detected  = detectKey(allChords);
-  const pickerSuggestions = useMemo(() => buildChordSuggestions(detected, allChords),
-    [detected?.key, detected?.mode, allChords.join("|")]);
+  const liveDetected = useMemo(() => detectKey(allChords), [allChords.join("|")]);
+  const declaredKey = useMemo(() => parseDeclaredKey(song.key), [song.key]);
+  // Until a key is declared the app reads live, exactly as it always has — there
+  // is no lens of the songwriter's choosing yet. Declaring one pins the proposal
+  // where it stands, so filling in bars stops moving anything under the
+  // analysis; the panel's ↻ is then the only thing that re-runs detection.
+  const [pinnedSuggestion, setPinnedSuggestion] = useState<{ key: string; mode: "major"|"minor" } | null>(null);
+  useEffect(() => {
+    if (!declaredKey) setPinnedSuggestion(null);
+    else setPinnedSuggestion(p => p ?? liveDetected);
+  }, [declaredKey, liveDetected]);
+  const suggestion = pinnedSuggestion ?? liveDetected;
+  const activeKey = useMemo(
+    () => declaredKey ? { key: declaredKey.root, mode: declaredKey.mode } : liveDetected,
+    [declaredKey, liveDetected]);
+  const activeKeyName = activeKey ? formatDetectedKey(activeKey.key, activeKey.mode) : "";
+  const pickerSuggestions = useMemo(() => buildChordSuggestions(activeKey, allChords),
+    [activeKey?.key, activeKey?.mode, allChords.join("|")]);
   const verseFirst  = song.sections.find(s => s.type === "verse")?.chordBars.find(b => b.trim());
   const chorusFirst = song.sections.find(s => s.type === "chorus")?.chordBars.find(b => b.trim());
   const sameFirst = !!verseFirst && !!chorusFirst && (() => {
@@ -946,10 +969,11 @@ export default function App() {
             {showAnalysis && (
               <AnalyseChordsPanel
                 song={song}
-                detected={detected}
+                activeKey={activeKey}
+                suggestion={suggestion}
                 idea={idea}
                 ideaUndo={ideaUndo}
-                onReroll={(sectionId) => setIdea(generateIdea(song, detected, sectionId))}
+                onReroll={(sectionId) => setIdea(generateIdea(song, activeKey, sectionId))}
                 onApply={(sectionId, bars) => {
                   const newId = uid();
                   setIdeaUndo({ newSectionId: newId });
@@ -973,7 +997,7 @@ export default function App() {
                 }}
                 bridge={bridge}
                 bridgeUndo={bridgeUndo}
-                onBridgeGenerate={() => setBridge(generateBridgeIdea(song, detected))}
+                onBridgeGenerate={() => setBridge(generateBridgeIdea(song, activeKey))}
                 onBridgeApply={(sectionId, bars) => {
                   const orig = song.sections.find(s => s.id === sectionId)?.chordBars;
                   if (orig) setBridgeUndo({ sectionId, bars: [...orig] });
@@ -982,7 +1006,8 @@ export default function App() {
                 onBridgeUndo={() => {
                   if (bridgeUndo) { updateSection(bridgeUndo.sectionId, { chordBars: bridgeUndo.bars }); setBridgeUndo(null); }
                 }}
-                onSetKey={() => updateSong({ key: formatDetectedKey(detected?.key ?? "C", detected?.mode ?? "major") })}
+                onSetKey={key => updateSong({ key })}
+                onRedetect={() => setPinnedSuggestion(liveDetected)}
                 onClose={() => setShowAnalysis(false)} />
             )}
 
@@ -1013,7 +1038,7 @@ export default function App() {
                   onMove={dir => moveSection(s.id, dir)}
                   onToggleNaming={() => toggleNaming(s.type)}
                   namingStyle={song.sectionNaming[s.type] ?? "number"}
-                  detected={detected}
+                  activeKey={activeKey}
                   warnFirst={!!sameFirst && (s.type === "verse" || s.type === "chorus")}
                   suggestions={pickerSuggestions}
                   onCopyBars={() => setChordsClipboard([...s.chordBars])}
@@ -1032,9 +1057,9 @@ export default function App() {
                   onMove={dir => moveSection(s.id, dir)}
                   onToggleNaming={() => toggleNaming(s.type)}
                   namingStyle={song.sectionNaming[s.type] ?? "number"}
-                  detected={detected}
+                  activeKey={activeKey}
                   warnFirst={!!sameFirst && (s.type === "verse" || s.type === "chorus")}
-                  nashville={nashville} songKey={song.key}
+                  nashville={nashville} songKey={activeKeyName}
                   suggestions={pickerSuggestions} showSuggest={showChordSuggest}
                   onCopyBars={() => setChordsClipboard([...s.chordBars])}
                   onPasteBars={chordsClipboard ? () => updateSection(s.id, { chordBars: [...chordsClipboard] }) : null}
