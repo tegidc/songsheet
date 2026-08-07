@@ -6,6 +6,7 @@ import { useIsMobile } from "./components/ui/use-mobile";
 import { AuthModal } from "../components/auth/AuthModal";
 import { AnalyseChordsPanel } from "../components/chords/AnalyseChordsPanel";
 import { ChordRowGrid } from "../components/chords/ChordRowGrid";
+import { FretboardIdentifier } from "../components/chords/FretboardIdentifier";
 import { MobileChordSection } from "../components/chords/MobileChordSection";
 import { NotebookSection } from "../components/create/NotebookSection";
 import { ProductionSection } from "../components/create/ProductionSection";
@@ -1187,6 +1188,13 @@ export default function App() {
                 </button>
               ))}
             </div>
+
+            {/* Underneath the chords box: build a shape, and be told what it is */}
+            <FretboardIdentifier
+              initialTuning={song.fretboardTuning}
+              onSaveTuning={t => updateSong({ fretboardTuning: t })}
+              canSave={!!user}
+              isMobile={isMobile} />
           </div>
         )}
 
