@@ -5,14 +5,18 @@ import { MONO } from "../../data/constants";
 import { pickFragmentGroup } from "../../lib/text/fragments";
 import type { Song } from "../../types";
 
+/** Height of the fixed strip — main pads by this so nothing starts underneath it. */
+export const MOBILE_TOOLS_H = 44;
 export type MobileTool = "inspire" | "rhyme" | "synonyms";
 export const MOBILE_MODES: MobileTool[] = ["inspire", "rhyme", "synonyms"];
 export const MOBILE_GLYPHS: Record<MobileTool, string> = { inspire: "✦", rhyme: "◈", synonyms: "⇄" };
-export function MobileLyricTools({ song, onAddVerse, selectionWord, onObjectWrite }: {
+export function MobileLyricTools({ song, onAddVerse, selectionWord, onObjectWrite, topOffset = 53 }: {
   song: Song;
   onAddVerse: (lyrics: string) => void;
   selectionWord: { word: string; seq: number } | null;
   onObjectWrite: (word: string) => void;
+  /** Height of the sticky header, measured — the strip sits directly under it. */
+  topOffset?: number;
 }) {
   const [mode, setMode] = useState<MobileTool>("inspire");
   const [cycleIdx, setCycleIdx] = useState(0);
@@ -124,9 +128,9 @@ export function MobileLyricTools({ song, onAddVerse, selectionWord, onObjectWrit
 
   return (
     <>
-      {/* Top bar — fixed below the 49px nav header */}
+      {/* Top bar — fixed directly below the nav header */}
       <div className="fixed inset-x-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border flex items-center gap-2 px-3"
-        style={{ top: 49, height: 40 }}>
+        style={{ top: topOffset, height: MOBILE_TOOLS_H }}>
 
         {/* Word pills — flex-1 */}
         <div className={`flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden transition-opacity duration-300 ${fading ? "opacity-0" : "opacity-100"}`}>
@@ -162,9 +166,6 @@ export function MobileLyricTools({ song, onAddVerse, selectionWord, onObjectWrit
           <span className="text-[13px] leading-none">{MOBILE_GLYPHS[mode]}</span>
         </button>
       </div>
-
-      {/* Spacer so lyrics content clears the bar */}
-      <div aria-hidden style={{ height: 40 }} />
     </>
   );
 }

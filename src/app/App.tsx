@@ -13,7 +13,7 @@ import { StoryAndBigIdea } from "../components/create/StoryAndBigIdea";
 import { VoiceNotesSection } from "../components/create/VoiceNotesSection";
 import { FinalSectionView } from "../components/final/FinalSectionView";
 import { LyricBlock } from "../components/lyrics/LyricBlock";
-import { MobileLyricTools } from "../components/lyrics/MobileLyricTools";
+import { MOBILE_TOOLS_H, MobileLyricTools } from "../components/lyrics/MobileLyricTools";
 import { FloatingOWButton } from "../components/ow/FloatingOWButton";
 import { ObjectWritingSection } from "../components/ow/ObjectWritingSection";
 import { OWCloudPicker } from "../components/ow/OWCloudPicker";
@@ -108,6 +108,21 @@ export default function App() {
       updateSong({ tempo: String(bpm) });
     }
   };
+
+  // Everything that has to sit directly under the sticky header (the mobile
+  // tools strip, the mobile sidebar overlay) used to hard-code 49px. The header
+  // is no longer a fixed height — it carries the song title on mobile — so it
+  // is measured instead.
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerH, setHeaderH] = useState(53);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setHeaderH(el.getBoundingClientRect().height));
+    ro.observe(el);
+    setHeaderH(el.getBoundingClientRect().height);
+    return () => ro.disconnect();
+  }, []);
 
   const charRef = useRef<HTMLSpanElement>(null);
   const [charWidth, setCharWidth] = useState(8.4);
@@ -673,12 +688,14 @@ export default function App() {
         style={{ visibility: "hidden", position: "fixed", top: 0, left: 0, fontFamily: MONO, fontSize: FS + "px", whiteSpace: "pre" }}>0</span>
 
       {/* Header */}
-      <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur-sm px-4 md:px-6 py-3 flex items-center gap-3 md:gap-4">
+      <header ref={headerRef} className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur-sm px-4 md:px-6 py-3 flex items-center gap-3 md:gap-4">
         <Music size={15} className="text-accent shrink-0" />
-        <span className="text-[12px] tracking-widest uppercase text-muted-foreground" style={{ fontFamily: MONO }}>SongSheet</span>
+        {/* The wordmark yields to the song title on mobile — there is only room
+            for one of them, and the ♫ already says which app this is. */}
+        <span className={`text-[12px] tracking-widest uppercase text-muted-foreground shrink-0 ${isMobile ? "hidden" : ""}`} style={{ fontFamily: MONO }}>SongSheet</span>
 
         {/* Sidebar toggle + OW button + sign-in */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {user ? (
             <>
               <button onClick={toggleSidebar}
@@ -701,8 +718,19 @@ export default function App() {
           )}
         </div>
 
+        {/* The song title, on mobile only — it lives here rather than at the top
+            of the sheet so the page starts on the work itself, and so it can
+            never be the thing the sticky header scrolls over and clips.
+            `leading-normal` and the header's own py-3 give the ascenders room. */}
+        {isMobile && (
+          <input value={song.title} onChange={e => updateSong({ title: e.target.value })} placeholder="Untitled Song"
+            aria-label="Song title"
+            className="flex-1 min-w-0 bg-transparent text-[15px] leading-normal text-foreground placeholder:text-muted-foreground/30 focus:outline-none border-b border-transparent focus:border-border transition-colors"
+            style={{ fontFamily: SERIF, fontWeight: 500 }} />
+        )}
+
         {/* Auto-save indicator — right side */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 shrink-0">
           {autoSaveState === "saving" && (
             <span className="text-[10px] text-muted-foreground/60" style={{ fontFamily: MONO }}>Auto-saving…</span>
           )}
@@ -734,7 +762,7 @@ export default function App() {
       )}
       {/* Mobile: overlay drawer with backdrop */}
       {user && showSidebar && isMobile && (
-        <div className="fixed inset-0 z-40 flex" style={{ top: 49 }}>
+        <div className="fixed inset-0 z-40 flex" style={{ top: headerH }}>
           <div className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={toggleSidebar} />
           <div className="relative z-10 h-full">
             <ProjectsSidebar
@@ -755,22 +783,33 @@ export default function App() {
           </div>
         </div>
       )}
-      <main className="flex-1 min-w-0 max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-10">
+      {/* The mobile tools strip is fixed under the header, so the sheet starts
+          below it rather than underneath it. */}
+      <main className="flex-1 min-w-0 max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-10"
+        style={isMobile && tab === "lyrics" ? { paddingTop: MOBILE_TOOLS_H + 16 } : undefined}>
         {/* Song meta */}
         {(() => { return (
         <section className="mb-4 md:mb-10">
           <div className="flex items-center gap-2">
-            <input value={song.title} onChange={e => updateSong({ title: e.target.value })} placeholder="Untitled Song"
-              className="flex-1 min-w-0 bg-transparent text-[1.5rem] md:text-[2.6rem] leading-tight text-foreground placeholder:text-muted-foreground/25 focus:outline-none border-b border-transparent focus:border-border pb-1 mb-1 transition-colors"
-              style={{ fontFamily: SERIF, fontWeight: 500 }} />
+            {/* On mobile the title is in the header; what is left here is the
+                way into the song's details. */}
+            {isMobile ? (
+              <span className="flex-1 min-w-0 truncate text-[11px] text-muted-foreground/60" style={{ fontFamily: MONO }}>
+                {[song.artist, song.key, song.tempo && `${song.tempo}bpm`, song.timeSignature].filter(Boolean).join(" · ") || "Song details"}
+              </span>
+            ) : (
+              <input value={song.title} onChange={e => updateSong({ title: e.target.value })} placeholder="Untitled Song"
+                className="flex-1 min-w-0 bg-transparent text-[2.6rem] leading-tight text-foreground placeholder:text-muted-foreground/25 focus:outline-none border-b border-transparent focus:border-border pb-1 mb-1 transition-colors"
+                style={{ fontFamily: SERIF, fontWeight: 500 }} />
+            )}
             <button onClick={() => setMetaExpanded(v => !v)}
-              className="shrink-0 text-muted-foreground/50 hover:text-foreground transition-colors p-1.5 -mr-1"
+              className="shrink-0 text-muted-foreground/50 hover:text-foreground transition-colors p-1.5"
               title={metaExpanded ? "Hide song details" : "Show song details"}>
               <ChevronDown size={16} className={`transition-transform ${metaExpanded ? "rotate-180" : ""}`} />
             </button>
           </div>
-          {/* Collapsed summary line */}
-          {!metaExpanded && (song.artist || song.key || song.tempo) && (
+          {/* Collapsed summary line — desktop only; on mobile it is the row above */}
+          {!isMobile && !metaExpanded && (song.artist || song.key || song.tempo) && (
             <div className="text-[11px] text-muted-foreground/60 truncate" style={{ fontFamily: MONO }}>
               {[song.artist, song.key, song.tempo && `${song.tempo}bpm`, song.timeSignature].filter(Boolean).join(" · ")}
             </div>
@@ -935,6 +974,7 @@ export default function App() {
         {isMobile && tab === "lyrics" && (
           <MobileLyricTools
             song={song}
+            topOffset={headerH}
             onAddVerse={addVerseFromFill}
             selectionWord={lyricSelection}
             onObjectWrite={handleObjectWrite} />
