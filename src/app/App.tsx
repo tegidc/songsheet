@@ -529,6 +529,18 @@ export default function App() {
     });
   }, []);
 
+  // A log you cannot prune is not a working log. Removal is by name, which is
+  // an identifier here rather than a convenience: addFretboardChord refuses a
+  // name already present, so one name is always one entry.
+  //
+  // One edge stays: a song whose *only* content is fretboard chords does not
+  // clear the autosave effect's `hasMeaningful` gate once the last one is
+  // removed, so that final removal isn't written. Widening the gate is a
+  // behaviour change and is left for a decision rather than taken here.
+  const removeFretboardChord = useCallback((name: string) => {
+    setSong(p => ({ ...p, fretboardChords: (p.fretboardChords ?? []).filter(c => c.name !== name) }));
+  }, []);
+
   const addVerseFromFill = (lyrics: string) => {
     setSong(p => {
       const n = p.sections.filter(s => s.type === "verse").length + 1;
@@ -1176,6 +1188,7 @@ export default function App() {
                   suggestions={pickerSuggestions}
                   chordRow={chordRow}
                   onCycleChordRow={cycleRow}
+                  onRemoveFretboardChord={removeFretboardChord}
                   onCopyBars={() => setChordsClipboard([...s.chordBars])}
                   onPasteBars={chordsClipboard ? () => updateSection(s.id, { chordBars: [...chordsClipboard] }) : null}
                   onRepeatBars={() => {
@@ -1197,6 +1210,7 @@ export default function App() {
                   nashville={nashville} songKey={activeKeyName}
                   suggestions={pickerSuggestions} showSuggest={showChordSuggest}
                   chordRow={chordRow} onCycleChordRow={cycleRow}
+                  onRemoveFretboardChord={removeFretboardChord}
                   onCopyBars={() => setChordsClipboard([...s.chordBars])}
                   onPasteBars={chordsClipboard ? () => updateSection(s.id, { chordBars: [...chordsClipboard] }) : null}
                   onRepeatBars={() => {

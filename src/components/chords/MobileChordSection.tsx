@@ -8,7 +8,8 @@ import type { Section } from "../../types";
 
 export function MobileChordSection({ section, idx, total, onBarsChange, onShortLabelChange,
   onDuplicate, onDelete, onMove, onToggleNaming, namingStyle, activeKey, warnFirst,
-  onCopyBars, onPasteBars, onRepeatBars, suggestions, chordRow, onCycleChordRow }: {
+  onCopyBars, onPasteBars, onRepeatBars, suggestions, chordRow, onCycleChordRow,
+  onRemoveFretboardChord }: {
   section: Section; idx: number; total: number;
   onBarsChange: (b: string[]) => void; onShortLabelChange: (v: string) => void;
   onDuplicate: () => void; onDelete: () => void; onMove: (dir: -1|1) => void;
@@ -17,6 +18,8 @@ export function MobileChordSection({ section, idx, total, onBarsChange, onShortL
   onCopyBars: () => void; onPasteBars: (() => void) | null; onRepeatBars: () => void;
   suggestions: ChordSuggestionSets;
   chordRow: ChordRow; onCycleChordRow: () => void;
+  /** Prune the song's fretboard log. Only the From Fretboard row offers it. */
+  onRemoveFretboardChord?: (name: string) => void;
 }) {
   const [showActions, setShowActions] = useState(false);
   const [sel, setSel] = useState<number | null>(null);
@@ -119,6 +122,7 @@ export function MobileChordSection({ section, idx, total, onBarsChange, onShortL
         suggestions={suggestions}
         chordRow={chordRow}
         onCycleChordRow={onCycleChordRow}
+        onRemoveFretboardChord={onRemoveFretboardChord}
         onClose={() => setSel(null)}
         onSet={setSelected}
         onClear={() => { if (sel !== null) setBar(sel, ""); }}

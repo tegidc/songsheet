@@ -6,10 +6,12 @@ import { MONO } from "../../data/constants";
 import type { ChordRow, ChordSuggestion, ChordSuggestionSets } from "../../lib/theory/chords";
 import { CHORD_ROW_HEADING } from "../../lib/theory/chords";
 
-export function ChordPickerSheet({ open, title, value, suggestions, chordRow, onCycleChordRow, onClose, onSet, onClear, onDelete, onStep, canPrev, canNext }: {
+export function ChordPickerSheet({ open, title, value, suggestions, chordRow, onCycleChordRow, onClose, onSet, onClear, onDelete, onStep, canPrev, canNext, onRemoveFretboardChord }: {
   open: boolean; title: string; value: string;
   suggestions: ChordSuggestionSets;
   chordRow: ChordRow; onCycleChordRow: () => void;
+  /** Prune the song's fretboard log. Only the From Fretboard row offers it. */
+  onRemoveFretboardChord?: (name: string) => void;
   onClose: () => void;
   onSet: (chord: string, advance: boolean) => void;   // set current bar; advance to next when true
   onClear: () => void;
@@ -20,9 +22,13 @@ export function ChordPickerSheet({ open, title, value, suggestions, chordRow, on
   const [draft, setDraft] = useState(value);
   useEffect(() => { setDraft(value); }, [value, open]);
 
-  const Chips = ({ items }: { items: ChordSuggestion[] }) => (
+  const Chips = ({ items, onRemove }: { items: ChordSuggestion[]; onRemove?: (chord: string) => void }) => (
     <div className="flex flex-wrap gap-2">
-      {items.map(s => <ChordChip key={s.chord + s.label} chord={s.chord} label={s.label} onTap={() => onSet(s.chord, true)} />)}
+      {items.map(s => (
+        <ChordChip key={s.chord + s.label} chord={s.chord} label={s.label}
+          onTap={() => onSet(s.chord, true)}
+          onRemove={onRemove ? () => onRemove(s.chord) : undefined} />
+      ))}
     </div>
   );
   const HEADING = "text-[9px] uppercase tracking-[0.14em] text-muted-foreground mb-2";
@@ -61,7 +67,8 @@ export function ChordPickerSheet({ open, title, value, suggestions, chordRow, on
               {CHORD_ROW_HEADING[chordRow]} ›
             </button>
             {suggestions[chordRow].length
-              ? <Chips items={suggestions[chordRow]} />
+              ? <Chips items={suggestions[chordRow]}
+                  onRemove={chordRow === "fretboard" ? onRemoveFretboardChord : undefined} />
               : <span className="text-[11px] text-muted-foreground/45 italic" style={{ fontFamily: MONO }}>
                   {chordRow === "fretboard" ? "Nothing added from the fretboard yet" : "Nothing here yet"}
                 </span>}

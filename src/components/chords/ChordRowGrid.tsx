@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Plus, Trash2, Copy, ChevronDown, ChevronUp, Repeat2, ClipboardPaste } from "lucide-react";
+import { Plus, Trash2, Copy, ChevronDown, ChevronUp, Repeat2, ClipboardPaste, X } from "lucide-react";
 import { BarCell } from "./BarCell";
 import { CH, CW, MONO, PHRASE_MARKER, ROW_BREAK, SCOL, isEditorialBar } from "../../data/constants";
 import type { ChordRow, ChordSuggestion, ChordSuggestionSets } from "../../lib/theory/chords";
@@ -8,7 +8,8 @@ import type { Section } from "../../types";
 
 export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelChange,
   onDuplicate, onDelete, onMove, onToggleNaming, namingStyle, activeKey, warnFirst, nashville, songKey,
-  onCopyBars, onPasteBars, onRepeatBars, suggestions, showSuggest, chordRow, onCycleChordRow }: {
+  onCopyBars, onPasteBars, onRepeatBars, suggestions, showSuggest, chordRow, onCycleChordRow,
+  onRemoveFretboardChord }: {
   section: Section; idx: number; total: number;
   onBarsChange: (b: string[]) => void; onShortLabelChange: (v: string) => void;
   onDuplicate: () => void; onDelete: () => void; onMove: (dir: -1|1) => void;
@@ -19,6 +20,8 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
   suggestions?: ChordSuggestionSets;
   showSuggest?: boolean;
   chordRow: ChordRow; onCycleChordRow: () => void;
+  /** Prune the song's fretboard log. Only the From Fretboard row offers it. */
+  onRemoveFretboardChord?: (name: string) => void;
 }) {
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const [focusedBarIdx, setFocusedBarIdx] = useState<number | null>(null);
@@ -233,19 +236,40 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
               </p>
             )}
             {(() => {
-              const Chords = ({ items, keyRow }: { items: ChordSuggestion[]; keyRow?: string[] }) => (
+              // `onRemove` is only ever given for the From Fretboard row — the
+              // one set that is a log the songwriter keeps rather than
+              // something derived from the key. The × is a sibling of the
+              // chord button, never inside it: nesting interactive elements
+              // was a real bug in this codebase once.
+              const Chords = ({ items, keyRow, onRemove }: {
+                items: ChordSuggestion[]; keyRow?: string[]; onRemove?: (chord: string) => void;
+              }) => (
                 <div className="flex flex-wrap gap-1">
-                  {items.map((s, si) => (
-                    <button key={s.chord + s.label} onClick={() => onSuggestChord(s.chord)}
-                      className="relative flex flex-col items-center justify-center min-w-[42px] px-2 pt-3 pb-1 rounded border border-border bg-background hover:bg-muted hover:border-foreground/30 transition-colors"
-                      style={{ fontFamily: MONO }}>
-                      {keyRow?.[si] && (
-                        <span className="absolute top-0.5 right-1 text-[7px] text-muted-foreground/50 leading-none" style={{ fontFamily: MONO }}>{keyRow[si]}</span>
-                      )}
-                      <span className="text-[11px] text-foreground leading-tight">{s.chord}</span>
-                      {s.label && <span className="text-[7px] uppercase tracking-[0.1em] text-muted-foreground mt-0.5">{s.label}</span>}
-                    </button>
-                  ))}
+                  {items.map((s, si) => {
+                    const chip = (
+                      <button onClick={() => onSuggestChord(s.chord)}
+                        className="relative flex flex-col items-center justify-center min-w-[42px] px-2 pt-3 pb-1 rounded border border-border bg-background hover:bg-muted hover:border-foreground/30 transition-colors"
+                        style={{ fontFamily: MONO }}>
+                        {keyRow?.[si] && (
+                          <span className="absolute top-0.5 right-1 text-[7px] text-muted-foreground/50 leading-none" style={{ fontFamily: MONO }}>{keyRow[si]}</span>
+                        )}
+                        <span className="text-[11px] text-foreground leading-tight">{s.chord}</span>
+                        {s.label && <span className="text-[7px] uppercase tracking-[0.1em] text-muted-foreground mt-0.5">{s.label}</span>}
+                      </button>
+                    );
+                    if (!onRemove) return <div key={s.chord + s.label}>{chip}</div>;
+                    return (
+                      <div key={s.chord + s.label} className="relative group/chip">
+                        {chip}
+                        {/* Top-left: the shortcut letter already has the right */}
+                        <button onClick={() => onRemove(s.chord)}
+                          title={`Remove ${s.chord} from this song's fretboard chords`}
+                          className="absolute top-0 left-0 p-0.5 leading-none text-muted-foreground/30 hover:text-destructive transition-colors opacity-0 group-hover/chip:opacity-100 focus-visible:opacity-100">
+                          <X size={8} />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               );
               const HEADING = "text-[8px] uppercase tracking-[0.14em] text-muted-foreground shrink-0 mt-2 w-14 text-right leading-tight";
@@ -264,7 +288,8 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
                         {CHORD_ROW_HEADING[chordRow]}
                       </button>
                       {suggestions[chordRow].length
-                        ? <Chords items={suggestions[chordRow]} keyRow={CHORD_ROW_KEYS[chordRow]} />
+                        ? <Chords items={suggestions[chordRow]} keyRow={CHORD_ROW_KEYS[chordRow]}
+                            onRemove={chordRow === "fretboard" ? onRemoveFretboardChord : undefined} />
                         : <span className="text-[10px] text-muted-foreground/45 italic mt-1.5" style={{ fontFamily: MONO }}>
                             {chordRow === "fretboard" ? "Nothing added from the fretboard yet" : "Nothing here yet"}
                           </span>}
