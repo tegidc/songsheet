@@ -754,7 +754,7 @@ export default function App() {
   // is no lens of the songwriter's choosing yet. Declaring one pins the proposal
   // where it stands, so filling in bars stops moving anything under the
   // analysis; the panel's ↻ is then the only thing that re-runs detection.
-  const [pinnedSuggestion, setPinnedSuggestion] = useState<{ key: string; mode: "major"|"minor" } | null>(null);
+  const [pinnedSuggestion, setPinnedSuggestion] = useState<ReturnType<typeof detectKey>>(null);
   useEffect(() => {
     if (!declaredKey) setPinnedSuggestion(null);
     else setPinnedSuggestion(p => p ?? liveDetected);

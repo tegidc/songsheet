@@ -13,7 +13,7 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
   // The key everything here is read through — the declared one, whenever the
   // songwriter has declared one. `suggestion` is only ever a proposal.
   activeKey: { key: string; mode: "major"|"minor" } | null;
-  suggestion: { key: string; mode: "major"|"minor" } | null;
+  suggestion: { key: string; mode: "major"|"minor"; confidence: number; tieBreak: boolean } | null;
   idea: IdeaResult | null;
   ideaUndo: { newSectionId: string } | null;
   onReroll: (sectionId?: string) => void;
@@ -131,11 +131,21 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
             </span>
             <button onClick={() => suggestion && onSetKey(formatDetectedKey(suggestion.key, suggestion.mode))}
               disabled={!suggestion}
-              title={suggestion ? `Set ${formatDetectedKey(suggestion.key, suggestion.mode)} as key` : "Not enough chords to detect a key"}
+              title={suggestion
+                ? `Set ${formatDetectedKey(suggestion.key, suggestion.mode)} as key — ${Math.round(suggestion.confidence * 100)}% confidence${
+                    suggestion.tieBreak ? " (a major key and its relative minor fit equally well here; broken by which chord this resolves on)" : ""}`
+                : "Not enough chords to detect a key"}
               className="text-[10px] text-muted-foreground/55 enabled:hover:text-foreground transition-colors border border-border/40 rounded-sm px-2.5 py-1 disabled:text-muted-foreground/30"
               style={{ fontFamily: MONO }}>
               {suggestion ? formatDetectedKey(suggestion.key, suggestion.mode) : "—"}
             </button>
+            {suggestion && (
+              <span className={`text-[9px] ${suggestion.confidence >= 0.9 ? "text-muted-foreground/40" : suggestion.confidence >= 0.65 ? "text-muted-foreground/35" : "text-muted-foreground/30 italic"}`}
+                style={{ fontFamily: MONO }}
+                title={suggestion.tieBreak ? "This tie was broken by the tonic, not by chord vocabulary alone — worth checking by ear" : "How well the chords fit this key"}>
+                {Math.round(suggestion.confidence * 100)}%
+              </span>
+            )}
             <button onClick={onRedetect} title="Re-run detection on the chords as they stand"
               className="text-[11px] text-muted-foreground/55 hover:text-foreground transition-colors border border-border/40 rounded-sm px-1.5 py-1 leading-none hover:border-foreground/30"
               style={{ fontFamily: MONO }}>↻</button>
