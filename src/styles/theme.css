@@ -127,6 +127,40 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/**
+ * The 16px floor, as a law rather than as fifteen separate class names.
+ *
+ * iOS Safari zooms the visual viewport when it focuses a field smaller than
+ * 16px, and nothing zooms it back out — the page is simply left magnified,
+ * with everything `position: fixed` carried off screen. Phase 5 fixed this
+ * one field at a time (the full-screen editor's textarea) and the next field
+ * added brought the bug straight back, which is what the object-writing
+ * window was.
+ *
+ * So the floor is stated once, here, where a new field cannot miss it:
+ *
+ *   · Only under the mobile breakpoint (767px — the same one `useIsMobile`
+ *     uses). Desktop keeps the small, text-dense type the app is designed in.
+ *   · Only fields that can actually take focus. `readonly` is how this app
+ *     says "tapping me opens the full-screen editor, I never focus" — those
+ *     boxes are the main reading surfaces (lyrics, notebook, story) and
+ *     raising them would rewrite the design for no benefit.
+ *   · `!important` because the sizes it has to beat are Tailwind arbitrary
+ *     classes and inline `style={{ fontSize }}`, both of which outrank a
+ *     plain element selector. A floor that loses on specificity is not a floor.
+ *   · Non-text inputs are excluded: their font-size means nothing and the
+ *     vendored shadcn controls size themselves from it.
+ */
+@media (max-width: 767px) {
+  textarea:not([readonly]),
+  input:not([readonly]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]) {
+    font-size: 16px !important;
+  }
+}
+
+@layer base {
 
   /**
   * Default typography styles for HTML elements (h1-h4, p, label, button, input).

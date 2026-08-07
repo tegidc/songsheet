@@ -118,12 +118,22 @@ shared component via conditional rendering everywhere.
 
 Two mobile sizes are not free choices:
 
-- **16px is the floor for anything a phone will focus.** Below it iOS Safari
-  zooms the visual viewport on focus, which carries every `position: fixed`
-  element off screen. The full-screen editor's textarea is exactly 16px for
-  this reason, and any new full-width writing surface should be too. The
-  small type elsewhere is fine precisely because those boxes are `readOnly`
-  on mobile and never take focus.
+- **16px is the floor for anything a phone will focus**, and it is enforced
+  once rather than remembered per field. Below 16px iOS Safari zooms the
+  visual viewport on focus, which carries every `position: fixed` element off
+  screen, and nothing zooms back out. Phase 5 fixed it a field at a time; the
+  object-writing window then reintroduced it, so `src/styles/theme.css` now
+  carries a single `@media (max-width: 767px)` rule raising every focusable
+  `input`/`textarea` to exactly 16px. Three things about it are deliberate:
+  it is scoped to `:not([readonly])`, because `readOnly` is how this app says
+  "tapping me opens the full-screen editor, I never focus" and those boxes
+  are the main reading surfaces; it uses `!important`, because it has to beat
+  Tailwind arbitrary classes and inline `style={{ fontSize }}` and a floor
+  that loses on specificity is not a floor; and it excludes non-text input
+  types, whose font-size means nothing. **You do not need to size new mobile
+  fields by hand** — write the desktop size you want and the rule handles the
+  phone. The small type elsewhere survives precisely because those boxes are
+  `readOnly` on mobile.
 - **`100vh` is wrong on iOS** — it is the height as though no keyboard
   existed. Anything that must sit above the keyboard is sized from
   `window.visualViewport` instead (`FullScreenEditor`).
