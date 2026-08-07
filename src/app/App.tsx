@@ -40,7 +40,7 @@ import { generateBridgeIdea, generateIdea } from "../lib/theory/ideas";
 import { detectKey, formatDetectedKey, parseDeclaredKey } from "../lib/theory/key";
 import { distributeChords, sortCP, syncBarsToPositions } from "../lib/theory/layout";
 import { EMPTY_SONG, abbreviateSectionLabel, isPristineSong, makeEmptySong, makeSection, normalizeSection, renumberSections } from "../sections";
-import type { NbEntry, OWEntry, Section, SectionType, Song, Tab } from "../types";
+import type { NbEntry, OWEntry, Section, SectionType, Song, Tab, Tuning } from "../types";
 
 export default function App() {
   const isMobile = useIsMobile();
@@ -276,7 +276,8 @@ export default function App() {
     }
     const hasMeaningful = song.title.trim() ||
       song.sections.some(s => (s.lyrics ?? "").trim() || (s.chordBars ?? []).some(b => b.trim())) ||
-      (song.objectWritings ?? []).some(e => !e.imported && e.text.trim());
+      (song.objectWritings ?? []).some(e => !e.imported && e.text.trim()) ||
+      (song.fretboardChords ?? []).length > 0;
     if (!hasMeaningful) return;
     pendingRef.current = true;
     clearTimeout(autoSaveTimer.current);
@@ -513,6 +514,18 @@ export default function App() {
       setSong(p => ({ ...p, objectWritings: (p.objectWritings ?? []).filter(e => e.id !== w.entry.id) }));
     owWindowRef.current = null;
     setOwWindow(null);
+  }, []);
+
+  // A chord found on the fretboard, logged on the song. The tuning goes with
+  // it because the fingering means nothing without one. Adding the same name
+  // twice is a no-op — this is a working log of the chords in use, seven or
+  // eight of them, not a library of every time one was looked up.
+  const addFretboardChord = useCallback((name: string, frets: (number | null)[], tuning: Tuning) => {
+    setSong(p => {
+      const existing = p.fretboardChords ?? [];
+      if (existing.some(c => c.name === name)) return p;
+      return { ...p, fretboardChords: [...existing, { id: uid(), name, frets, tuning }] };
+    });
   }, []);
 
   const addVerseFromFill = (lyrics: string) => {
@@ -1193,6 +1206,7 @@ export default function App() {
             <FretboardIdentifier
               initialTuning={song.fretboardTuning}
               onSaveTuning={t => updateSong({ fretboardTuning: t })}
+              onAddChord={addFretboardChord}
               canSave={!!user}
               isMobile={isMobile} />
           </div>

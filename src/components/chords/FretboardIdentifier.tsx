@@ -32,9 +32,10 @@ const INLAYS = [3, 5, 7, 9, 12];
 /** 1 is thickest, 6 thinnest. The cue is the taper, not the numbers. */
 const stringWeight = (stringIdx: number) => 1.1 + (STRING_COUNT - 1 - stringIdx) * 0.32;
 
-export function FretboardIdentifier({ initialTuning, onSaveTuning, canSave, isMobile }: {
+export function FretboardIdentifier({ initialTuning, onSaveTuning, onAddChord, canSave, isMobile }: {
   initialTuning?: Tuning;
   onSaveTuning: (t: Tuning) => void;
+  onAddChord: (name: string, frets: (number | null)[], tuning: Tuning) => void;
   canSave: boolean;
   isMobile?: boolean;
 }) {
@@ -214,6 +215,15 @@ export function FretboardIdentifier({ initialTuning, onSaveTuning, canSave, isMo
             <span className="text-[15px] text-muted-foreground/40 leading-tight" style={{ fontFamily: MONO }}>
               {id.notes.length ? id.notes.join(" ") : "—"}
             </span>
+          )}
+          {/* A plain +. No dialog and no nickname prompt — the tool named the
+              chord, so there is nothing left to ask. */}
+          {id.primary && (
+            <button onClick={() => onAddChord(id.primary!.name, [...frets], cloneTuning(tuning))}
+              title={`Add ${id.primary.name} to the song`}
+              className="flex items-center justify-center w-6 h-6 border border-border rounded-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors">
+              <Plus size={12} />
+            </button>
           )}
           <span className="ml-auto text-[11px] text-muted-foreground/55 tabular-nums" style={{ fontFamily: MONO }}>
             {tuningLetters(tuning)}

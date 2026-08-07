@@ -143,6 +143,7 @@ export const makeEmptySong = (): Song => ({
   objectWritings: [],
   notebookSections: [],
   audioNotes: [],
+  fretboardChords: [],
 });
 export const EMPTY_SONG = makeEmptySong();
 
@@ -165,5 +166,6 @@ export function isPristineSong(s: Song): boolean {
     && !s.sections.some(x => (x.lyrics ?? "").trim() || (x.chordBars ?? []).some(b => b.trim()))
     && (s.objectWritings ?? []).length === 0
     && (s.notebookSections ?? []).length === 0
-    && (s.audioNotes ?? []).length === 0;
+    && (s.audioNotes ?? []).length === 0
+    && (s.fretboardChords ?? []).length === 0;
 }
