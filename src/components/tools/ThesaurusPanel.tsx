@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Copy, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { MONO, SERIF } from "../../data/constants";
-import type { Section, Song } from "../../types";
+import type { Song } from "../../types";
 
 export interface ThesaurusResult { word: string; syl: number; type: "syn" | "ant" | "rel" }
 export function ThesaurusPanel({ song, selectionWord, onObjectWrite }: {

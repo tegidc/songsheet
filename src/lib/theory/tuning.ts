@@ -21,9 +21,6 @@ export const PC_NAMES = ["C","C#","D","Eb","E","F","F#","G","Ab","A","Bb","B"];
 export const pcName = (pc: number) => PC_NAMES[((pc % 12) + 12) % 12];
 export const noteName = (midi: number) => pcName(midi);
 
-/** Octave number in scientific pitch notation — only used for tuning readouts. */
-export const octaveOf = (midi: number) => Math.floor(midi / 12) - 1;
-
 export const TUNING_PRESETS: Tuning[] = [
   { name: "Standard", midi: [40, 45, 50, 55, 59, 64], detune: 0 },  // E2 A2 D3 G3 B3 E4
   { name: "DADGAD",   midi: [38, 45, 50, 55, 57, 62], detune: 0 },  // D2 A2 D3 G3 A3 D4

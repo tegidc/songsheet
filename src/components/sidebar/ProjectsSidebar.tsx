@@ -5,7 +5,7 @@ import { StandaloneOWWindow } from "../ow/StandaloneOWWindow";
 import { MONO, SERIF, TIMER_OPTS } from "../../data/constants";
 import { formatRelativeTime } from "../../format";
 import { owLabel } from "../../lib/text/owLabel";
-import type { AudioNote, Project, ProjectStatus, Song, StandaloneOW, Tab } from "../../types";
+import type { AudioNote, Project, ProjectStatus, Song, StandaloneOW } from "../../types";
 
 export const STATUS_DOT: Record<ProjectStatus, string> = {
   working:  "bg-accent",

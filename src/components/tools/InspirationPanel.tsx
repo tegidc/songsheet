@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { ChevronDown } from "lucide-react";
 import { MONO, SERIF } from "../../data/constants";
 import { buildSkeletonLyrics, pickFragmentGroup } from "../../lib/text/fragments";
-import type { Section, Song } from "../../types";
+import type { Song } from "../../types";
 
 export type InspirationMode = "fragments" | "form";
 export const FRAGMENT_INTERVAL = 15000; // ms — auto-cycle interval

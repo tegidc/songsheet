@@ -4,7 +4,7 @@ import { Drawer, DrawerContent, DrawerTitle, DrawerDescription } from "../../app
 import { FS, MONO, SCOL } from "../../data/constants";
 import { uid } from "../../format";
 import { resolveOverlaps, sortCP } from "../../lib/theory/layout";
-import type { CP, Section, Tab } from "../../types";
+import type { CP, Section } from "../../types";
 
 export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
   section: Section; charWidth: number; onUpdate: (p: Partial<Section>) => void; isMobile?: boolean;

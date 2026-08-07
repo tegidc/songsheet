@@ -5,7 +5,7 @@ import { getDiatonic } from "../../lib/theory/chords";
 import type { IdeaResult } from "../../lib/theory/ideas";
 import { formatDetectedKey } from "../../lib/theory/key";
 import { getParallelChords } from "../../lib/theory/substitutions";
-import type { Section, Song } from "../../types";
+import type { Song } from "../../types";
 
 export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo, onReroll, onApply, onUndo,
   bridge, bridgeUndo, onBridgeGenerate, onBridgeApply, onBridgeUndo, onClose, onSetKey, onRedetect }: {

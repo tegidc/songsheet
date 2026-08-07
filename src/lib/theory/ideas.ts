@@ -280,7 +280,6 @@ export function generateIdea(song: Song, activeKey: { key: string; mode: "major"
 export function generateBridgeIdea(song: Song, activeKey: { key: string; mode: "major"|"minor" } | null): IdeaResult | null {
   if (!activeKey) return null;
   const { key, mode } = activeKey;
-  const ki = NOTES.indexOf(key);
   const diat = getDiatonic(key, mode);
 
   // Only look at non-bridge sections for the "existing" profile
