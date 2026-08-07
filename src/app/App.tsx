@@ -13,7 +13,7 @@ import { StoryAndBigIdea } from "../components/create/StoryAndBigIdea";
 import { VoiceNotesSection } from "../components/create/VoiceNotesSection";
 import { FinalSectionView } from "../components/final/FinalSectionView";
 import { LyricBlock } from "../components/lyrics/LyricBlock";
-import { MOBILE_TOOLS_H, MobileLyricTools } from "../components/lyrics/MobileLyricTools";
+import { InspirationStrip, STRIP_H } from "../components/tools/InspirationStrip";
 import { FloatingOWButton } from "../components/ow/FloatingOWButton";
 import { ObjectWritingSection } from "../components/ow/ObjectWritingSection";
 import { OWCloudPicker } from "../components/ow/OWCloudPicker";
@@ -786,7 +786,7 @@ export default function App() {
       {/* The mobile tools strip is fixed under the header, so the sheet starts
           below it rather than underneath it. */}
       <main className="flex-1 min-w-0 max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-10"
-        style={isMobile && tab === "lyrics" ? { paddingTop: MOBILE_TOOLS_H + 16 } : undefined}>
+        style={isMobile && tab === "lyrics" ? { paddingTop: STRIP_H + 16 } : undefined}>
         {/* Song meta */}
         {(() => { return (
         <section className="mb-4 md:mb-10">
@@ -974,14 +974,11 @@ export default function App() {
             )}
           </div>
         )}
-        {/* Mobile lyric tools: bottom bar + sheet */}
+        {/* Mobile inspiration strip — fixed directly under the header */}
         {isMobile && tab === "lyrics" && (
-          <MobileLyricTools
-            song={song}
-            topOffset={headerH}
-            onAddVerse={addVerseFromFill}
-            selectionWord={lyricSelection}
-            onObjectWrite={handleObjectWrite} />
+          <div className="fixed inset-x-0 z-30" style={{ top: headerH }}>
+            <InspirationStrip song={song} selectionWord={lyricSelection} />
+          </div>
         )}
 
         {/* ── Chords ── */}
