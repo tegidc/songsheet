@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { MONO } from "../../data/constants";
+import { identifyChord } from "../../lib/theory/identify";
 import { fetchSongTunings } from "../../lib/tunings";
 import {
   STRING_COUNT, TUNING_PRESETS, cloneTuning, noteName, soundingMidi,
@@ -53,6 +54,11 @@ export function FretboardIdentifier({ initialTuning, onSaveTuning, canSave, isMo
   useEffect(() => { if (canSave) loadSaved(); }, [canSave]);
 
   const open = soundingMidi(tuning);
+
+  // What the hand is holding, and therefore what it is called.
+  const id = useMemo(() => identifyChord(
+    frets.map((f, i) => f === null ? null : open[i] + f).filter((m): m is number => m !== null),
+  ), [frets.join(","), open.join(",")]);
 
   const toggleFret = (stringIdx: number, fret: number) => {
     setFrets(p => p.map((f, i) => i !== stringIdx ? f : (f === fret ? null : fret)));
@@ -195,14 +201,39 @@ export function FretboardIdentifier({ initialTuning, onSaveTuning, canSave, isMo
       </div>
 
       {/* ── What it is ─────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-3 py-2.5 border-t border-border">
-        <span className="text-[11px] text-muted-foreground/55 tabular-nums" style={{ fontFamily: MONO }}>
-          {tuningLetters(tuning)}
-        </span>
-        {!isMobile && (
-          <span className="ml-auto text-[9px] text-muted-foreground/35" style={{ fontFamily: MONO }}>
-            click a fret to place · click the nut to open, again to clear
+      {/* The name, said plainly. No caption telling you it is a name — the
+          whole point of the tool is that it does the naming, so a sentence
+          about the naming would be the app talking about itself. */}
+      <div className="px-3 py-2.5 border-t border-border">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          {id.primary ? (
+            <span className="text-[19px] text-foreground leading-tight" style={{ fontFamily: MONO }}>
+              {id.primary.name}
+            </span>
+          ) : (
+            <span className="text-[15px] text-muted-foreground/40 leading-tight" style={{ fontFamily: MONO }}>
+              {id.notes.length ? id.notes.join(" ") : "—"}
+            </span>
+          )}
+          <span className="ml-auto text-[11px] text-muted-foreground/55 tabular-nums" style={{ fontFamily: MONO }}>
+            {tuningLetters(tuning)}
           </span>
+        </div>
+        {/* The messier honest readings, kept off the name's line */}
+        {id.alternates.length > 0 && (
+          <div className="mt-1 text-[10px] text-muted-foreground/50" style={{ fontFamily: MONO }}>
+            also reads as {id.alternates.map(a => a.name).join(", ")}
+          </div>
+        )}
+        {!id.primary && id.notes.length > 0 && (
+          <div className="mt-1 text-[10px] text-muted-foreground/40" style={{ fontFamily: MONO }}>
+            no chord name for these notes
+          </div>
+        )}
+        {!isMobile && !id.primary && !id.notes.length && (
+          <div className="mt-1 text-[9px] text-muted-foreground/35" style={{ fontFamily: MONO }}>
+            click a fret to place · click the nut to open, again to clear
+          </div>
         )}
       </div>
     </div>
