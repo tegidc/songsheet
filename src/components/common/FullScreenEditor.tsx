@@ -106,7 +106,11 @@ export function FullScreenEditor({
     if (!ta) return;
     ta.focus();
     ta.setSelectionRange(ta.value.length, ta.value.length);
-  }, [index]);
+    // Explicitly, rather than trusting the focus to produce an onSelect: a
+    // timer still running from the previous section holds that section's text,
+    // and would offer a word from a verse you have already left.
+    noteCaret();
+  }, [index, noteCaret]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
