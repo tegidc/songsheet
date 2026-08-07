@@ -1,8 +1,10 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { ChevronDown } from "lucide-react";
+import { FL } from "../common/FL";
 import { MONO, SERIF } from "../../data/constants";
 import { buildSkeletonLyrics, pickFragmentGroup } from "../../lib/text/fragments";
-import type { Section, Song } from "../../types";
+import { fragmentSourceText } from "../../lib/text/songText";
+import type { Song } from "../../types";
 
 export type InspirationMode = "fragments" | "form";
 export const FRAGMENT_INTERVAL = 15000; // ms — auto-cycle interval
@@ -12,14 +14,8 @@ export function InspirationPanel({ song, onAddVerse }: { song: Song; onAddVerse:
 
   // ── Fragments ──────────────────────────────────────────────────────────────
   // Source: Notebook + OW + Big Idea + Story — deliberately NOT Production Notes
-  const fragmentSource = useMemo(() => [
-    song.generalNotes ?? "",
-    song.bigIdea ?? "",
-    song.story?.beginning ?? "",
-    song.story?.middle ?? "",
-    song.story?.end ?? "",
-    ...(song.objectWritings ?? []).map(o => o.text),
-  ].join(" "), [song.generalNotes, song.bigIdea, song.story, song.objectWritings]);
+  const fragmentSource = useMemo(() => fragmentSourceText(song),
+    [song.generalNotes, song.bigIdea, song.story, song.objectWritings]);
 
   const hasFragmentContent = fragmentSource.replace(/\s/g, "").length > 20;
 
@@ -84,9 +80,9 @@ export function InspirationPanel({ song, onAddVerse }: { song: Song; onAddVerse:
     <div className="border border-border rounded-sm overflow-hidden">
       {/* Header */}
       <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
-        <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground" style={{ fontFamily: MONO }}>
+        <FL className="text-muted-foreground">
           Inspiration
-        </span>
+        </FL>
         {mode === "fragments" && !collapsed && (
           <div className="flex items-center gap-2">
             <button onClick={() => setPaused(p => !p)} title={paused ? "Resume" : "Pause"}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
+import { FL } from "../common/FL";
 import { MONO } from "../../data/constants";
 import { identifyChord } from "../../lib/theory/identify";
 import { fetchSongTunings } from "../../lib/tunings";
@@ -90,7 +91,7 @@ export function FretboardIdentifier({ initialTuning, onSaveTuning, onAddChord, c
     <div className="border border-border rounded-sm mt-6">
       {/* ── Tuning ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 border-b border-border bg-muted/20">
-        <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground" style={{ fontFamily: MONO }}>Tuning</span>
+        <FL className="text-muted-foreground">Tuning</FL>
 
         {TUNING_PRESETS.map(p => (
           <button key={p.name} onClick={() => selectTuning(p)}
@@ -121,7 +122,7 @@ export function FretboardIdentifier({ initialTuning, onSaveTuning, onAddChord, c
 
         {/* Detune, applied on top of whichever tuning is selected */}
         <div className="flex items-center gap-1 ml-auto">
-          <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground/70 mr-1" style={{ fontFamily: MONO }}>Detune</span>
+          <FL className="text-muted-foreground/70 mr-1">Detune</FL>
           <button onClick={() => setTuning(t => ({ ...t, detune: t.detune - 1 }))}
             aria-label="Detune down a semitone"
             className="text-muted-foreground/60 hover:text-foreground transition-colors text-[12px] leading-none px-1">−</button>

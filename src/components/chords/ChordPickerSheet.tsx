@@ -2,14 +2,17 @@ import { useState, useEffect } from "react";
 import { ChevronUp } from "lucide-react";
 import { Drawer, DrawerContent, DrawerTitle, DrawerDescription } from "../../app/components/ui/drawer";
 import { ChordChip } from "./ChordChip";
+import { FL } from "../common/FL";
 import { MONO } from "../../data/constants";
 import type { ChordRow, ChordSuggestion, ChordSuggestionSets } from "../../lib/theory/chords";
 import { CHORD_ROW_HEADING } from "../../lib/theory/chords";
 
-export function ChordPickerSheet({ open, title, value, suggestions, chordRow, onCycleChordRow, onClose, onSet, onClear, onDelete, onStep, canPrev, canNext }: {
+export function ChordPickerSheet({ open, title, value, suggestions, chordRow, onCycleChordRow, onClose, onSet, onClear, onDelete, onStep, canPrev, canNext, onRemoveFretboardChord }: {
   open: boolean; title: string; value: string;
   suggestions: ChordSuggestionSets;
   chordRow: ChordRow; onCycleChordRow: () => void;
+  /** Prune the song's fretboard log. Only the From Fretboard row offers it. */
+  onRemoveFretboardChord?: (name: string) => void;
   onClose: () => void;
   onSet: (chord: string, advance: boolean) => void;   // set current bar; advance to next when true
   onClear: () => void;
@@ -20,9 +23,13 @@ export function ChordPickerSheet({ open, title, value, suggestions, chordRow, on
   const [draft, setDraft] = useState(value);
   useEffect(() => { setDraft(value); }, [value, open]);
 
-  const Chips = ({ items }: { items: ChordSuggestion[] }) => (
+  const Chips = ({ items, onRemove }: { items: ChordSuggestion[]; onRemove?: (chord: string) => void }) => (
     <div className="flex flex-wrap gap-2">
-      {items.map(s => <ChordChip key={s.chord + s.label} chord={s.chord} label={s.label} onTap={() => onSet(s.chord, true)} />)}
+      {items.map(s => (
+        <ChordChip key={s.chord + s.label} chord={s.chord} label={s.label}
+          onTap={() => onSet(s.chord, true)}
+          onRemove={onRemove ? () => onRemove(s.chord) : undefined} />
+      ))}
     </div>
   );
   const HEADING = "text-[9px] uppercase tracking-[0.14em] text-muted-foreground mb-2";
@@ -34,12 +41,12 @@ export function ChordPickerSheet({ open, title, value, suggestions, chordRow, on
         <DrawerDescription className="sr-only">Choose a chord for this bar</DrawerDescription>
         <div className="overflow-y-auto px-4 pb-6 pt-1">
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground" style={{ fontFamily: MONO }}>{title}</span>
+            <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground" style={{ fontFamily: MONO }}>{title}</span>
             <div className="ml-auto flex items-center gap-1">
               <button onClick={() => onStep(-1)} disabled={!canPrev} title="Previous bar"
-                className="p-1.5 rounded border border-border text-muted-foreground disabled:opacity-25 active:bg-muted transition-colors"><ChevronUp size={13} className="-rotate-90" /></button>
+                className="p-1.5 rounded-sm border border-border text-muted-foreground disabled:opacity-25 active:bg-muted transition-colors"><ChevronUp size={13} className="-rotate-90" /></button>
               <button onClick={() => onStep(1)} disabled={!canNext} title="Next bar"
-                className="p-1.5 rounded border border-border text-muted-foreground disabled:opacity-25 active:bg-muted transition-colors"><ChevronUp size={13} className="rotate-90" /></button>
+                className="p-1.5 rounded-sm border border-border text-muted-foreground disabled:opacity-25 active:bg-muted transition-colors"><ChevronUp size={13} className="rotate-90" /></button>
             </div>
           </div>
 
@@ -61,7 +68,8 @@ export function ChordPickerSheet({ open, title, value, suggestions, chordRow, on
               {CHORD_ROW_HEADING[chordRow]} ›
             </button>
             {suggestions[chordRow].length
-              ? <Chips items={suggestions[chordRow]} />
+              ? <Chips items={suggestions[chordRow]}
+                  onRemove={chordRow === "fretboard" ? onRemoveFretboardChord : undefined} />
               : <span className="text-[11px] text-muted-foreground/45 italic" style={{ fontFamily: MONO }}>
                   {chordRow === "fretboard" ? "Nothing added from the fretboard yet" : "Nothing here yet"}
                 </span>}
@@ -70,7 +78,7 @@ export function ChordPickerSheet({ open, title, value, suggestions, chordRow, on
           {/* USED stays where it is */}
           {suggestions.used.length > 0 && (
             <div className="mb-4">
-              <div className={HEADING} style={{ fontFamily: MONO }}>Used so far</div>
+              <FL className="block text-muted-foreground mb-2">Used so far</FL>
               <Chips items={suggestions.used} />
             </div>
           )}

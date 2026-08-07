@@ -1,4 +1,5 @@
 import { CollapsibleSection } from "../common/CollapsibleSection";
+import { FL } from "../common/FL";
 import { MONO, SERIF } from "../../data/constants";
 import type { Song } from "../../types";
 
@@ -23,9 +24,9 @@ export function StoryAndBigIdea({ story, bigIdea, onStoryChange, onBigIdeaChange
       <div className={isMobile ? "flex flex-col divide-y divide-border" : "flex divide-x divide-border"}>
         {/* Big Idea — first on both layouts */}
         <div className={`${isMobile ? "w-full" : "flex-[1] min-w-0"} px-4 py-3 flex flex-col`}>
-          <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground block mb-2" style={{ fontFamily: MONO }}>
+          <FL className="block text-muted-foreground mb-2">
             The Big Idea
-          </span>
+          </FL>
           <textarea
             value={bigIdea}
             onChange={e => onBigIdeaChange(e.target.value)}
@@ -40,9 +41,9 @@ export function StoryAndBigIdea({ story, bigIdea, onStoryChange, onBigIdeaChange
         <div className={isMobile ? "w-full" : "flex-[2] min-w-0"}>
           {parts.map((part, i) => (
             <div key={part.key} className={`px-4 py-2.5 ${!isMobile && i < parts.length - 1 ? "border-b border-border/50" : ""} ${isMobile && i < parts.length - 1 ? "border-b border-border/40" : ""}`}>
-              <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground block mb-1" style={{ fontFamily: MONO }}>
+              <FL className="block text-muted-foreground mb-1">
                 {part.label}
-              </span>
+              </FL>
               <input
                 value={story[part.key]}
                 onChange={e => onStoryChange({ ...story, [part.key]: e.target.value })}

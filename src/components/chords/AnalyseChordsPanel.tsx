@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import { FL } from "../common/FL";
 import { CH, CW, MONO, PHRASE_MARKER, ROW_BREAK, SERIF, isEditorialBar } from "../../data/constants";
 import { getDiatonic } from "../../lib/theory/chords";
 import type { IdeaResult } from "../../lib/theory/ideas";
 import { formatDetectedKey } from "../../lib/theory/key";
 import { getParallelChords } from "../../lib/theory/substitutions";
-import type { Section, Song } from "../../types";
+import type { Song } from "../../types";
 
 export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo, onReroll, onApply, onUndo,
   bridge, bridgeUndo, onBridgeGenerate, onBridgeApply, onBridgeUndo, onClose, onSetKey, onRedetect }: {
@@ -13,7 +14,7 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
   // The key everything here is read through — the declared one, whenever the
   // songwriter has declared one. `suggestion` is only ever a proposal.
   activeKey: { key: string; mode: "major"|"minor" } | null;
-  suggestion: { key: string; mode: "major"|"minor" } | null;
+  suggestion: { key: string; mode: "major"|"minor"; confidence: number; tieBreak: boolean } | null;
   idea: IdeaResult | null;
   ideaUndo: { newSectionId: string } | null;
   onReroll: (sectionId?: string) => void;
@@ -73,9 +74,9 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
     <div className="mb-5 border border-border rounded-sm overflow-hidden bg-card">
       {/* Segment header */}
       <div className="px-4 py-2.5 border-b border-border bg-muted/30 flex items-center gap-2">
-        <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground" style={{ fontFamily: MONO }}>
+        <FL className="text-muted-foreground">
           Analyse Chords
-        </span>
+        </FL>
         <button onClick={onClose} className="ml-auto text-muted-foreground/50 hover:text-foreground transition-colors">
           <X size={13} />
         </button>
@@ -93,16 +94,16 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
               <span className="text-[22px] font-medium leading-none text-foreground" style={{ fontFamily: SERIF }}>
                 {formatDetectedKey(activeKey.key, activeKey.mode)}
               </span>
-              <span className="text-[10px] text-muted-foreground/45 uppercase tracking-widest" style={{ fontFamily: MONO }}>
+              <span className="text-[10px] text-muted-foreground/45 uppercase tracking-[0.14em]" style={{ fontFamily: MONO }}>
                 {activeKey.mode}
               </span>
             </div>
 
             {/* Common chords */}
             <div className="mb-3">
-              <div className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/45 mb-1.5" style={{ fontFamily: MONO }}>
+              <FL className="block text-muted-foreground/45 mb-1.5">
                 Common
-              </div>
+              </FL>
               <div className="flex flex-wrap gap-1">
                 {diatonicChords.map((ch, i) => <ChordPill key={i} chord={ch} />)}
               </div>
@@ -110,9 +111,9 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
 
             {/* Parallel chords */}
             <div className="mb-3">
-              <div className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/45 mb-1.5" style={{ fontFamily: MONO }}>
+              <FL className="block text-muted-foreground/45 mb-1.5">
                 Parallel · {activeKey.mode === "major" ? `${activeKey.key}m` : activeKey.key}
-              </div>
+              </FL>
               <div className="flex flex-wrap gap-1">
                 {parallelChords.map((ch, i) => <ChordPill key={i} chord={ch} dim />)}
               </div>
@@ -126,16 +127,26 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
         <div className="flex items-center gap-2 flex-wrap">
           {/* Detect — a proposal, adopted only by clicking it */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground/45" style={{ fontFamily: MONO }}>
+            <FL className="text-muted-foreground/45">
               Detect
-            </span>
+            </FL>
             <button onClick={() => suggestion && onSetKey(formatDetectedKey(suggestion.key, suggestion.mode))}
               disabled={!suggestion}
-              title={suggestion ? `Set ${formatDetectedKey(suggestion.key, suggestion.mode)} as key` : "Not enough chords to detect a key"}
+              title={suggestion
+                ? `Set ${formatDetectedKey(suggestion.key, suggestion.mode)} as key — ${Math.round(suggestion.confidence * 100)}% confidence${
+                    suggestion.tieBreak ? " (a major key and its relative minor fit equally well here; broken by which chord this resolves on)" : ""}`
+                : "Not enough chords to detect a key"}
               className="text-[10px] text-muted-foreground/55 enabled:hover:text-foreground transition-colors border border-border/40 rounded-sm px-2.5 py-1 disabled:text-muted-foreground/30"
               style={{ fontFamily: MONO }}>
               {suggestion ? formatDetectedKey(suggestion.key, suggestion.mode) : "—"}
             </button>
+            {suggestion && (
+              <span className={`text-[9px] ${suggestion.confidence >= 0.9 ? "text-muted-foreground/40" : suggestion.confidence >= 0.65 ? "text-muted-foreground/35" : "text-muted-foreground/30 italic"}`}
+                style={{ fontFamily: MONO }}
+                title={suggestion.tieBreak ? "This tie was broken by the tonic, not by chord vocabulary alone — worth checking by ear" : "How well the chords fit this key"}>
+                {Math.round(suggestion.confidence * 100)}%
+              </span>
+            )}
             <button onClick={onRedetect} title="Re-run detection on the chords as they stand"
               className="text-[11px] text-muted-foreground/55 hover:text-foreground transition-colors border border-border/40 rounded-sm px-1.5 py-1 leading-none hover:border-foreground/30"
               style={{ fontFamily: MONO }}>↻</button>
@@ -143,9 +154,9 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
 
           {/* Set key as — freeform, never validated */}
           <label className="flex items-center gap-1.5">
-            <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground/45" style={{ fontFamily: MONO }}>
+            <FL className="text-muted-foreground/45">
               Set key as
-            </span>
+            </FL>
             <input value={keyDraft} onChange={e => setKeyDraft(e.target.value)}
               onBlur={commitKey}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); commitKey(); e.currentTarget.blur(); } }}
@@ -184,9 +195,9 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
         <div className="border-t border-border/50">
           {/* Ideas sub-header */}
           <div className="px-4 py-2 bg-muted/15 flex items-center gap-2 flex-wrap">
-            <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground/60" style={{ fontFamily: MONO }}>
+            <FL className="text-muted-foreground/60">
               Wildcard
-            </span>
+            </FL>
             {/* Section selector — only when there are multiple sections */}
             {sectionsWithChords.length > 1 && (
               <select
@@ -224,9 +235,9 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
                 </p>
 
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/40" style={{ fontFamily: MONO }}>
+                  <FL className="text-muted-foreground/40">
                     {idea.sectionLabel}
-                  </span>
+                  </FL>
                   <div className="flex items-center gap-3">
                     {ideaUndo && (
                       <button onClick={onUndo}
@@ -280,9 +291,9 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
         <div className="border-t border-border/50">
           {/* Bridge sub-header */}
           <div className="px-4 py-2 bg-muted/15 flex items-center gap-2">
-            <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground/60" style={{ fontFamily: MONO }}>
+            <FL className="text-muted-foreground/60">
               Bridge
-            </span>
+            </FL>
             {bridge && (
               <span className="text-[9px] px-1.5 py-0.5 border border-border/40 rounded-sm text-muted-foreground/50 bg-background"
                 style={{ fontFamily: MONO }}>{bridge.technique}</span>
@@ -306,9 +317,9 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
                 </p>
 
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/40" style={{ fontFamily: MONO }}>
+                  <FL className="text-muted-foreground/40">
                     → {bridge.sectionLabel}
-                  </span>
+                  </FL>
                   <div className="flex items-center gap-3">
                     {bridgeUndo && (
                       <button onClick={onBridgeUndo}

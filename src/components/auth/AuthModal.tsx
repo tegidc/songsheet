@@ -71,7 +71,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
             {/* OAuth divider */}
             <div className="flex items-center gap-3 my-4">
               <div className="flex-1 h-px bg-border" />
-              <span className="text-[10px] text-muted-foreground/60 uppercase tracking-widest" style={{ fontFamily: MONO }}>or</span>
+              <span className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.14em]" style={{ fontFamily: MONO }}>or</span>
               <div className="flex-1 h-px bg-border" />
             </div>
             <div className="flex flex-col gap-2">

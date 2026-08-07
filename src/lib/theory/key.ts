@@ -19,17 +19,46 @@ export function parseKeyString(k: string): { root: string; mode: "major"|"minor"
 export function formatDetectedKey(root: string, mode: "major"|"minor") {
   return mode === "minor" ? `${root}m` : root;
 }
-export function detectKey(chords: string[]): { key: string; mode: "major"|"minor"; confidence: number } | null {
+export function detectKey(chords: string[]): { key: string; mode: "major"|"minor"; confidence: number; tieBreak: boolean } | null {
   const parsed = chords.map(parseChord).filter(Boolean) as NonNullable<ReturnType<typeof parseChord>>[];
   if (!parsed.length) return null;
-  let best = { key: "C", mode: "major" as "major"|"minor", score: 0 };
-  for (const root of NOTES)
-    for (const mode of ["major", "minor"] as const) {
-      const dc = getDiatonic(root, mode);
-      const score = parsed.reduce((s, p) =>
-        s + (dc.some(d => d.root === p.root && d.q === p.q) ? 2 : dc.some(d => d.root === p.root) ? 1 : 0), 0);
-      if (score > best.score) best = { key: root, mode, score };
-    }
-  const confidence = best.score / (parsed.length * 2);
-  return confidence >= 0.3 ? { ...best, confidence } : null;
+
+  const fits = NOTES.flatMap(root => (["major", "minor"] as const).map(mode => {
+    const dc = getDiatonic(root, mode);
+    const fit = parsed.reduce((s, p) =>
+      s + (dc.some(d => d.root === p.root && d.q === p.q) ? 2 : dc.some(d => d.root === p.root) ? 1 : 0), 0);
+    return { key: root, mode, fit };
+  }));
+
+  const bestFit = Math.max(...fits.map(c => c.fit));
+  if (bestFit === 0) return null;
+  const tied = fits.filter(c => c.fit === bestFit);
+
+  // A major key and its relative minor share every diatonic chord, so a fit
+  // tie here is almost always exactly that pair — diatonic membership alone
+  // cannot tell them apart. The tonic is the strongest thing a progression
+  // says about "home": the last chord it resolves to, more so than the
+  // first chord it opens on.
+  const finalRoot = parsed[parsed.length - 1].root;
+  const firstRoot = parsed[0].root;
+  const withTieScore = tied
+    .map(c => ({ ...c, tieScore: (c.key === finalRoot ? 2 : 0) + (c.key === firstRoot ? 1 : 0) }))
+    .sort((a, b) => b.tieScore - a.tieScore);
+  const winner = withTieScore[0];
+  const runnerUp = withTieScore[1];
+
+  const maxPossible = parsed.length * 2;
+  const fitConfidence = bestFit / maxPossible;
+  // Fit alone earns full confidence only when nothing else tied it. A tie
+  // broken by the tonic is a good bet, not a fact — say so by capping how
+  // sure we report being. A tie the tonic can't break either (runner-up
+  // scores the same tieScore) is an honest coin toss.
+  const decisive = !runnerUp || winner.tieScore > runnerUp.tieScore;
+  const confidence = tied.length === 1 ? fitConfidence
+    : decisive ? fitConfidence * 0.75
+    : fitConfidence * 0.5;
+
+  return confidence >= 0.3
+    ? { key: winner.key, mode: winner.mode, confidence, tieBreak: tied.length > 1 }
+    : null;
 }

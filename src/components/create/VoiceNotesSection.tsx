@@ -3,7 +3,7 @@ import { ChevronDown, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { MONO, SERIF } from "../../data/constants";
 import { uid } from "../../format";
-import type { AudioNote, Section } from "../../types";
+import type { AudioNote } from "../../types";
 
 export const MAX_AUDIO_NOTES = 5;
 export const MAX_RECORD_SECONDS = 90;

@@ -22,6 +22,7 @@ import { OWPillRow } from "../components/ow/OWPillRow";
 import { OWWindow } from "../components/ow/OWWindow";
 import { StandaloneOWWindow } from "../components/ow/StandaloneOWWindow";
 import { ConfirmDialog } from "../components/common/ConfirmDialog";
+import { FL } from "../components/common/FL";
 import { FullScreenEditor } from "../components/common/FullScreenEditor";
 import { ProjectsSidebar } from "../components/sidebar/ProjectsSidebar";
 import { InspirationPanel } from "../components/tools/InspirationPanel";
@@ -275,9 +276,26 @@ export default function App() {
       suppressNextAutosaveRef.current = false;
       return;
     }
-    const hasMeaningful = song.title.trim() ||
+    // Once a cloud row exists it has to track the song, full stop — otherwise
+    // deleting the last piece of content of some kind (the last fretboard
+    // chord, the last lyric line) makes the song look pristine again and the
+    // deletion is silently never saved. The "does this look like a fresh,
+    // still-blank song" question below only matters before that row exists,
+    // to decide whether an edit should mint one. See `isPristineSong` in
+    // `sections.ts` for the sibling check this mirrors — kept separate
+    // because that one deliberately counts imported writings and this one
+    // deliberately doesn't (an import alone shouldn't mint a project).
+    const hasMeaningful = currentProjectIdRef.current !== null ||
+      song.title.trim() ||
+      (song.artist ?? "").trim() ||
+      (song.generalNotes ?? "").trim() ||
+      (song.bigIdea ?? "").trim() ||
+      (song.productionNotes ?? "").trim() ||
+      Object.values(song.story ?? {}).some(v => (v ?? "").trim()) ||
       song.sections.some(s => (s.lyrics ?? "").trim() || (s.chordBars ?? []).some(b => b.trim())) ||
       (song.objectWritings ?? []).some(e => !e.imported && e.text.trim()) ||
+      (song.notebookSections ?? []).length > 0 ||
+      (song.audioNotes ?? []).length > 0 ||
       (song.fretboardChords ?? []).length > 0;
     if (!hasMeaningful) return;
     pendingRef.current = true;
@@ -529,6 +547,18 @@ export default function App() {
     });
   }, []);
 
+  // A log you cannot prune is not a working log. Removal is by name, which is
+  // an identifier here rather than a convenience: addFretboardChord refuses a
+  // name already present, so one name is always one entry.
+  //
+  // One edge stays: a song whose *only* content is fretboard chords does not
+  // clear the autosave effect's `hasMeaningful` gate once the last one is
+  // removed, so that final removal isn't written. Widening the gate is a
+  // behaviour change and is left for a decision rather than taken here.
+  const removeFretboardChord = useCallback((name: string) => {
+    setSong(p => ({ ...p, fretboardChords: (p.fretboardChords ?? []).filter(c => c.name !== name) }));
+  }, []);
+
   const addVerseFromFill = (lyrics: string) => {
     setSong(p => {
       const n = p.sections.filter(s => s.type === "verse").length + 1;
@@ -742,7 +772,7 @@ export default function App() {
   // is no lens of the songwriter's choosing yet. Declaring one pins the proposal
   // where it stands, so filling in bars stops moving anything under the
   // analysis; the panel's ↻ is then the only thing that re-runs detection.
-  const [pinnedSuggestion, setPinnedSuggestion] = useState<{ key: string; mode: "major"|"minor" } | null>(null);
+  const [pinnedSuggestion, setPinnedSuggestion] = useState<ReturnType<typeof detectKey>>(null);
   useEffect(() => {
     if (!declaredKey) setPinnedSuggestion(null);
     else setPinnedSuggestion(p => p ?? liveDetected);
@@ -920,7 +950,7 @@ export default function App() {
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
                 {/* Key */}
                 <label className="flex items-center gap-1.5">
-                  <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70" style={{ fontFamily: MONO }}>Key</span>
+                  <FL className="text-muted-foreground/70">Key</FL>
                   <input value={song.key} onChange={e => updateSong({ key: e.target.value })} placeholder="Am"
                     className="w-10 bg-transparent text-[12px] text-foreground/60 placeholder:text-muted-foreground/30 focus:outline-none border-b border-border/50 focus:border-muted-foreground/50 pb-px transition-colors"
                     style={{ fontFamily: MONO }} />
@@ -928,7 +958,7 @@ export default function App() {
 
                 {/* Time signature — arrow cycle */}
                 <div className="flex items-center gap-1">
-                  <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70 mr-1" style={{ fontFamily: MONO }}>Time</span>
+                  <FL className="text-muted-foreground/70 mr-1">Time</FL>
                   <button onClick={() => { const i = TSIGS.indexOf(song.timeSignature); updateSong({ timeSignature: TSIGS[(i - 1 + TSIGS.length) % TSIGS.length] }); }}
                     className="text-muted-foreground/50 hover:text-muted-foreground transition-colors text-[10px] leading-none px-0.5">‹</button>
                   <span className="text-[12px] text-foreground/60 tabular-nums w-7 text-center" style={{ fontFamily: MONO }}>
@@ -940,7 +970,7 @@ export default function App() {
 
                 {/* Tempo + tap */}
                 <label className="flex items-center gap-1.5">
-                  <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70" style={{ fontFamily: MONO }}>Tempo</span>
+                  <FL className="text-muted-foreground/70">Tempo</FL>
                   <input value={song.tempo} onChange={e => updateSong({ tempo: e.target.value })} placeholder="120"
                     className="w-10 bg-transparent text-[12px] text-foreground/60 placeholder:text-muted-foreground/30 focus:outline-none border-b border-border/50 focus:border-muted-foreground/50 pb-px transition-colors"
                     style={{ fontFamily: MONO }} />
@@ -953,7 +983,7 @@ export default function App() {
               {/* Row 2: Feel — max-w rather than a fixed w-56, which at 375px
                   is wider than the space the label leaves it. */}
               <label className="flex items-center gap-1.5 min-w-0">
-                <span className="shrink-0 text-[9px] uppercase tracking-widest text-muted-foreground/70" style={{ fontFamily: MONO }}>Feel</span>
+                <FL className="shrink-0 text-muted-foreground/70">Feel</FL>
                 <input value={song.feel} onChange={e => updateSong({ feel: e.target.value })} placeholder="slow burn, anthemic, late night…"
                   className="bg-transparent text-[12px] text-foreground/60 placeholder:text-muted-foreground/30 focus:outline-none border-b border-border/50 focus:border-muted-foreground/50 pb-px flex-1 min-w-0 max-w-56 transition-colors"
                   style={{ fontFamily: MONO }} />
@@ -1148,12 +1178,12 @@ export default function App() {
               {!isMobile && (
                 <div className="flex border-b border-border bg-muted/40">
                   <div className="shrink-0 border-r border-border px-3 py-1.5" style={{ width: 136 }}>
-                    <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground" style={{ fontFamily: MONO }}>Section</span>
+                    <FL className="text-muted-foreground">Section</FL>
                   </div>
                   <div className="flex-1 px-3 py-1.5">
-                    <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground" style={{ fontFamily: MONO }}>
+                    <FL className="text-muted-foreground">
                       Bars · Tab adds · ← → navigate · Backspace on empty removes
-                    </span>
+                    </FL>
                   </div>
                 </div>
               )}
@@ -1176,6 +1206,7 @@ export default function App() {
                   suggestions={pickerSuggestions}
                   chordRow={chordRow}
                   onCycleChordRow={cycleRow}
+                  onRemoveFretboardChord={removeFretboardChord}
                   onCopyBars={() => setChordsClipboard([...s.chordBars])}
                   onPasteBars={chordsClipboard ? () => updateSection(s.id, { chordBars: [...chordsClipboard] }) : null}
                   onRepeatBars={() => {
@@ -1197,6 +1228,7 @@ export default function App() {
                   nashville={nashville} songKey={activeKeyName}
                   suggestions={pickerSuggestions} showSuggest={showChordSuggest}
                   chordRow={chordRow} onCycleChordRow={cycleRow}
+                  onRemoveFretboardChord={removeFretboardChord}
                   onCopyBars={() => setChordsClipboard([...s.chordBars])}
                   onPasteBars={chordsClipboard ? () => updateSection(s.id, { chordBars: [...chordsClipboard] }) : null}
                   onRepeatBars={() => {
@@ -1211,7 +1243,7 @@ export default function App() {
                   className={`${SCOL[t.v]} flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-sm border border-border text-foreground/70 hover:text-foreground hover:border-foreground/30 transition-colors`}
                   style={{ fontFamily: MONO }}>
                   <Plus size={10} />{t.l}
-                  <kbd className="ml-0.5 text-[8px] text-muted-foreground/50 border border-border/50 rounded px-0.5 leading-none" style={{ fontFamily: MONO }}>⌥{t.k}</kbd>
+                  <kbd className="ml-0.5 text-[8px] text-muted-foreground/50 border border-border/50 rounded-sm px-0.5 leading-none" style={{ fontFamily: MONO }}>⌥{t.k}</kbd>
                 </button>
               ))}
             </div>

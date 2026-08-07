@@ -1,7 +1,9 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Copy, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { FL } from "../common/FL";
 import { MONO, SERIF } from "../../data/constants";
-import type { Section, Song } from "../../types";
+import { owWordSet } from "../../lib/text/songText";
+import type { Song } from "../../types";
 
 export interface ThesaurusResult { word: string; syl: number; type: "syn" | "ant" | "rel" }
 export function ThesaurusPanel({ song, selectionWord, onObjectWrite }: {
@@ -17,13 +19,7 @@ export function ThesaurusPanel({ song, selectionWord, onObjectWrite }: {
   const debounceRef               = useRef<ReturnType<typeof setTimeout>>();
 
   // Words appearing in Object Writing (highlighted in results)
-  const owWords = useMemo(() => {
-    const s = new Set<string>();
-    (song.objectWritings ?? []).forEach(o =>
-      (o.text ?? "").toLowerCase().match(/\b[a-z]{3,}\b/g)?.forEach(w => s.add(w))
-    );
-    return s;
-  }, [song.objectWritings]);
+  const owWords = useMemo(() => owWordSet(song), [song.objectWritings]);
 
   // Adopt highlighted word from lyrics
   useEffect(() => {
@@ -105,9 +101,9 @@ export function ThesaurusPanel({ song, selectionWord, onObjectWrite }: {
     <div className="border border-border rounded-sm overflow-hidden">
       {/* Header */}
       <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
-        <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground" style={{ fontFamily: MONO }}>
+        <FL className="text-muted-foreground">
           Synonyms &amp; Antonyms
-        </span>
+        </FL>
         <button onClick={() => setCollapsed(c => !c)}
           className="text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
           title={collapsed ? "Expand" : "Collapse"}>
@@ -151,19 +147,19 @@ export function ThesaurusPanel({ song, selectionWord, onObjectWrite }: {
           <div className="flex flex-col gap-3">
             {synonyms.length > 0 && (
               <div>
-                <div className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/40 mb-1.5" style={{ fontFamily: MONO }}>Synonyms</div>
+                <FL className="block text-muted-foreground/40 mb-1.5">Synonyms</FL>
                 <div className="flex flex-wrap gap-x-2.5 gap-y-1.5">{synonyms.map(r => <Chip key={r.word} r={r} />)}</div>
               </div>
             )}
             {antonyms.length > 0 && (
               <div>
-                <div className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/40 mb-1.5" style={{ fontFamily: MONO }}>Antonyms</div>
+                <FL className="block text-muted-foreground/40 mb-1.5">Antonyms</FL>
                 <div className="flex flex-wrap gap-x-2.5 gap-y-1.5">{antonyms.map(r => <Chip key={r.word} r={r} />)}</div>
               </div>
             )}
             {related.length > 0 && (
               <div>
-                <div className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/40 mb-1.5" style={{ fontFamily: MONO }}>Related</div>
+                <FL className="block text-muted-foreground/40 mb-1.5">Related</FL>
                 <div className="flex flex-wrap gap-x-2.5 gap-y-1.5">{related.map(r => <Chip key={r.word} r={r} />)}</div>
               </div>
             )}
