@@ -22,6 +22,7 @@ import { OWPillRow } from "../components/ow/OWPillRow";
 import { OWWindow } from "../components/ow/OWWindow";
 import { StandaloneOWWindow } from "../components/ow/StandaloneOWWindow";
 import { ConfirmDialog } from "../components/common/ConfirmDialog";
+import { FL } from "../components/common/FL";
 import { FullScreenEditor } from "../components/common/FullScreenEditor";
 import { ProjectsSidebar } from "../components/sidebar/ProjectsSidebar";
 import { InspirationPanel } from "../components/tools/InspirationPanel";
@@ -949,7 +950,7 @@ export default function App() {
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
                 {/* Key */}
                 <label className="flex items-center gap-1.5">
-                  <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70" style={{ fontFamily: MONO }}>Key</span>
+                  <FL className="text-muted-foreground/70">Key</FL>
                   <input value={song.key} onChange={e => updateSong({ key: e.target.value })} placeholder="Am"
                     className="w-10 bg-transparent text-[12px] text-foreground/60 placeholder:text-muted-foreground/30 focus:outline-none border-b border-border/50 focus:border-muted-foreground/50 pb-px transition-colors"
                     style={{ fontFamily: MONO }} />
@@ -957,7 +958,7 @@ export default function App() {
 
                 {/* Time signature — arrow cycle */}
                 <div className="flex items-center gap-1">
-                  <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70 mr-1" style={{ fontFamily: MONO }}>Time</span>
+                  <FL className="text-muted-foreground/70 mr-1">Time</FL>
                   <button onClick={() => { const i = TSIGS.indexOf(song.timeSignature); updateSong({ timeSignature: TSIGS[(i - 1 + TSIGS.length) % TSIGS.length] }); }}
                     className="text-muted-foreground/50 hover:text-muted-foreground transition-colors text-[10px] leading-none px-0.5">‹</button>
                   <span className="text-[12px] text-foreground/60 tabular-nums w-7 text-center" style={{ fontFamily: MONO }}>
@@ -969,7 +970,7 @@ export default function App() {
 
                 {/* Tempo + tap */}
                 <label className="flex items-center gap-1.5">
-                  <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70" style={{ fontFamily: MONO }}>Tempo</span>
+                  <FL className="text-muted-foreground/70">Tempo</FL>
                   <input value={song.tempo} onChange={e => updateSong({ tempo: e.target.value })} placeholder="120"
                     className="w-10 bg-transparent text-[12px] text-foreground/60 placeholder:text-muted-foreground/30 focus:outline-none border-b border-border/50 focus:border-muted-foreground/50 pb-px transition-colors"
                     style={{ fontFamily: MONO }} />
@@ -982,7 +983,7 @@ export default function App() {
               {/* Row 2: Feel — max-w rather than a fixed w-56, which at 375px
                   is wider than the space the label leaves it. */}
               <label className="flex items-center gap-1.5 min-w-0">
-                <span className="shrink-0 text-[9px] uppercase tracking-widest text-muted-foreground/70" style={{ fontFamily: MONO }}>Feel</span>
+                <FL className="shrink-0 text-muted-foreground/70">Feel</FL>
                 <input value={song.feel} onChange={e => updateSong({ feel: e.target.value })} placeholder="slow burn, anthemic, late night…"
                   className="bg-transparent text-[12px] text-foreground/60 placeholder:text-muted-foreground/30 focus:outline-none border-b border-border/50 focus:border-muted-foreground/50 pb-px flex-1 min-w-0 max-w-56 transition-colors"
                   style={{ fontFamily: MONO }} />
@@ -1177,12 +1178,12 @@ export default function App() {
               {!isMobile && (
                 <div className="flex border-b border-border bg-muted/40">
                   <div className="shrink-0 border-r border-border px-3 py-1.5" style={{ width: 136 }}>
-                    <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground" style={{ fontFamily: MONO }}>Section</span>
+                    <FL className="text-muted-foreground">Section</FL>
                   </div>
                   <div className="flex-1 px-3 py-1.5">
-                    <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground" style={{ fontFamily: MONO }}>
+                    <FL className="text-muted-foreground">
                       Bars · Tab adds · ← → navigate · Backspace on empty removes
-                    </span>
+                    </FL>
                   </div>
                 </div>
               )}
@@ -1242,7 +1243,7 @@ export default function App() {
                   className={`${SCOL[t.v]} flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-sm border border-border text-foreground/70 hover:text-foreground hover:border-foreground/30 transition-colors`}
                   style={{ fontFamily: MONO }}>
                   <Plus size={10} />{t.l}
-                  <kbd className="ml-0.5 text-[8px] text-muted-foreground/50 border border-border/50 rounded px-0.5 leading-none" style={{ fontFamily: MONO }}>⌥{t.k}</kbd>
+                  <kbd className="ml-0.5 text-[8px] text-muted-foreground/50 border border-border/50 rounded-sm px-0.5 leading-none" style={{ fontFamily: MONO }}>⌥{t.k}</kbd>
                 </button>
               ))}
             </div>

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { ChevronDown } from "lucide-react";
+import { FL } from "../common/FL";
 import { MONO, SERIF } from "../../data/constants";
 import { owWordSet } from "../../lib/text/songText";
 import type { Song } from "../../types";
@@ -88,9 +89,9 @@ export function RhymePanel({ song, selectionWord }: { song: Song; selectionWord?
     <div className="border border-border rounded-sm overflow-hidden">
       {/* Header */}
       <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
-        <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground" style={{ fontFamily: MONO }}>
+        <FL className="text-muted-foreground">
           Rhyme &amp; Metre
-        </span>
+        </FL>
         <button onClick={() => setCollapsed(c => !c)}
           className="text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
           title={collapsed ? "Expand" : "Collapse"}>
@@ -141,8 +142,7 @@ export function RhymePanel({ song, selectionWord }: { song: Song; selectionWord?
             {/* Perfect rhymes */}
             {perfect.length > 0 && (
               <div>
-                <div className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/40 mb-1.5"
-                  style={{ fontFamily: MONO }}>Perfect</div>
+                <FL className="block text-muted-foreground/40 mb-1.5">Perfect</FL>
                 <div className="flex flex-wrap gap-x-2.5 gap-y-1.5">
                   {perfect.map(r => <Chip key={r.word} r={r} />)}
                 </div>
@@ -151,8 +151,7 @@ export function RhymePanel({ song, selectionWord }: { song: Song; selectionWord?
             {/* Near rhymes */}
             {nearR.length > 0 && (
               <div>
-                <div className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/40 mb-1.5"
-                  style={{ fontFamily: MONO }}>Near</div>
+                <FL className="block text-muted-foreground/40 mb-1.5">Near</FL>
                 <div className="flex flex-wrap gap-x-2.5 gap-y-1.5">
                   {nearR.map(r => <Chip key={r.word} r={r} />)}
                 </div>

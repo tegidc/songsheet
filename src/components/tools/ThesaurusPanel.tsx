@@ -146,19 +146,19 @@ export function ThesaurusPanel({ song, selectionWord, onObjectWrite }: {
           <div className="flex flex-col gap-3">
             {synonyms.length > 0 && (
               <div>
-                <div className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/40 mb-1.5" style={{ fontFamily: MONO }}>Synonyms</div>
+                <div className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground/40 mb-1.5" style={{ fontFamily: MONO }}>Synonyms</div>
                 <div className="flex flex-wrap gap-x-2.5 gap-y-1.5">{synonyms.map(r => <Chip key={r.word} r={r} />)}</div>
               </div>
             )}
             {antonyms.length > 0 && (
               <div>
-                <div className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/40 mb-1.5" style={{ fontFamily: MONO }}>Antonyms</div>
+                <div className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground/40 mb-1.5" style={{ fontFamily: MONO }}>Antonyms</div>
                 <div className="flex flex-wrap gap-x-2.5 gap-y-1.5">{antonyms.map(r => <Chip key={r.word} r={r} />)}</div>
               </div>
             )}
             {related.length > 0 && (
               <div>
-                <div className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/40 mb-1.5" style={{ fontFamily: MONO }}>Related</div>
+                <div className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground/40 mb-1.5" style={{ fontFamily: MONO }}>Related</div>
                 <div className="flex flex-wrap gap-x-2.5 gap-y-1.5">{related.map(r => <Chip key={r.word} r={r} />)}</div>
               </div>
             )}

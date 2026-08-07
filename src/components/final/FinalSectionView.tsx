@@ -153,26 +153,26 @@ export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
       {/* Mobile: selected chord mini-toolbar */}
       {isMobile && selChord && (
         <div className="flex items-center gap-1 mb-2 px-1 py-1.5 bg-muted/40 rounded-sm border border-border/60">
-          <span className="text-xs text-accent font-medium px-2 py-0.5 bg-accent/10 rounded shrink-0" style={{ fontFamily: MONO }}>{selChord.chord}</span>
+          <span className="text-xs text-accent font-medium px-2 py-0.5 bg-accent/10 rounded-sm shrink-0" style={{ fontFamily: MONO }}>{selChord.chord}</span>
           <div className="flex items-center gap-0.5 ml-1">
             <button onClick={() => moveSelChord("left")}
-              className="w-7 h-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted active:bg-muted/80 transition-colors text-[11px]"
+              className="w-7 h-7 flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted active:bg-muted/80 transition-colors text-[11px]"
               style={{ fontFamily: MONO }}>←</button>
             <button onClick={() => moveSelChord("right")}
-              className="w-7 h-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted active:bg-muted/80 transition-colors text-[11px]"
+              className="w-7 h-7 flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted active:bg-muted/80 transition-colors text-[11px]"
               style={{ fontFamily: MONO }}>→</button>
             <button onClick={() => moveSelChord("up")}
-              className="w-7 h-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted active:bg-muted/80 transition-colors text-[11px]"
+              className="w-7 h-7 flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted active:bg-muted/80 transition-colors text-[11px]"
               style={{ fontFamily: MONO }}>↑</button>
             <button onClick={() => moveSelChord("down")}
-              className="w-7 h-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted active:bg-muted/80 transition-colors text-[11px]"
+              className="w-7 h-7 flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted active:bg-muted/80 transition-colors text-[11px]"
               style={{ fontFamily: MONO }}>↓</button>
           </div>
           <button onClick={() => setEditId(selId)}
-            className="text-[11px] px-2 py-0.5 border border-border rounded text-muted-foreground hover:text-foreground ml-1 transition-colors"
+            className="text-[11px] px-2 py-0.5 border border-border rounded-sm text-muted-foreground hover:text-foreground ml-1 transition-colors"
             style={{ fontFamily: MONO }}>edit</button>
           <button onClick={deleteSelChord}
-            className="w-7 h-7 flex items-center justify-center rounded text-muted-foreground hover:text-destructive transition-colors ml-auto">
+            className="w-7 h-7 flex items-center justify-center rounded-sm text-muted-foreground hover:text-destructive transition-colors ml-auto">
             <X size={12} />
           </button>
           <button onClick={() => setSelId(null)}
@@ -198,7 +198,7 @@ export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
               {lineChords(li).map(cp => (
                 <span key={cp.id}
                   style={{ position: "absolute", left: `${cp.charIdx}ch`, fontFamily: MONO, fontSize: chordFS, top: -2, whiteSpace: "nowrap" }}
-                  className={`cursor-pointer transition-colors px-1 py-1 rounded ${selId === cp.id ? "text-foreground bg-accent/20" : "text-accent hover:bg-accent/10"}`}
+                  className={`cursor-pointer transition-colors px-1 py-1 rounded-sm ${selId === cp.id ? "text-foreground bg-accent/20" : "text-accent hover:bg-accent/10"}`}
                   onClick={e => { e.stopPropagation(); setSelId(cp.id); setEditId(null); }}
                   onDoubleClick={isMobile ? undefined : e => { e.stopPropagation(); setSelId(cp.id); setEditId(cp.id); }}>
                   {editId === cp.id ? (
@@ -215,7 +215,7 @@ export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
                 <input value={addVal} onChange={e => setAddVal(e.target.value)}
                   onBlur={commitAdd} onKeyDown={e => { if (e.key === "Enter") commitAdd(); if (e.key === "Escape") setAddAt(null); }}
                   autoFocus placeholder="chord"
-                  className="absolute bg-background border border-accent/60 rounded px-1 focus:outline-none text-foreground placeholder:text-muted-foreground/40"
+                  className="absolute bg-background border border-accent/60 rounded-sm px-1 focus:outline-none text-foreground placeholder:text-muted-foreground/40"
                   style={{ left: `${addAt.ci}ch`, top: 0, width: "5ch", fontFamily: MONO, fontSize: FS, height: 20 }} />
               )}
             </div>

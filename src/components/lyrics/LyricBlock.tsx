@@ -34,11 +34,11 @@ export function LyricBlock({ section, idx, total, onChange, onDelete, onMove, on
         {editLabel ? (
           <input value={section.label} onChange={e => onChange({ ...section, label: e.target.value })}
             onBlur={() => setEditLabel(false)} onKeyDown={e => e.key === "Enter" && setEditLabel(false)}
-            autoFocus className="bg-transparent text-[10px] uppercase tracking-[0.12em] text-muted-foreground focus:outline-none border-b border-foreground/20"
+            autoFocus className="bg-transparent text-[10px] uppercase tracking-[0.14em] text-muted-foreground focus:outline-none border-b border-foreground/20"
             style={{ fontFamily: MONO, width: `${Math.max(section.label.length + 1, 6)}ch` }} />
         ) : (
           <button onClick={() => setEditLabel(true)}
-            className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground transition-colors"
+            className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground transition-colors"
             style={{ fontFamily: MONO }}>{section.label}</button>
         )}
 

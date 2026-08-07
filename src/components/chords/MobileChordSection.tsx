@@ -63,7 +63,7 @@ export function MobileChordSection({ section, idx, total, onBarsChange, onShortL
       {/* Section header (sits above the bars) */}
       <div className={`${SCOL[section.type]} flex items-center gap-2 px-3 py-2`}>
         <input value={section.shortLabel} onChange={e => onShortLabelChange(e.target.value)}
-          className="bg-transparent text-[11px] uppercase tracking-[0.12em] text-foreground/80 focus:outline-none flex-1 min-w-0 truncate"
+          className="bg-transparent text-[11px] uppercase tracking-[0.14em] text-foreground/80 focus:outline-none flex-1 min-w-0 truncate"
           style={{ fontFamily: MONO }} />
         <button onClick={() => setShowActions(v => !v)}
           className="shrink-0 text-muted-foreground active:text-foreground transition-colors px-1.5 py-0.5 text-[13px] leading-none tracking-wide"

@@ -150,7 +150,7 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
         {/* Row 1: label + dup / copy / paste */}
         <div className="flex items-center gap-1">
           <input value={section.shortLabel} onChange={e => onShortLabelChange(e.target.value)}
-            className="bg-transparent text-[10px] uppercase tracking-[0.12em] text-muted-foreground focus:outline-none flex-1 min-w-0 truncate hover:text-foreground transition-colors"
+            className="bg-transparent text-[10px] uppercase tracking-[0.14em] text-muted-foreground focus:outline-none flex-1 min-w-0 truncate hover:text-foreground transition-colors"
             style={{ fontFamily: MONO }} />
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
             <button onClick={onDuplicate} title="Duplicate section" className="text-muted-foreground hover:text-foreground transition-colors"><Copy size={10} /></button>
@@ -248,7 +248,7 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
                   {items.map((s, si) => {
                     const chip = (
                       <button onClick={() => onSuggestChord(s.chord)}
-                        className="relative flex flex-col items-center justify-center min-w-[42px] px-2 pt-3 pb-1 rounded border border-border bg-background hover:bg-muted hover:border-foreground/30 transition-colors"
+                        className="relative flex flex-col items-center justify-center min-w-[42px] px-2 pt-3 pb-1 rounded-sm border border-border bg-background hover:bg-muted hover:border-foreground/30 transition-colors"
                         style={{ fontFamily: MONO }}>
                         {keyRow?.[si] && (
                           <span className="absolute top-0.5 right-1 text-[7px] text-muted-foreground/50 leading-none" style={{ fontFamily: MONO }}>{keyRow[si]}</span>

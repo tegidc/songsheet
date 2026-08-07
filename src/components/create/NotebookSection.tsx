@@ -31,7 +31,7 @@ export function NotebookSection({ value, onChange, nbSections, onDeleteNbSection
       {sections.map(s => (
         <button key={s.id}
           onClick={() => scrollToSection(s.id)}
-          className="text-[8px] uppercase tracking-wider border border-accent/40 text-accent/70 hover:text-accent rounded px-1.5 py-0.5 transition-colors"
+          className="text-[8px] uppercase tracking-wider border border-accent/40 text-accent/70 hover:text-accent rounded-sm px-1.5 py-0.5 transition-colors"
           style={{ fontFamily: MONO }}
           title={s.title}>
           {s.title || "Object Writing"}

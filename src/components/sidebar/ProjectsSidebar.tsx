@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { StandaloneOWWindow } from "../ow/StandaloneOWWindow";
+import { FL } from "../common/FL";
 import { MONO, SERIF, TIMER_OPTS } from "../../data/constants";
 import { formatRelativeTime } from "../../format";
 import { owLabel } from "../../lib/text/owLabel";
@@ -180,8 +181,7 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
 
       {/* Header */}
       <div className="px-3 py-2 border-b border-border/60 flex items-center justify-between">
-        <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground/70"
-          style={{ fontFamily: MONO }}>Projects</span>
+        <FL className="text-muted-foreground/70">Projects</FL>
         {mobile && (
           <button onClick={onClose} className="text-muted-foreground/60 hover:text-foreground transition-colors p-1 -mr-1" title="Close">
             <X size={14} />
@@ -235,10 +235,9 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
                   className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-foreground/[0.03] transition-colors">
                   <div className="flex items-center gap-1.5">
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[status]}`} />
-                    <span className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/60"
-                      style={{ fontFamily: MONO }}>
+                    <FL className="text-muted-foreground/60">
                       {STATUS_LABEL[status]}{!isOpen && ` (${group.length})`}
-                    </span>
+                    </FL>
                   </div>
                   <ChevronDown size={9}
                     className={`text-muted-foreground/40 transition-transform ${isOpen ? "rotate-180" : ""}`} />
@@ -258,10 +257,9 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
           className="w-full flex items-center justify-between px-3 py-2 hover:bg-foreground/[0.03] transition-colors">
           <div className="flex items-center gap-1.5">
             <span className="text-[8px] text-accent/60">✦</span>
-            <span className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/60"
-              style={{ fontFamily: MONO }}>
+            <FL className="text-muted-foreground/60">
               Object Writing{standaloneOWs.length > 0 ? ` (${standaloneOWs.length})` : ""}
-            </span>
+            </FL>
           </div>
           <ChevronDown size={9}
             className={`text-muted-foreground/40 transition-transform ${owOpen ? "rotate-180" : ""}`} />
