@@ -4,10 +4,12 @@ import { CollapsibleSection } from "../common/CollapsibleSection";
 import { MONO, SERIF } from "../../data/constants";
 import type { NbEntry } from "../../types";
 
-export function NotebookSection({ value, onChange, nbSections, onDeleteNbSection, isMobile }: {
+export function NotebookSection({ value, onChange, nbSections, onDeleteNbSection, isMobile, onTapToEdit }: {
   value: string; onChange: (v: string) => void;
   nbSections?: NbEntry[]; onDeleteNbSection?: (id: string) => void;
   isMobile?: boolean;
+  /** Mobile: open this box in the full-screen editor rather than typing in place. */
+  onTapToEdit?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
@@ -48,7 +50,9 @@ export function NotebookSection({ value, onChange, nbSections, onDeleteNbSection
             onChange={e => onChange(e.target.value)}
             placeholder="Free writing, creative ideas, associations, things that feel true about this song…"
             rows={expanded ? 16 : 5}
-            className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/35 focus:outline-none resize-none leading-[1.9]"
+            readOnly={!!onTapToEdit}
+            onClick={onTapToEdit}
+            className={`w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/35 focus:outline-none resize-none leading-[1.9] ${onTapToEdit ? "cursor-pointer" : ""}`}
             style={{ fontFamily: SERIF }}
           />
         </div>

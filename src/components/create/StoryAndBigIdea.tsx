@@ -2,12 +2,17 @@ import { CollapsibleSection } from "../common/CollapsibleSection";
 import { MONO, SERIF } from "../../data/constants";
 import type { Song } from "../../types";
 
-export function StoryAndBigIdea({ story, bigIdea, onStoryChange, onBigIdeaChange, isMobile }: {
+export function StoryAndBigIdea({ story, bigIdea, onStoryChange, onBigIdeaChange, isMobile, onTapToEdit }: {
   story: Song["story"]; bigIdea: string;
   onStoryChange: (s: Song["story"]) => void;
   onBigIdeaChange: (v: string) => void;
   isMobile?: boolean;
+  /** Mobile: open this box in the full-screen editor rather than typing in place. */
+  onTapToEdit?: (id: "bigIdea" | keyof Song["story"]) => void;
 }) {
+  // readOnly is what keeps the OS keyboard down until the overlay is up.
+  const tap = (id: "bigIdea" | keyof Song["story"]) =>
+    onTapToEdit ? { readOnly: true, onClick: () => onTapToEdit(id) } : {};
   const parts: { key: keyof Song["story"]; label: string; placeholder: string }[] = [
     { key: "beginning", label: "Beginning", placeholder: "Where does it start — emotionally, narratively?" },
     { key: "middle",    label: "Middle",    placeholder: "What shifts or deepens?" },
@@ -26,7 +31,8 @@ export function StoryAndBigIdea({ story, bigIdea, onStoryChange, onBigIdeaChange
             onChange={e => onBigIdeaChange(e.target.value)}
             placeholder={"The theme, spark, or one true thing this song is about.\n\nIf it doesn't fit here, it might be too big."}
             rows={isMobile ? 3 : 5}
-            className="flex-1 w-full bg-transparent text-foreground placeholder:text-muted-foreground/35 focus:outline-none resize-none leading-snug"
+            {...tap("bigIdea")}
+            className={`flex-1 w-full bg-transparent text-foreground placeholder:text-muted-foreground/35 focus:outline-none resize-none leading-snug ${onTapToEdit ? "cursor-pointer" : ""}`}
             style={{ fontFamily: SERIF, fontSize: 13}}
           />
         </div>
@@ -41,7 +47,8 @@ export function StoryAndBigIdea({ story, bigIdea, onStoryChange, onBigIdeaChange
                 value={story[part.key]}
                 onChange={e => onStoryChange({ ...story, [part.key]: e.target.value })}
                 placeholder={part.placeholder}
-                className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/35 focus:outline-none"
+                {...tap(part.key)}
+                className={`w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/35 focus:outline-none ${onTapToEdit ? "cursor-pointer" : ""}`}
                 style={{ fontFamily: SERIF }}
               />
             </div>

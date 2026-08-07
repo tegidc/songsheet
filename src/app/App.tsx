@@ -21,6 +21,7 @@ import { OWPillRow } from "../components/ow/OWPillRow";
 import { OWWindow } from "../components/ow/OWWindow";
 import { StandaloneOWWindow } from "../components/ow/StandaloneOWWindow";
 import { ConfirmDialog } from "../components/common/ConfirmDialog";
+import { FullScreenEditor } from "../components/common/FullScreenEditor";
 import { ProjectsSidebar } from "../components/sidebar/ProjectsSidebar";
 import { InspirationPanel } from "../components/tools/InspirationPanel";
 import { RhymePanel } from "../components/tools/RhymePanel";
@@ -74,6 +75,10 @@ export default function App() {
   const [owCloudConfirm, setOwCloudConfirm] = useState<{ sourceId: string; detail: string } | null>(null);
   const [owCloudMsg, setOwCloudMsg] = useState("");
   const [showOWPicker, setShowOWPicker] = useState(false);
+  // Mobile full-screen writing. `kind` says which set of boxes is being stepped
+  // through — the song's sections, or the Create page's boxes — and `index`
+  // which one of them is open.
+  const [fsEdit, setFsEdit] = useState<{ kind: "lyrics" | "create"; index: number } | null>(null);
   const autoSaveTimer  = useRef<ReturnType<typeof setTimeout>>();
   const forceSaveTimer = useRef<ReturnType<typeof setInterval>>();
   const pendingRef     = useRef(false);
@@ -650,6 +655,57 @@ export default function App() {
     setSong(p => ({ ...p, notebookSections: [...(p.notebookSections ?? []), nb] }));
   }, []);
 
+  // ── Full-screen writing (mobile) ───────────────────────────────────────────
+  // The two sets of boxes Prev/Next steps through, in the order they appear on
+  // screen. Both go through the same editor; only the list differs.
+  const CREATE_BOXES = useMemo(() => {
+    const st = song.story ?? { beginning: "", middle: "", end: "" };
+    return [
+      { id: "bigIdea",    label: "The Big Idea", value: song.bigIdea ?? "",         serif: true,
+        placeholder: "The theme, spark, or one true thing this song is about." },
+      { id: "beginning",  label: "Beginning",    value: st.beginning,               serif: true,
+        placeholder: "Where does it start — emotionally, narratively?" },
+      { id: "middle",     label: "Middle",       value: st.middle,                  serif: true,
+        placeholder: "What shifts or deepens?" },
+      { id: "end",        label: "End",          value: st.end,                     serif: true,
+        placeholder: "Where does it land — resolved or not?" },
+      { id: "production", label: "Production",   value: song.productionNotes ?? "", serif: false,
+        placeholder: "References, sounds, instruments, arrangement notes…" },
+      { id: "notebook",   label: "Notebook",     value: song.generalNotes,          serif: true,
+        placeholder: "Free writing, creative ideas, associations…" },
+    ];
+  }, [song.bigIdea, song.story, song.productionNotes, song.generalNotes]);
+
+  const fsFields = useMemo(() => {
+    if (fsEdit?.kind === "lyrics")
+      return song.sections.map(s => ({
+        id: s.id, label: s.label, value: s.lyrics ?? "", serif: true,
+        placeholder: "Write your lyrics here…",
+      }));
+    if (fsEdit?.kind === "create") return CREATE_BOXES;
+    return [];
+  }, [fsEdit?.kind, song.sections, CREATE_BOXES]);
+
+  const changeFsField = useCallback((id: string, value: string) => {
+    if (fsEdit?.kind === "lyrics") { updateSection(id, { lyrics: value }); return; }
+    setSong(p => {
+      const st = p.story ?? { beginning: "", middle: "", end: "" };
+      switch (id) {
+        case "bigIdea":    return { ...p, bigIdea: value };
+        case "production": return { ...p, productionNotes: value };
+        case "notebook":   return { ...p, generalNotes: value };
+        case "beginning":
+        case "middle":
+        case "end":        return { ...p, story: { ...st, [id]: value } };
+        default:           return p;
+      }
+    });
+  }, [fsEdit?.kind, updateSection]);
+
+  const openFs = useCallback((kind: "lyrics" | "create", index: number) => {
+    if (index >= 0) setFsEdit({ kind, index });
+  }, []);
+
   // ── Analysis: the key is a lens, not a fact about the song ─────────────────
   // Everything chord-related — Nashville numbers, diatonic membership, parallel
   // chords, Ideas, Bridge — reads through `activeKey`, which is the key the
@@ -951,7 +1007,8 @@ export default function App() {
                   onWordSelect={w => setLyricSelection(prev => ({ word: w, seq: (prev?.seq ?? 0) + 1 }))}
                   onSplitSections={parts => splitSection(s.id, parts)}
                   collapsed={!!sectionCollapsed[s.id]}
-                  onToggleCollapse={() => setSectionCollapsed(p => ({ ...p, [s.id]: !p[s.id] }))} />
+                  onToggleCollapse={() => setSectionCollapsed(p => ({ ...p, [s.id]: !p[s.id] }))}
+                  onTapToEdit={isMobile ? () => openFs("lyrics", i) : undefined} />
               ))}
               <div className="flex flex-wrap gap-2 mt-2">
                 {SDEFS.map(t => (
@@ -1133,7 +1190,8 @@ export default function App() {
                 story={s} bigIdea={song.bigIdea ?? ""}
                 onStoryChange={ns => updateSong({ story: ns })}
                 onBigIdeaChange={v => updateSong({ bigIdea: v })}
-                isMobile={isMobile} />
+                isMobile={isMobile}
+                onTapToEdit={isMobile ? id => openFs("create", CREATE_BOXES.findIndex(b => b.id === id)) : undefined} />
 
               {/* 2. Voice Notes */}
               <VoiceNotesSection
@@ -1147,7 +1205,8 @@ export default function App() {
               <ProductionSection
                 value={song.productionNotes ?? ""}
                 onChange={v => updateSong({ productionNotes: v })}
-                isMobile={isMobile} />
+                isMobile={isMobile}
+                onTapToEdit={isMobile ? () => openFs("create", CREATE_BOXES.findIndex(b => b.id === "production")) : undefined} />
 
               {/* 4. Notebook */}
               <NotebookSection
@@ -1155,7 +1214,8 @@ export default function App() {
                 onChange={v => updateSong({ generalNotes: v })}
                 nbSections={song.notebookSections ?? []}
                 onDeleteNbSection={id => updateSong({ notebookSections: (song.notebookSections ?? []).filter(s => s.id !== id) })}
-                isMobile={isMobile} />
+                isMobile={isMobile}
+                onTapToEdit={isMobile ? () => openFs("create", CREATE_BOXES.findIndex(b => b.id === "notebook")) : undefined} />
 
               {/* 5. The song's writings, as pills */}
               <OWPillRow
@@ -1200,6 +1260,19 @@ export default function App() {
       </main>
 
       </div>{/* end body flex */}
+
+      {/* Writing full screen, with the tools pinned above the keyboard. Mobile
+          only, and only for the boxes the songwriter actually composes in. */}
+      {isMobile && fsEdit && fsFields.length > 0 && (
+        <FullScreenEditor
+          fields={fsFields}
+          index={Math.min(fsEdit.index, fsFields.length - 1)}
+          onIndexChange={i => setFsEdit(f => (f ? { ...f, index: i } : f))}
+          onChange={changeFsField}
+          onClose={() => setFsEdit(null)}
+          onWordSelect={w => setLyricSelection(prev => ({ word: w, seq: (prev?.seq ?? 0) + 1 }))}
+          tools={<InspirationStrip song={song} selectionWord={lyricSelection} />} />
+      )}
 
       {/* Capture a writing from anywhere, without leaving the tab you're on */}
       <FloatingOWButton

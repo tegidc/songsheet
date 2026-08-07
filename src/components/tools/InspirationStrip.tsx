@@ -133,7 +133,7 @@ export function InspirationStrip({ song, selectionWord, className = "" }: {
   // there is. Never trimmed — a phrase cut mid-word is worse than a shorter one.
   const phrase = useMemo(() => {
     if (!fragments.length) return "";
-    return fragments.find(f => f.length <= 30)
+    return fragments.find(f => f.length <= 34)
       ?? [...fragments].sort((a, b) => a.length - b.length)[0];
   }, [fragments]);
 
@@ -183,7 +183,10 @@ export function InspirationStrip({ song, selectionWord, className = "" }: {
         {!loading && !noWord && mode === "inspire" && (
           phrase
             ? <button onClick={() => copy(phrase)}
-                className="min-w-0 text-left text-[13px] italic leading-snug text-foreground/85 active:text-accent transition-colors"
+                /* Wraps rather than truncates: an unusually long fragment takes
+                   a second line, which the strip has room for. Nothing here is
+                   ever cut mid-word. */
+                className="min-w-0 text-left text-[13px] italic leading-[1.2] text-foreground/85 break-words active:text-accent transition-colors"
                 style={{ fontFamily: SERIF }}
                 title="Tap to copy">
                 {copied === phrase ? "copied" : phrase}

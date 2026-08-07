@@ -2,7 +2,11 @@ import { useState } from "react";
 import { CollapsibleSection } from "../common/CollapsibleSection";
 import { MONO } from "../../data/constants";
 
-export function ProductionSection({ value, onChange, isMobile }: { value: string; onChange: (v: string) => void; isMobile?: boolean }) {
+export function ProductionSection({ value, onChange, isMobile, onTapToEdit }: {
+  value: string; onChange: (v: string) => void; isMobile?: boolean;
+  /** Mobile: open this box in the full-screen editor rather than typing in place. */
+  onTapToEdit?: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   return (
     <CollapsibleSection title="Production" subtitle="references · arrangement · technical ideas" defaultOpen={false} isMobile={isMobile}>
@@ -13,7 +17,9 @@ export function ProductionSection({ value, onChange, isMobile }: { value: string
             onChange={e => onChange(e.target.value)}
             placeholder="References, sounds, instruments, arrangement notes, tempo/key ideas, plugins, production direction…"
             rows={expanded ? 14 : 5}
-            className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/35 focus:outline-none resize-none leading-[1.9]"
+            readOnly={!!onTapToEdit}
+            onClick={onTapToEdit}
+            className={`w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/35 focus:outline-none resize-none leading-[1.9] ${onTapToEdit ? "cursor-pointer" : ""}`}
             style={{ fontFamily: MONO }}
           />
         </div>

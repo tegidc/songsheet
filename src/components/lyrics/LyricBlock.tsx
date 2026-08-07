@@ -6,7 +6,8 @@ import { parseLyricsIntoSections } from "../../sections";
 import type { Section, SectionType } from "../../types";
 
 export function LyricBlock({ section, idx, total, onChange, onDelete, onMove, onDuplicate,
-  onToggleNaming, namingStyle, onWordSelect, onSplitSections, collapsed, onToggleCollapse }: {
+  onToggleNaming, namingStyle, onWordSelect, onSplitSections, collapsed, onToggleCollapse,
+  onTapToEdit }: {
   section: Section; idx: number; total: number;
   onChange: (s: Section) => void; onDelete: () => void;
   onMove: (dir: -1|1) => void; onDuplicate: () => void;
@@ -14,6 +15,8 @@ export function LyricBlock({ section, idx, total, onChange, onDelete, onMove, on
   onWordSelect?: (w: string) => void;
   onSplitSections?: (parts: Array<{ type: SectionType; label: string; lyrics: string }>) => void;
   collapsed?: boolean; onToggleCollapse?: () => void;
+  /** Mobile: hand this section off to the full-screen editor instead of typing in place. */
+  onTapToEdit?: () => void;
 }) {
   const [editLabel, setEditLabel] = useState(false);
 
@@ -82,7 +85,8 @@ export function LyricBlock({ section, idx, total, onChange, onDelete, onMove, on
       ) : (
         <div className="px-3 pt-2.5 pb-3">
           <AutoTA value={section.lyrics} onChange={v => onChange({ ...section, lyrics: v })}
-            placeholder="Write your lyrics here…" serif rows={4} onWordSelect={onWordSelect} />
+            placeholder="Write your lyrics here…" serif rows={4} onWordSelect={onWordSelect}
+            onTapToEdit={onTapToEdit} />
         </div>
       )}
     </div>
