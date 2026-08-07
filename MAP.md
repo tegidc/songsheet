@@ -421,16 +421,54 @@ Lyrics tab, and pinned inside the full-screen editor. `App` measures the
 header (`headerH`, a `ResizeObserver` on it) rather than assuming a height —
 the header is no longer fixed-height now it carries the title.
 
-- **One whole fragment, never a trimmed one.** It used to show up to three
-  cut to twelve characters each ("and complic…"). It now picks the first
-  fragment that fits (≤34 chars), falling back to the shortest available,
-  and wraps rather than truncating.
+- **Whole fragments, never trimmed ones.** It used to show up to three
+  cut to twelve characters each ("and complic…"). It picks whole ones,
+  first-that-fits falling back to the shortest available, and wraps rather
+  than truncating.
+- **Two of them, where two fit (Phase 6).** The line carries two fragments
+  either side of a `·`. Whether two go on it is **measured, not counted**: an
+  off-screen probe carrying the same italic serif is asked for each phrase's
+  width before paint, because the room left over depends on how long the
+  banner's label is and "V1" and "NOTEBOOK" are not the same amount of it. A
+  character budget got this visibly wrong on the first try — two fragments
+  wrapping onto two lines inside a 44px band. A measured pair never wraps
+  (`whitespace-nowrap`); a lone fragment still may.
+- **Each half is its own control.** Tapping one re-rolls it *and holds it*, so
+  it leaves the clock while the other carries on; tapping a held half rolls it
+  again and it stays held. A held half wears `accent`, the app's one colour
+  for "this is the live thing right now". Refresh lets both go and rolls both.
+  This resolves a tension between two decisions — independent re-rolls and an
+  auto-cycle cannot both own the same half — by letting a tap take a half off
+  the clock. If it reads wrong in use, the pinning is the part to reconsider,
+  not the two halves.
 - **The mode control is a word, not a glyph.** It was `✦`, which is the
   object-writing glyph — one sparkle meaning two things. `INSPIRE` /
   `RHYME` / `SYNONYM` in the app's small-caps mono says which kind of
   suggestion is on screen, which no glyph can.
 - **Inspiration first, then refresh**, so refresh reads as acting on
   whatever the control beside it names.
+
+**The clock (Phase 6).** Fragments cycle every `STRIP_FRAGMENT_INTERVAL`
+(6s) on the strip, against the desktop panel's `FRAGMENT_INTERVAL` (15s) —
+the strip sits directly above a line someone is writing, so it has to be
+quick enough to be worth a glance and quiet enough to ignore. Changes fade
+out, swap, fade in over 260ms; not a literal cross-fade, because two phrases
+of different lengths sharing a box would slide the centred text sideways as
+they crossed, and movement is the one thing that must not happen there.
+`usePrefersReducedMotion` (`src/lib/`) swaps instantly instead when the
+reader has asked for less movement.
+
+**Every manual change restarts the clock, and that was a live bug** — on
+desktop too. The auto-cycle effect depended only on the cycle callback, whose
+identity doesn't change when you click ↻, so the interval kept its original
+phase: a fragment rolled a second before a tick was replaced a second later,
+and the button looked broken. Both the strip and `InspirationPanel` now carry
+a `clock` counter bumped **by the handlers, not by a render**, and included in
+the interval effect's deps, so the interval is genuinely restarted. It applies
+to every manual trigger — refresh, tapping a half, and anything added later.
+The strip's interval deliberately does *not* depend on the fragment source or
+the motion preference (both are read through refs), because a dep on the
+source text would silently restart the cycle on every keystroke.
 
 ### Opening on the last song
 

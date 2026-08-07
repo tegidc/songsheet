@@ -42,12 +42,19 @@ export function InspirationPanel({ song, onAddVerse }: { song: Song; onAddVerse:
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasFragmentContent]);
 
-  // Auto-cycle
+  // Auto-cycle. `clock` is bumped by every manual re-roll, which is what
+  // restarts the interval: without it the interval kept its original phase
+  // through a manual change, so a fragment rolled a second before a tick was
+  // replaced a second later and the ↻ looked broken. Reset on the action.
+  const [clock, setClock] = useState(0);
+
+  const rollNow = useCallback(() => { setClock(c => c + 1); cycleFragments(); }, [cycleFragments]);
+
   useEffect(() => {
     if (paused || !hasFragmentContent) return;
     const id = setInterval(cycleFragments, FRAGMENT_INTERVAL);
     return () => clearInterval(id);
-  }, [paused, hasFragmentContent, cycleFragments]);
+  }, [paused, hasFragmentContent, cycleFragments, clock]);
 
   // ── Form ───────────────────────────────────────────────────────────────────
   // Same source pool as fragments (OW + Notebook + Big Idea/Story)
@@ -85,7 +92,7 @@ export function InspirationPanel({ song, onAddVerse }: { song: Song; onAddVerse:
             <button onClick={() => setPaused(p => !p)} title={paused ? "Resume" : "Pause"}
               className="text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors leading-none"
               style={{ fontFamily: MONO }}>{paused ? "▶" : "⏸"}</button>
-            <button onClick={cycleFragments} title="Next fragment"
+            <button onClick={rollNow} title="Next fragment"
               className="text-[12px] text-muted-foreground/60 hover:text-foreground transition-colors leading-none"
               style={{ fontFamily: MONO }}>↻</button>
           </div>
