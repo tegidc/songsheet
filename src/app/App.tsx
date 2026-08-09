@@ -31,7 +31,7 @@ import { ThesaurusPanel } from "../components/tools/ThesaurusPanel";
 import { FS, MONO, SANS, SCOL, SDEFS, SERIF, TIMER_OPTS, isEditorialBar } from "../data/constants";
 import { TSIGS } from "../data/music";
 import { newProjectPrefix, parseProjectPrefix, prefixFromDate, projectNameWithPrefix, uid } from "../format";
-import { applyCloudDeleteToEntries, deleteStandaloneOW, fetchOWRow, saveAsNew, updateOriginal } from "../lib/owCloud";
+import { applyCloudDeleteToEntries, deleteStandaloneOW, fetchOWRow, insertStandaloneOW, saveAsNew, updateOriginal } from "../lib/owCloud";
 import { owLabel } from "../lib/text/owLabel";
 import { loadOWPool } from "../lib/text/owPool";
 import { useSelectedWord } from "../lib/useSelectedWord";
@@ -76,7 +76,6 @@ export default function App() {
   };
   const [sectionCollapsed, setSectionCollapsed] = useState<Record<string, boolean>>({});
   const [showGlobalOW, setShowGlobalOW]         = useState(false);
-  const [owRefreshKey, setOwRefreshKey]         = useState(0);
   // The in-song writing currently open in a window, if any. `committed` says
   // whether it has made it into song.objectWritings yet (see openOW below).
   const [owWindow, setOwWindow] = useState<{ entry: OWEntry; timer: number | null; committed: boolean } | null>(null);
@@ -195,11 +194,9 @@ export default function App() {
           continue;
         }
 
-        const { data, error } = await supabase.from("standalone_ow")
-          .insert({ user_id: userId, seed_word: seedWord, body: entry.text, origin_song_id: projectId })
-          .select("id").single();
-        if (!error && data) {
-          const cloudId = data.id;
+        const { row } = await insertStandaloneOW(userId, seedWord, entry.text, projectId);
+        if (row) {
+          const cloudId = row.id;
           setSong(p => ({ ...p, objectWritings: (p.objectWritings ?? []).map(e => e.id === entry.id ? { ...e, cloudId } : e) }));
         }
         continue;
@@ -210,11 +207,9 @@ export default function App() {
         .eq("id", entry.cloudId)
         .select("id");
       if (!error && updated && updated.length === 0) {
-        const { data, error: insertError } = await supabase.from("standalone_ow")
-          .insert({ user_id: userId, seed_word: seedWord, body: entry.text, origin_song_id: projectId })
-          .select("id").single();
-        if (!insertError && data) {
-          const cloudId = data.id;
+        const { row } = await insertStandaloneOW(userId, seedWord, entry.text, projectId);
+        if (row) {
+          const cloudId = row.id;
           setSong(p => ({ ...p, objectWritings: (p.objectWritings ?? []).map(e => e.id === entry.id ? { ...e, cloudId } : e) }));
         }
       }
@@ -462,7 +457,6 @@ export default function App() {
     const w = owWindowRef.current;
     if (w && (w.entry.cloudId === id || w.entry.sourceId === id)) { owWindowRef.current = null; setOwWindow(null); }
     await deleteStandaloneOW(id, alsoFromSongs);
-    setOwRefreshKey(k => k + 1);
   }, []);
 
   // ── Save to cloud, offered on loose pills only (linked ones already sync) ──
@@ -476,7 +470,6 @@ export default function App() {
     // that now exists, so a later "Update original" has something to hit.
     patchOWEntry(w.entry.id, { sourceId: row.id });
     setOwCloudMsg(message);
-    setOwRefreshKey(k => k + 1);
   }, [patchOWEntry]);
 
   // Without a sourceId, or with an original that has since been deleted, there
@@ -501,7 +494,7 @@ export default function App() {
     setOwCloudConfirm(null);
     if (!w || !pending) return;
     const ok = await updateOriginal(pending.sourceId, w.entry.seedWord?.trim() || null, w.entry.text);
-    if (ok) { setOwCloudMsg("Original updated."); setOwRefreshKey(k => k + 1); }
+    if (ok) setOwCloudMsg("Original updated.");
     else await owSaveAsNew("The original was deleted — saved as a new writing.");
   }, [owCloudConfirm, owSaveAsNew]);
 
@@ -876,8 +869,7 @@ export default function App() {
             importOWFromCloud(seedWord, body, sourceId);
             setTab("notes");
           }}
-          onDeleteCloudOW={deleteCloudOW}
-          owRefreshKey={owRefreshKey} />
+          onDeleteCloudOW={deleteCloudOW} />
       )}
       {/* Mobile: overlay drawer with backdrop */}
       {user && showSidebar && isMobile && (
@@ -897,8 +889,7 @@ export default function App() {
                 setShowGlobalOW(true);
                 toggleSidebar();
               }}
-              onDeleteCloudOW={deleteCloudOW}
-          owRefreshKey={owRefreshKey} />
+              onDeleteCloudOW={deleteCloudOW} />
           </div>
         </div>
       )}
@@ -1424,7 +1415,6 @@ export default function App() {
         <StandaloneOWWindow
           timerStart={TIMER_OPTS[3]}
           onClose={() => setShowGlobalOW(false)}
-          onSaved={() => setOwRefreshKey(k => k + 1)}
         />
       )}
 

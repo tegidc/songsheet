@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { OWWindow } from "./OWWindow";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { supabase } from "../../lib/supabase";
+import { insertStandaloneOW } from "../../lib/owCloud";
 import { MONO } from "../../data/constants";
 import { owLabel } from "../../lib/text/owLabel";
 import type { StandaloneOW } from "../../types";
@@ -69,14 +70,14 @@ export function StandaloneOWWindow({
       } else {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { setSaveError("Sign in to save writings."); return; }
-        const { data, error } = await supabase.from("standalone_ow")
-          .insert({ user_id: user.id, seed_word, body: b })
-          .select("id, seed_word, body, written_at").single();
-        if (error || !data) { setSaveError("Save failed — " + (error?.message ?? "unknown")); return; }
-        rowId.current = data.id;
+        // Through the shared insert, so every list reading the cloud hears
+        // about this row the same way it hears about a mirrored one.
+        const { row, error } = await insertStandaloneOW(user.id, seed_word, b, null);
+        if (!row) { setSaveError("Save failed — " + error); return; }
+        rowId.current = row.id;
         written.current = { seedWord: sw, body: b };
         setSaveError("");
-        onSaved?.(data as StandaloneOW);
+        onSaved?.(row);
       }
     } finally {
       saving.current = false;

@@ -5,6 +5,7 @@ import { StandaloneOWWindow } from "../ow/StandaloneOWWindow";
 import { FL } from "../common/FL";
 import { MONO, SERIF, TIMER_OPTS } from "../../data/constants";
 import { formatRelativeTime } from "../../format";
+import { useOWCloudVersion } from "../../lib/owCloud";
 import { owLabel } from "../../lib/text/owLabel";
 import type { AudioNote, Project, ProjectStatus, Song, StandaloneOW } from "../../types";
 
@@ -93,7 +94,7 @@ function ProjectRow({ p, onLoad, onRename, onSetStatus, onDelete }: {
   );
 }
 
-export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, onCreateSongFromOW, onAddOWToSong, onDeleteCloudOW, owRefreshKey, mobile = false, onClose }: {
+export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, onCreateSongFromOW, onAddOWToSong, onDeleteCloudOW, mobile = false, onClose }: {
   onLoad: (id: string, song: Song, name: string, createdAt?: string | null) => void;
   onNew: () => void;
   onSignOut: () => void;
@@ -102,7 +103,6 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
   onAddOWToSong?: (seedWord: string | null, body: string, sourceId: string) => void;
   /** Delete a cloud writing; `alsoFromSongs` decides what songs holding it keep. */
   onDeleteCloudOW?: (id: string, alsoFromSongs: boolean) => Promise<void> | void;
-  owRefreshKey: number;
   mobile?: boolean;
   onClose?: () => void;
 }) {
@@ -131,13 +131,16 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
 
   useEffect(() => { setRefreshKey(k => k + 1); }, [currentProjectId]);
 
-  // Fetch standalone OW entries (re-runs when owRefreshKey bumps — e.g. saved from header button)
+  // Every standalone writing, and with it the count in the header above —
+  // re-read whenever the cloud gains or loses one, whichever path did it: this
+  // window, a loose pill saved by hand, or a song mirroring a linked writing.
+  const owCloudVersion = useOWCloudVersion();
   useEffect(() => {
     supabase.from("standalone_ow")
       .select("id, seed_word, body, written_at, origin_song_id")
       .order("written_at", { ascending: false })
       .then(({ data }) => setStandaloneOWs((data as StandaloneOW[]) ?? []));
-  }, [owRefreshKey]);
+  }, [owCloudVersion]);
 
   const load = async (id: string) => {
     const { data } = await supabase.from("projects").select("data, name, created_at").eq("id", id).single();

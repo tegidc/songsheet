@@ -3,6 +3,7 @@ import { RefreshCw, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { MONO, SERIF } from "../../data/constants";
 import { formatRelativeTime } from "../../format";
+import { useOWCloudVersion } from "../../lib/owCloud";
 import { owLabel } from "../../lib/text/owLabel";
 import type { StandaloneOW } from "../../types";
 
@@ -34,6 +35,10 @@ export function OWCloudPicker({ onImport, onClose }: {
   const [order, setOrder]     = useState<string[]>([]);
   const [added, setAdded]     = useState<Record<string, boolean>>({});
 
+  // Re-read when the cloud gains or loses a writing — the picker can be open
+  // while a song's autosave mirrors one out of it, and a search that can't find
+  // a writing the songwriter just made is the picker saying it isn't there.
+  const owCloudVersion = useOWCloudVersion();
   useEffect(() => {
     supabase.from("standalone_ow")
       .select("id, seed_word, body, written_at, origin_song_id")
@@ -41,10 +46,15 @@ export function OWCloudPicker({ onImport, onClose }: {
       .then(({ data }) => {
         const list = (data as StandaloneOW[]) ?? [];
         setRows(list);
-        setOrder(shuffle(list).map(r => r.id));
+        // The deal is only made once. A refetch must not re-shuffle the handful
+        // being read, so what is already in the order keeps its place and a new
+        // writing joins the pool behind it — Shuffle is what re-deals.
+        setOrder(prev => prev.length === 0
+          ? shuffle(list).map(r => r.id)
+          : [...prev, ...list.filter(r => !prev.includes(r.id)).map(r => r.id)]);
         setLoading(false);
       });
-  }, []);
+  }, [owCloudVersion]);
 
   const searching = query.trim().length > 0;
 

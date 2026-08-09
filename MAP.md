@@ -130,6 +130,23 @@ to the song held in memory, which would otherwise overwrite the database
 change on its next autosave — but only when that song actually holds the
 writing, so an unrelated open song isn't dirtied.
 
+**One signal for "the cloud gained a writing"**: three routes create a
+`standalone_ow` row — the sidebar's own window, *Save as new* on a loose pill,
+and a song's autosave mirroring a linked entry — and every reader of the table
+has to hear about all three. They did not: the sidebar bumped a refresh key
+beside its own insert and the song's mirror bumped nothing, so a writing made
+inside a song only reached the sidebar list (and the count in its header) on a
+reload. The signal is now raised by the insert rather than remembered beside
+it — `insertStandaloneOW` in `src/lib/owCloud.ts` is the single insert every
+route calls, and it notifies; `useOWCloudVersion` from the same module is what
+the sidebar and `OWCloudPicker` put in their fetch effect's deps. Deletes and
+the by-hand *Update original* notify too (both change what a list shows); the
+two *continuous* update paths — the song's autosave mirroring a linked entry,
+and `StandaloneOWWindow`'s own 800ms debounce — deliberately do not, since they
+fire while someone is typing a row that is already listed. The picker keeps its
+dealt handful across a refresh (new rows join the pool behind it) so a refetch
+can't re-shuffle what is being read; Shuffle is still the only re-deal.
+
 ### One window, and no save button
 
 Every object writing is edited by `OWWindow`, whatever opened it. The three
@@ -203,11 +220,13 @@ All shared interfaces/types: `SectionType`, `Tab`, `CP`, `Section`,
 
 ### `src/lib/` (top level)
 - `supabase.ts` — the shared client.
-- `owCloud.ts` — cloud operations on `standalone_ow` that are *not* part of
-  a song's autosave: `fetchOWRow`, `updateOriginal` (false when it matches
-  zero rows), `saveAsNew`, `deleteStandaloneOW` and the pure
-  `applyCloudDeleteToEntries` it shares with `App`. See "the two
-  object-writing stores" above.
+- `owCloud.ts` — cloud operations on `standalone_ow`: `insertStandaloneOW`
+  (the one insert, whoever is making it — the song's autosave included —
+  because that is where the "a writing was created" signal is raised),
+  `useOWCloudVersion` (what every list of the table refetches on), plus
+  `fetchOWRow`, `updateOriginal` (false when it matches zero rows),
+  `saveAsNew`, `deleteStandaloneOW` and the pure `applyCloudDeleteToEntries`
+  it shares with `App`. See "the two object-writing stores" above.
 - `useSelectedWord.ts` — the word selected anywhere on the page, or null,
   feeding `FloatingOWButton`. Reads textarea/input selections directly as
   well as `window.getSelection()`, since a selection inside a textarea is

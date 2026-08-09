@@ -1,9 +1,65 @@
+import { useSyncExternalStore } from "react";
 import { supabase } from "./supabase";
 import type { OWEntry, Song, StandaloneOW } from "../types";
 
-// Cloud operations on `standalone_ow` that aren't part of a song's own autosave:
-// the two "save to cloud" gestures a loose pill offers, and the discreet delete
-// reachable from a standalone writing's window.
+// Cloud operations on `standalone_ow`: the two "save to cloud" gestures a loose
+// pill offers, the discreet delete reachable from a standalone writing's window,
+// and — since it is the one fact every reader of the table hangs off — the
+// insert itself, wherever it is made from.
+
+// ── "The cloud has a writing it didn't have" ─────────────────────────────────
+// Rows appear by three routes: the sidebar's own window, "Save as new" on a
+// loose pill, and a linked writing mirrored out of a song by that song's
+// autosave. Every reader of the table (the sidebar list and the count in its
+// header, the picker) has to hear about all three. Remembering to bump a key
+// beside each insert is three things kept in step by hand, and the song path
+// was the one that got missed — so the sidebar went on showing the cloud as of
+// whenever it last happened to refetch. The insert is the event, so the signal
+// is raised here, by the single function that does it.
+let owCloudVersion = 0;
+const owCloudListeners = new Set<() => void>();
+
+function notifyOWCloudChanged() {
+  owCloudVersion++;
+  owCloudListeners.forEach(fn => fn());
+}
+
+function subscribeOWCloud(fn: () => void) {
+  owCloudListeners.add(fn);
+  return () => { owCloudListeners.delete(fn); };
+}
+
+/**
+ * A number that changes whenever the *set* of `standalone_ow` rows does — a row
+ * created, a row deleted, or the by-hand overwrite of one. Put it in a fetch
+ * effect's deps and that fetch re-runs whichever path made the change.
+ *
+ * Deliberately not bumped by the two continuous update paths (a song's autosave
+ * mirroring a linked entry, the standalone window's own 800ms debounce): those
+ * fire while someone is typing, and refetching every list in the app on each
+ * keystroke burst would buy nothing — the row is already listed.
+ */
+export function useOWCloudVersion(): number {
+  return useSyncExternalStore(subscribeOWCloud, () => owCloudVersion, () => owCloudVersion);
+}
+
+/**
+ * The one insert into `standalone_ow`. Every route that creates a cloud writing
+ * comes through here so that "a writing was created" is raised once, in one
+ * place, rather than being a bump each call site has to remember. The failure
+ * message comes back with the row because the standalone window puts it on
+ * screen; the song's mirror has nowhere to say it and ignores it.
+ */
+export async function insertStandaloneOW(
+  userId: string, seedWord: string | null, body: string, originSongId: string | null,
+): Promise<{ row: StandaloneOW | null; error: string | null }> {
+  const { data, error } = await supabase.from("standalone_ow")
+    .insert({ user_id: userId, seed_word: seedWord, body, origin_song_id: originSongId })
+    .select("id, seed_word, body, written_at, origin_song_id").single();
+  if (error || !data) return { row: null, error: error?.message ?? "unknown" };
+  notifyOWCloudChanged();
+  return { row: data as StandaloneOW, error: null };
+}
 
 export async function fetchOWRow(id: string): Promise<StandaloneOW | null> {
   const { data, error } = await supabase.from("standalone_ow")
@@ -24,18 +80,18 @@ export async function updateOriginal(sourceId: string, seedWord: string | null, 
     .eq("id", sourceId)
     .select("id");
   if (error) return false;
-  return !!data && data.length > 0;
+  const hit = !!data && data.length > 0;
+  // The label and the date a list shows for this row can both have moved.
+  if (hit) notifyOWCloudChanged();
+  return hit;
 }
 
 /** Insert a fresh row — a fork of the loose entry, not a link back to it. */
 export async function saveAsNew(seedWord: string | null, body: string, originSongId: string | null): Promise<StandaloneOW | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  const { data, error } = await supabase.from("standalone_ow")
-    .insert({ user_id: user.id, seed_word: seedWord, body, origin_song_id: originSongId })
-    .select("id, seed_word, body, written_at, origin_song_id").single();
-  if (error || !data) return null;
-  return data as StandaloneOW;
+  const { row } = await insertStandaloneOW(user.id, seedWord, body, originSongId);
+  return row;
 }
 
 /**
@@ -67,6 +123,7 @@ export async function deleteStandaloneOW(id: string, alsoFromSongs: boolean): Pr
     if (!error) touched.push(row.id);
   }
   await supabase.from("standalone_ow").delete().eq("id", id);
+  notifyOWCloudChanged();
   return touched;
 }
 
