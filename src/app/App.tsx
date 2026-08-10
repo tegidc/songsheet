@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, type CSSProperties } from "react";
 import { Plus, Music, Music2, AlertCircle, ChevronDown, FolderOpen, LogIn, X } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
@@ -25,6 +25,10 @@ import { ConfirmDialog } from "../components/common/ConfirmDialog";
 import { FL } from "../components/common/FL";
 import { FullScreenEditor } from "../components/common/FullScreenEditor";
 import { ProjectsSidebar } from "../components/sidebar/ProjectsSidebar";
+import { WordCloudErrorBoundary } from "../components/wordcloud/WordCloudErrorBoundary";
+import { WordCloudView } from "../components/wordcloud/WordCloudView";
+import { PALETTES } from "../lib/wordcloud/palettes";
+import { useWordCloudPrefs } from "../lib/wordcloud/prefs";
 import { InspirationPanel } from "../components/tools/InspirationPanel";
 import { RhymePanel } from "../components/tools/RhymePanel";
 import { ThesaurusPanel } from "../components/tools/ThesaurusPanel";
@@ -49,6 +53,10 @@ export default function App() {
   // Desktop only: on touch, selecting text raises the OS copy/paste bar and
   // needs a different trigger (Phase 5). The plain button still works there.
   const selectedWord = useSelectedWord(!isMobile);
+  // Read here too (not just inside WordCloudView) so the header can derive its
+  // translucent fill from the same live palette while the cloud is open.
+  const wordCloudPrefs = useWordCloudPrefs();
+  const wordCloudPalette = PALETTES[wordCloudPrefs.palette];
   const [song, setSong]               = useState<Song>(EMPTY_SONG);
   const [tab, setTab]                 = useState<Tab>("notes");
   const [metaExpanded, setMetaExpanded] = useState(false);
@@ -76,6 +84,7 @@ export default function App() {
   };
   const [sectionCollapsed, setSectionCollapsed] = useState<Record<string, boolean>>({});
   const [showGlobalOW, setShowGlobalOW]         = useState(false);
+  const [showWordCloud, setShowWordCloud]       = useState(false);
   // The in-song writing currently open in a window, if any. `committed` says
   // whether it has made it into song.objectWritings yet (see openOW below).
   const [owWindow, setOwWindow] = useState<{ entry: OWEntry; timer: number | null; committed: boolean } | null>(null);
@@ -799,8 +808,22 @@ export default function App() {
       <span ref={charRef} aria-hidden
         style={{ visibility: "hidden", position: "fixed", top: 0, left: 0, fontFamily: MONO, fontSize: FS + "px", whiteSpace: "pre" }}>0</span>
 
-      {/* Header */}
-      <header ref={headerRef} className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur-sm px-4 md:px-6 py-3 flex items-center gap-3 md:gap-4">
+      {/* Header. Stays put — same wordmark, same icons, same position — even
+          while the cloud is open behind it: the cloud passes *behind* the
+          header rather than stopping at it, so the header's own background
+          is tuned translucent and its colours re-pinned to the cloud's active
+          palette (via CSS-variable overrides, so every existing text-foreground
+          / text-muted-foreground / border-border class beneath it just follows
+          along) rather than sitting as a bright cream bar over a dark field. */}
+      <header ref={headerRef}
+        className={`sticky top-0 z-20 backdrop-blur-sm px-4 md:px-6 py-3 flex items-center gap-3 md:gap-4 transition-colors ${showWordCloud ? "bg-background/60" : "border-b border-border bg-background/95"}`}
+        style={showWordCloud ? {
+          "--background": wordCloudPalette.bg,
+          "--foreground": wordCloudPalette.ink,
+          "--muted-foreground": wordCloudPalette.mist,
+          "--accent": wordCloudPalette.accent,
+          "--border": wordCloudPalette.line,
+        } as CSSProperties : undefined}>
         <Music size={15} className="text-accent shrink-0" />
         {/* The wordmark yields to the song title on mobile — there is only room
             for one of them, and the ♫ already says which app this is. */}
@@ -819,6 +842,19 @@ export default function App() {
                 className="flex items-center justify-center text-[14px] px-2.5 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-accent hover:border-accent/40 transition-colors leading-none"
                 title="New Object Writing session">
                 ✦
+              </button>
+              {/* Unused thoughts from object writing and notes, as a drifting
+                  particle cloud. Outlined cloud with three filled dots reads
+                  as particles rather than weather or file storage. */}
+              <button onClick={() => setShowWordCloud(v => !v)}
+                className={`flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 border rounded-sm transition-colors ${showWordCloud ? "border-foreground/30 text-foreground bg-muted/40" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"}`}
+                title="Word cloud">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M6.8 18.5a3.8 3.8 0 0 1-.5-7.57 5 5 0 0 1 9.63-1.6A3.9 3.9 0 0 1 17.6 18.5z" />
+                  <circle cx="9.6" cy="14.6" r="0.9" fill="currentColor" stroke="none" />
+                  <circle cx="13.4" cy="13.2" r="0.9" fill="currentColor" stroke="none" />
+                  <circle cx="12.4" cy="16.4" r="0.9" fill="currentColor" stroke="none" />
+                </svg>
               </button>
             </>
           ) : (
@@ -855,6 +891,14 @@ export default function App() {
         </div>
       </header>
 
+      {showWordCloud ? (
+        <WordCloudErrorBoundary onClose={() => setShowWordCloud(false)}>
+          <WordCloudView
+            onClose={() => setShowWordCloud(false)}
+            onWriteEntry={() => { setShowWordCloud(false); setShowGlobalOW(true); }} />
+        </WordCloudErrorBoundary>
+      ) : (
+      <>
       {/* Body: projects sidebar (left) + main workspace */}
       <div className="flex items-start">
       {/* Desktop: inline pushing sidebar */}
@@ -1329,6 +1373,8 @@ export default function App() {
       </main>
 
       </div>{/* end body flex */}
+      </>
+      )}
 
       {/* Writing full screen, with the tools pinned above the keyboard. Mobile
           only, and only for the boxes the songwriter actually composes in. */}
