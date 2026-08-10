@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MONO, SERIF } from "../../data/constants";
+import { SENSES } from "../../data/senses";
 import { supabase } from "../../lib/supabase";
 import type { Song, StandaloneOW } from "../../types";
 import { WordCloudCanvas } from "./WordCloudCanvas";
@@ -172,7 +173,28 @@ export function WordCloudView({
           </select>
         </div>
 
-        {/* Sense scan toggle + legend lands here in a later commit. */}
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <span className="text-[11px] leading-[1.4]" style={{ fontFamily: MONO, color: palette.mist }}>
+            Sense scan
+          </span>
+          <button role="switch" aria-checked={prefs.senseScanOn}
+            onClick={() => prefs.setSenseScanOn(!prefs.senseScanOn)}
+            className="relative shrink-0 w-8 h-[18px] rounded-full transition-colors"
+            style={{ background: prefs.senseScanOn ? palette.accent : palette.line }}>
+            <span className="absolute top-[3px] left-[3px] w-3 h-3 rounded-full bg-white transition-transform"
+              style={{ transform: prefs.senseScanOn ? "translateX(14px)" : "translateX(0)" }} />
+          </button>
+        </div>
+
+        {prefs.senseScanOn && (
+          <div className="flex flex-wrap gap-1.5 -mt-1.5">
+            {SENSES.map(s => (
+              <span key={s.label} className={`${s.tw} px-2 py-0.5 rounded-full text-[10px] tracking-wide`}>
+                {s.label}
+              </span>
+            ))}
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-3 pt-1">
           <span className="text-[11px] leading-[1.4]" style={{ fontFamily: MONO, color: palette.mist }}>
