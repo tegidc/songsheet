@@ -194,8 +194,12 @@ All shared interfaces/types: `SectionType`, `Tab`, `CP`, `Section`,
 `StandaloneOW`. Imported by nearly every other module.
 
 ### `src/data/`
-- `senses.ts` — `SENSES` (the 8 sensory-category word lists used by the
-  object-writing sense-scan feature), `ALL_SENSE_WORDS`.
+- `senses.ts` — **generated**, by `scripts/build-senses.mjs`; do not hand-edit.
+  `SENSES` (the 8 sensory categories used by the object-writing sense scan —
+  label, pill/highlight classes, and the base words belonging primarily to
+  each), `SENSE_INDEX` (every inflected form → its primary sense and any
+  secondaries), `ABSTRACT_VERBS`, `ALL_SENSE_WORDS`. See "The sense scan"
+  below for what changed and why.
 - `words.ts` — `OBJECT_WORDS` (fallback noun pool for the "Object" picker),
   `STOP_WORDS`, `FN_WORDS` (function words, used for stress-pattern
   guessing), `SECTION_IGNORE_WORDS` (excluded from word-cloud/fragment
@@ -265,8 +269,9 @@ All shared interfaces/types: `SectionType`, `Tab`, `CP`, `Section`,
   anchoring, used when bar counts change under an existing chord layout).
 
 ### `src/lib/text/`
-- `senses.ts` — `stemWord`, `lookupSense`, `scanText`, `getDrillWords`,
-  `extractDetailWord` (object-writing sense-scan).
+- `senses.ts` — `lookupSense`, `scanText`, `countSenses`, `countAbstract`,
+  `getDrillWords`, `extractDetailWord` (object-writing sense scan). No stemmer
+  — see "The sense scan" below.
 - `prosody.ts` — `countSyllables`, `getStressPattern`, `analyzeStress`,
   `lineSyllableCount`.
 - `owLabel.ts` — `owLabel(seedWord, body)`: pure function that picks a
@@ -512,6 +517,48 @@ to every manual trigger — refresh, tapping a half, and anything added later.
 The strip's interval deliberately does *not* depend on the fragment source or
 the motion preference (both are read through refs), because a dep on the
 source text would silently restart the cycle on every keystroke.
+
+### The sense scan
+
+`src/data/senses.ts` was eight hand-written lists — Sight held 44 words — and
+so a passage full of *white*, *black*, *granite*, *stone*, *wood*, *clouds*
+and *edges* scored Sight ×1. It is now generated from WordNet by
+`scripts/build-senses.mjs`, a committed one-off: the corpora are downloaded
+into the gitignored `scripts/.cache/` and only its output ships. **The app
+gained no dependency and makes no network call** — the file is still plain
+data, loaded exactly as before. Four things changed in the design, not just
+the size.
+
+**The lists are grown, then edited.** Each sense starts from the words that
+shipped before, plus WordNet anchors named by exact synset (`colour#n#1`, the
+visual attribute — not the paint and not the quark property), walked down the
+hyponym tree and across adjective clusters. Three filters keep the walk from
+becoming the dictionary: lexicographer-file allowlists per anchor, a frequency
+gate, and a sense-rank + corpus-attestation test that rejects rare readings of
+common words (`bat` as a body part, `spud` as a verb of contact). What no rule
+catches is written down as `REJECT` in `scripts/lib/senseAnchors.mjs` — a
+hand-read residue, kept as a list because each entry is a judgement about one
+word.
+
+**A word can belong to more than one sense.** The first list no longer wins:
+each form carries a primary sense and up to two secondaries, and `scanText`
+promotes a secondary when some word within four either side has that sense as
+*its* primary. So `light` is Sight until it sits beside `weight`, and `press`
+is Touch until it sits beside `lean`. Support is read from primaries only,
+never from promotions, so the result cannot depend on token order and a
+promotion cannot cascade.
+
+**There is no stemmer.** `stemWord` guessed by chopping suffixes and produced
+`wat`, `fing` and `gent`. Every inflection is generated at build time instead,
+per part of speech (WordNet knows which), with its irregulars from WordNet's
+exception lists — so lookups are exact.
+
+**The verbs split.** The old eighth list was the ~100 commonest English verbs,
+`become`/`seem`/`exist` included, which scored abstraction as sensory writing.
+The hands-on half is now the eighth sense, **Physical** (same index, same
+violet, so `SENSE_HEX` in `lib/wordcloud/palettes.ts` still lines up); the rest
+became `ABSTRACT_VERBS`, counted and reported under the pills as a quiet line
+rather than scored. Any word a sense claims is never abstract — the senses win.
 
 ### Opening on the last song
 

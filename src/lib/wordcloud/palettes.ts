@@ -53,7 +53,7 @@ export const SENSE_HEX: { tint: string; dot: string }[] = [
   { tint: "#F3E8FF", dot: "#6B21A8" }, // Touch    — purple
   { tint: "#FFEDD5", dot: "#9A3412" }, // Organic  — orange
   { tint: "#CCFBF1", dot: "#115E59" }, // Kinesthetic — teal
-  { tint: "#EDE9FE", dot: "#5B21B6" }, // Verbs    — violet
+  { tint: "#EDE9FE", dot: "#5B21B6" }, // Physical — violet
 ];
 
 /** On a dark ground the editor's pastel reads well; on a pale one it washes out. */

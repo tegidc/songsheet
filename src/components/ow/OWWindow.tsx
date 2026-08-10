@@ -6,7 +6,7 @@ import { MONO, SERIF, TIMER_OPTS } from "../../data/constants";
 import { SENSES } from "../../data/senses";
 import { pickOWWord } from "../../lib/text/owPool";
 import { owLabel } from "../../lib/text/owLabel";
-import { extractDetailWord, getDrillWords, scanText } from "../../lib/text/senses";
+import { countAbstract, countSenses, extractDetailWord, getDrillWords, scanText } from "../../lib/text/senses";
 
 // One window for a single object writing, whatever it was opened from. The
 // three former components (StandaloneOWDialog / StandaloneOWDetail /
@@ -116,8 +116,11 @@ export function OWWindow({
     onSaveToNotebook(owLabel(seedWord, text) || "Object Writing", text);
   };
 
+  // The head of `words` is the hand-written half of the list (see the note in
+  // data/senses.ts) — the part that explains what the category means, rather
+  // than the long tail WordNet supplied.
   const pickExamples = (sense: typeof SENSES[0]) => {
-    const pool = [...sense.words];
+    const pool = sense.words.slice(0, 24);
     const picks: string[] = [];
     for (let i = 0; i < 3 && pool.length; i++) {
       const j = Math.floor(Math.random() * pool.length);
@@ -132,7 +135,8 @@ export function OWWindow({
   const ss = String(seconds % 60).padStart(2, "0");
   const isLow = seconds <= 60 && active;
   const timerDisplay = done ? "0:00" : active ? `${mm}:${ss}` : `${TIMER_OPTS[timerIdx] / 60}:00`;
-  const counts = scanResult ? SENSES.map((_, i) => scanResult.filter(t => t.senseIdx === i).length) : null;
+  const counts = scanResult ? countSenses(scanResult) : null;
+  const abstractCount = scanResult ? countAbstract(scanResult) : 0;
   const drillWords = scanResult ? getDrillWords(scanResult) : [];
 
   const body = (
@@ -251,7 +255,9 @@ export function OWWindow({
             {scanResult.map((t, i) =>
               t.senseIdx !== null
                 ? <mark key={i} className={`${SENSES[t.senseIdx].mark} rounded-sm px-0.5`} title={SENSES[t.senseIdx].label}>{t.token}</mark>
-                : <span key={i}>{t.token}</span>
+                : t.abstract
+                  ? <span key={i} className="border-b border-dotted border-muted-foreground/40" title="Abstract verb">{t.token}</span>
+                  : <span key={i}>{t.token}</span>
             )}
           </div>
           <div className="flex flex-wrap gap-1.5 mb-3">
@@ -266,6 +272,13 @@ export function OWWindow({
               </span>
             )}
           </div>
+          {/* Not a pill and not a score: abstract verbs are the thing to have
+              less of, so this reads as a remark rather than a tally. */}
+          {abstractCount > 0 && (
+            <p className="text-[10px] text-muted-foreground/60 mb-3" style={{ fontFamily: MONO }}>
+              {abstractCount} abstract verb{abstractCount === 1 ? "" : "s"} — the opposite of writing through the senses
+            </p>
+          )}
           {onDrillDown && drillWords.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[10px] text-muted-foreground" style={{ fontFamily: MONO }}>Dig deeper →</span>
