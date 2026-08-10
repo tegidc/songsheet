@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MONO, SERIF } from "../../data/constants";
 import { supabase } from "../../lib/supabase";
 import type { Song, StandaloneOW } from "../../types";
+import { WordCloudCanvas } from "./WordCloudCanvas";
 import { extractPhrases, shuffle, type CloudPhrase } from "../../lib/wordcloud/extract";
 import { buildLyricMatcher } from "../../lib/wordcloud/lyricsMatch";
-import { PALETTES } from "../../lib/wordcloud/palettes";
+import { FONT_STACKS, PALETTES } from "../../lib/wordcloud/palettes";
 import { useWordCloudPrefs } from "../../lib/wordcloud/prefs";
+import { PHRASE_CAP } from "../../lib/wordcloud/sizing";
 import {
   buildSourceItems, lyricTextsForScope, EVERYTHING,
   type CloudProjectRow, type ContentFilter,
@@ -82,7 +84,7 @@ export function WordCloudView({
   const loaded = projects !== null && standalone !== null;
 
   // Re-sampled on open and on any filter change — no manual reshuffle control.
-  const pool = useMemo((): { phrases: CloudPhrase[]; entryCount: number; hiddenCount: number } | null => {
+  const pool = useMemo((): { phrases: CloudPhrase[]; entryCount: number; hiddenCount: number; cappedCount: number } | null => {
     if (!projects || !standalone) return null;
     const items = buildSourceItems(projects, standalone, projectFilter, contentFilter);
     let extracted = extractPhrases(items);
@@ -93,18 +95,26 @@ export function WordCloudView({
       extracted = extracted.filter(p => !isUsed(p.words));
       hiddenCount = before - extracted.length;
     }
-    return { phrases: shuffle(extracted), entryCount: items.length, hiddenCount };
+    const shuffled = shuffle(extracted);
+    const cappedCount = Math.max(0, shuffled.length - PHRASE_CAP);
+    return { phrases: shuffled.slice(0, PHRASE_CAP), entryCount: items.length, hiddenCount, cappedCount };
   }, [projects, standalone, projectFilter, contentFilter, prefs.hideUsedLyrics]);
 
   const scoped = projectFilter !== EVERYTHING;
   const isEmpty = loaded && (!pool || pool.phrases.length === 0);
 
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function showToast(msg: string) {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 1400);
+  }
+  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
+
   return (
     <div className="fixed inset-0 z-10 flex flex-col md:flex-row" style={{ background: palette.bg }}>
-      {/* Stage — the canvas lands here in the next commit. A plain list for
-          now, so the filters and the lyrics rule can be checked against
-          readable output before the render gets harder to eyeball. */}
-      <div className="flex-1 min-w-0 relative overflow-y-auto">
+      <div className="flex-1 min-w-0 relative overflow-hidden">
         {isEmpty ? (
           <div className="w-full h-full flex flex-col items-center justify-center gap-3 px-6 text-center">
             <strong className="text-[15px] font-medium" style={{ fontFamily: SERIF, color: palette.ink }}>
@@ -120,14 +130,20 @@ export function WordCloudView({
             </button>
           </div>
         ) : loaded && pool ? (
-          <ul className="max-w-xl mx-auto px-6 py-10 flex flex-col gap-2">
-            {pool.phrases.map((p, i) => (
-              <li key={p.phrase + i} className="text-[14px] leading-[1.6]" style={{ fontFamily: SERIF, color: palette.ink }}>
-                {p.phrase}
-              </li>
-            ))}
-          </ul>
+          <WordCloudCanvas
+            phrases={pool.phrases}
+            palette={palette}
+            typography={prefs.typography}
+            senseScanOn={prefs.senseScanOn}
+            onCopy={showToast} />
         ) : null}
+
+        {toast && (
+          <div className="absolute left-1/2 bottom-8 -translate-x-1/2 px-3.5 py-1.5 rounded-full text-[11px] uppercase tracking-wide pointer-events-none"
+            style={{ fontFamily: MONO, background: palette.ink, color: palette.bg }}>
+            {toast}
+          </div>
+        )}
       </div>
 
       {/* Panel */}
@@ -171,12 +187,39 @@ export function WordCloudView({
           </button>
         </div>
 
+        <div className="h-px my-1" style={{ background: palette.line }} />
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] uppercase tracking-wide" style={{ fontFamily: MONO, color: palette.mist }}>Palette</label>
+          <select value={prefs.palette} onChange={e => prefs.setPalette(e.target.value)}
+            className="text-[12px] bg-transparent border rounded-sm px-2 py-1.5 focus:outline-none cursor-pointer"
+            style={{ fontFamily: MONO, color: palette.ink, borderColor: palette.line }}>
+            {Object.keys(PALETTES).map(name => (
+              <option key={name} value={name} style={{ color: "#000" }}>{name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] uppercase tracking-wide" style={{ fontFamily: MONO, color: palette.mist }}>Typography</label>
+          <select value={prefs.typography} onChange={e => prefs.setTypography(e.target.value)}
+            className="text-[12px] bg-transparent border rounded-sm px-2 py-1.5 focus:outline-none cursor-pointer"
+            style={{ fontFamily: MONO, color: palette.ink, borderColor: palette.line }}>
+            {Object.keys(FONT_STACKS).map(name => (
+              <option key={name} value={name} style={{ color: "#000" }}>{name}</option>
+            ))}
+          </select>
+        </div>
+
         {loaded && pool && (
           <div className="text-[11px] leading-[1.8] pt-2" style={{ fontFamily: MONO, color: palette.mist }}>
             <span style={{ color: palette.ink }}>{pool.phrases.length}</span> phrases from{" "}
             <span style={{ color: palette.ink }}>{pool.entryCount}</span> entries
             {pool.hiddenCount > 0 && (
               <><br /><span style={{ color: palette.ink }}>{pool.hiddenCount}</span> hidden</>
+            )}
+            {pool.cappedCount > 0 && (
+              <><br /><span style={{ color: palette.ink }}>{pool.cappedCount}</span> more than the cloud can hold</>
             )}
           </div>
         )}
