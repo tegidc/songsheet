@@ -1,0 +1,1242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Dithered Cloud Particles</title>
+<style>
+  :root {
+    --panel-bg: rgba(14, 14, 16, 0.92);
+    --panel-ink: #e8e8ec;
+    --panel-dim: rgba(232, 232, 236, 0.45);
+    --panel-line: rgba(232, 232, 236, 0.14);
+    --mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    height: 100dvh;          /* mobile browser chrome shrinks and grows */
+    overflow: hidden;
+    background: #000;
+    overscroll-behavior: none;
+  }
+
+  #canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    cursor: default;
+    touch-action: none;
+  }
+
+  #canvas.is-over { cursor: pointer; }
+
+  /* ── Controls ─────────────────────────────────────────── */
+
+  #panel-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 20;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1px solid var(--panel-line);
+    border-radius: 50%;
+    background: var(--panel-bg);
+    color: var(--panel-dim);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 140ms ease, border-color 140ms ease;
+  }
+
+  #panel-toggle:hover,
+  #panel-toggle:focus-visible { color: var(--panel-ink); border-color: rgba(232,232,236,0.4); }
+
+  #panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 15;
+    width: 268px;
+    max-width: 86vw;
+    height: 100%;
+    padding: 62px 22px 28px;
+    overflow-y: auto;
+    background: var(--panel-bg);
+    backdrop-filter: blur(14px);
+    border-left: 1px solid var(--panel-line);
+    color: var(--panel-ink);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    transform: translateX(100%);
+    transition: transform 260ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  #panel.is-open { transform: translateX(0); }
+
+  .ctl-section {
+    margin: 26px 0 12px;
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--panel-line);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--panel-dim);
+  }
+
+  .ctl-section:first-child { margin-top: 0; }
+
+  .ctl-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 11px;
+  }
+
+  .ctl-row label { flex: 1; color: var(--panel-dim); }
+  .ctl-row output { min-width: 34px; text-align: right; color: var(--panel-ink); font-variant-numeric: tabular-nums; }
+
+  .ctl-stack { display: block; margin-bottom: 11px; }
+  .ctl-stack label { display: block; margin-bottom: 6px; color: var(--panel-dim); }
+
+  input[type="range"] {
+    flex: 1.1;
+    min-width: 0;
+    height: 2px;
+    margin: 0;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--panel-line);
+    border-radius: 2px;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    background: var(--panel-ink);
+    cursor: pointer;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 11px; height: 11px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--panel-ink);
+    cursor: pointer;
+  }
+
+  select,
+  input[type="text"] {
+    width: 100%;
+    padding: 7px 9px;
+    border: 1px solid var(--panel-line);
+    border-radius: 3px;
+    background: rgba(255,255,255,0.04);
+    color: var(--panel-ink);
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  select:focus-visible,
+  input[type="text"]:focus-visible,
+  .ctl-btn:focus-visible,
+  input[type="range"]:focus-visible { outline: 1px solid rgba(232,232,236,0.6); outline-offset: 2px; }
+
+  .ctl-btn {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--panel-line);
+    border-radius: 3px;
+    background: rgba(255,255,255,0.06);
+    color: var(--panel-ink);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: background 140ms ease;
+  }
+
+  .ctl-btn:hover { background: rgba(255,255,255,0.12); }
+
+  .ctl-switch {
+    position: relative;
+    width: 30px; height: 17px;
+    flex: 0 0 auto;
+    border: 0;
+    padding: 0;
+    border-radius: 9px;
+    background: var(--panel-line);
+    cursor: pointer;
+    transition: background 160ms ease;
+  }
+
+  .ctl-switch::after {
+    content: "";
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    background: var(--panel-ink);
+    transition: transform 160ms ease;
+  }
+
+  .ctl-switch[aria-checked="true"] { background: rgba(232,232,236,0.5); }
+  .ctl-switch[aria-checked="true"]::after { transform: translateX(13px); }
+
+  .ctl-note {
+    margin-top: 22px;
+    padding-top: 14px;
+    border-top: 1px solid var(--panel-line);
+    color: var(--panel-dim);
+    line-height: 1.7;
+  }
+
+  .ctl-count { color: var(--panel-ink); }
+
+  @media (prefers-reduced-motion: reduce) {
+    #panel { transition: none; }
+  }
+
+  /* A 34px circle is a fine mouse target and a poor thumb one. */
+  @media (pointer: coarse) {
+    #panel-toggle {
+      width: 44px;
+      height: 44px;
+      font-size: 15px;
+      touch-action: manipulation;
+    }
+    #panel { padding-top: 74px; }
+    select, .ctl-btn { padding: 11px 10px; font-size: 12px; }
+  }
+
+  @media (max-width: 520px) {
+    #panel {
+      width: 100%;
+      max-width: none;
+      height: auto;
+      max-height: 72dvh;
+      top: auto;
+      bottom: 0;
+      padding: 22px 20px calc(24px + env(safe-area-inset-bottom));
+      border-left: 0;
+      border-top: 1px solid var(--panel-line);
+      border-radius: 14px 14px 0 0;
+      transform: translateY(100%);
+    }
+    #panel.is-open { transform: translateY(0); }
+    #panel-toggle { top: calc(12px + env(safe-area-inset-top)); right: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+<button id="panel-toggle" aria-expanded="false" aria-controls="panel" title="Controls">&#9679;</button>
+<aside id="panel" aria-label="Controls"></aside>
+
+<script>
+(function () {
+  'use strict';
+
+  // ─────────────────────────────────────────────────────────
+  //  Control schema — mirrors the tool's exported parameters
+  // ─────────────────────────────────────────────────────────
+
+  // ─────────────────────────────────────────────────────────
+  //  Settings
+  // ─────────────────────────────────────────────────────────
+
+  // Dialled in by hand and baked in. Everything here was a control at one
+  // point, so any of it can be lifted back into SCHEMA below if it needs
+  // to become adjustable again.
+  var FIXED = {
+    cloudDensity:      7,
+    driftSpeed:        0.8,
+    cloudDispersion:   0.8,
+    constellationWeb:  true,
+    renderStyle:       'Particles',       // or 'Soft Cloud'
+    textScale:         44,
+    ambientBloom:      0,
+    windFrequency:     18,
+    windStrength:      3.1,
+    windPathMode:      'Alternating Curves',
+    sensoryWeight:     0.85,
+    revealDuration:    3,
+    ambienceDim:       0.2,
+    hoverSensitivity:  27
+  };
+
+  // The only two left on screen.
+  var SCHEMA = [
+    { type: 'select', key: 'modernPalette',   label: 'Palette',
+      options: ['Slate Minimal', 'Nordic Mist', 'Earthy Sand', 'OLED Cosmic', 'Deep Blue'],
+      value: 'Earthy Sand' },
+    { type: 'select', key: 'typographyStyle', label: 'Typography',
+      options: ['Clean Sans-Serif', 'Editorial Serif', 'Technical Mono'],
+      value: 'Editorial Serif' }
+  ];
+
+  // ─────────────────────────────────────────────────────────
+  //  Saved settings
+  // ─────────────────────────────────────────────────────────
+  // Every read and write is guarded: some sandboxed contexts refuse storage
+  // outright, and the piece should still run when that happens.
+
+  var STORE_KEY = 'dithered-cloud-particles.v1';
+
+  var saved = (function () {
+    try { return JSON.parse(window.localStorage.getItem(STORE_KEY)) || {}; }
+    catch (e) { return {}; }
+  })();
+
+  function persist(values) {
+    try {
+      var out = {};
+      SCHEMA.forEach(function (def) {
+        if (def.key) out[def.key] = values[def.key];
+      });
+      window.localStorage.setItem(STORE_KEY, JSON.stringify(out));
+    } catch (e) { /* storage unavailable — settings simply won't carry over */ }
+  }
+
+  SCHEMA.forEach(function (def) {
+    if (!def.key) return;
+    if (Object.prototype.hasOwnProperty.call(saved, def.key)) def.value = saved[def.key];
+  });
+
+  // Minimal stand-in for the platform's ControlsAPI, so the creative
+  // code below reads the same as it does inside the editor.
+  var controls = (function (schema, mount, fixed) {
+    var values = {}, changed = {}, actions = {}, reflect = {};
+
+    // The baked-in settings sit in the same store as the live ones, so the
+    // creative code below reads every value the same way regardless of
+    // whether it happens to have a control attached.
+    for (var fk in fixed) values[fk] = fixed[fk];
+
+    function fire(key) {
+      persist(values);
+      (changed[key] || []).forEach(function (fn) { fn(values[key]); });
+    }
+
+    function row(labelText, fieldEl, valueEl) {
+      var div = document.createElement('div');
+      div.className = 'ctl-row';
+      var lab = document.createElement('label');
+      lab.textContent = labelText;
+      div.appendChild(lab);
+      div.appendChild(fieldEl);
+      if (valueEl) div.appendChild(valueEl);
+      mount.appendChild(div);
+      return div;
+    }
+
+    schema.forEach(function (def) {
+      if (def.type === 'section') {
+        var h = document.createElement('div');
+        h.className = 'ctl-section';
+        h.textContent = def.label;
+        mount.appendChild(h);
+        return;
+      }
+
+      if (def.type === 'button') {
+        actions[def.key] = [];
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'ctl-btn';
+        btn.textContent = def.label;
+        btn.addEventListener('click', function () {
+          (actions[def.key] || []).forEach(function (fn) { fn(); });
+        });
+        mount.appendChild(btn);
+        return;
+      }
+
+      values[def.key] = def.value;
+      changed[def.key] = [];
+
+      if (def.type === 'slider') {
+        var input = document.createElement('input');
+        input.type = 'range';
+        input.min = def.min; input.max = def.max; input.step = def.step;
+        input.value = def.value;
+        input.setAttribute('aria-label', def.label);
+        var out = document.createElement('output');
+        out.textContent = def.value;
+        input.addEventListener('input', function () {
+          values[def.key] = parseFloat(input.value);
+          out.textContent = input.value;
+          fire(def.key);
+        });
+        reflect[def.key] = function (v) { input.value = v; out.textContent = v; };
+        row(def.label, input, out);
+
+      } else if (def.type === 'toggle') {
+        var sw = document.createElement('button');
+        sw.type = 'button';
+        sw.className = 'ctl-switch';
+        sw.setAttribute('role', 'switch');
+        sw.setAttribute('aria-checked', String(def.value));
+        sw.setAttribute('aria-label', def.label);
+        sw.addEventListener('click', function () {
+          values[def.key] = !values[def.key];
+          sw.setAttribute('aria-checked', String(values[def.key]));
+          fire(def.key);
+        });
+        reflect[def.key] = function (v) { sw.setAttribute('aria-checked', String(v)); };
+        row(def.label, sw);
+
+      } else if (def.type === 'select') {
+        var wrap = document.createElement('div');
+        wrap.className = 'ctl-stack';
+        var lab = document.createElement('label');
+        lab.textContent = def.label;
+        var sel = document.createElement('select');
+        def.options.forEach(function (opt) {
+          var o = document.createElement('option');
+          o.value = opt; o.textContent = opt;
+          sel.appendChild(o);
+        });
+        sel.value = def.value;
+        sel.addEventListener('change', function () {
+          values[def.key] = sel.value;
+          fire(def.key);
+        });
+        reflect[def.key] = function (v) { sel.value = v; };
+        wrap.appendChild(lab); wrap.appendChild(sel);
+        mount.appendChild(wrap);
+
+      } else if (def.type === 'text') {
+        var wrapT = document.createElement('div');
+        wrapT.className = 'ctl-stack';
+        var labT = document.createElement('label');
+        labT.textContent = def.label;
+        var inp = document.createElement('input');
+        inp.type = 'text';
+        inp.placeholder = def.placeholder || '';
+        inp.value = def.value;
+        inp.addEventListener('input', function () { values[def.key] = inp.value; });
+        inp.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' && def.submit) {
+            e.preventDefault();
+            (actions[def.submit] || []).forEach(function (fn) { fn(); });
+          }
+        });
+        reflect[def.key] = function (v) { inp.value = v; };
+        wrapT.appendChild(labT); wrapT.appendChild(inp);
+        mount.appendChild(wrapT);
+      }
+    });
+
+    return {
+      get: function (k) { return values[k]; },
+      set: function (k, v) {
+        values[k] = v;
+        if (reflect[k]) reflect[k](v);
+        fire(k);
+      },
+      onChange: function (k, fn) { (changed[k] = changed[k] || []).push(fn); },
+      onAction: function (k, fn) { (actions[k] = actions[k] || []).push(fn); }
+    };
+  })(SCHEMA, document.getElementById('panel'), FIXED);
+
+  // ─────────────────────────────────────────────────────────
+  //  Creative code
+  // ─────────────────────────────────────────────────────────
+
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+  var W = 0, H = 0, DPR = 1;
+  var VIEW_FIT = 1;   // how much the cloud is compressed to fit the viewport
+  var SIZE_FIT = 1;   // matching, gentler compression for dot sizes
+
+  var PALETTES = {
+    'Slate Minimal': { bg: '#121214', ink: '#F5F5F7', mist: 'rgba(180,180,190,0.55)', accent: '#9AA0AA', line: 'rgba(245,245,247,0.18)' },
+    'Nordic Mist':   { bg: '#2E3440', ink: '#ECEFF4', mist: 'rgba(180,196,214,0.55)', accent: '#88C0D0', line: 'rgba(236,239,244,0.18)' },
+    'Earthy Sand':   { bg: '#F4F1EA', ink: '#2B2A27', mist: 'rgba(140,120,95,0.5)',   accent: '#B08968', line: 'rgba(43,42,39,0.16)' },
+    'OLED Cosmic':   { bg: '#000000', ink: '#FFFFFF', mist: 'rgba(140,120,220,0.5)',  accent: '#7C6FE0', line: 'rgba(255,255,255,0.14)' },
+    'Deep Blue':     { bg: '#0A1C33', ink: '#FFFFFF', mist: 'rgba(186,212,244,0.55)', accent: '#7FB2FF', line: 'rgba(255,255,255,0.16)' }
+  };
+
+  var FONT_STACKS = {
+    'Clean Sans-Serif': "system-ui, -apple-system, 'Helvetica Neue', sans-serif",
+    'Editorial Serif':  "Georgia, 'Times New Roman', serif",
+    'Technical Mono':   "ui-monospace, 'SF Mono', 'Courier New', monospace"
+  };
+
+  var SENSORY_STEMS = ['warm','cold','damp','sweet','smell','iron','wool','rust','wet','bright',
+                       'salt','smoke','velvet','ash','sour','bitter','soft','rough','heavy',
+                       'sharp','cool','fragrant','grit','dust','honey','moss','bark','skin'];
+
+  function classifySensory(phrase) {
+    var p = phrase.toLowerCase();
+    return SENSORY_STEMS.some(function (s) { return p.includes(s); });
+  }
+
+  function makeEntry(phrase) {
+    return { phrase: phrase, sensory: classifySensory(phrase) };
+  }
+
+  var database = [
+    'warm honey light', 'cold iron gate', 'damp moss underfoot', 'sweet smoke rising',
+    'wet wool blanket', 'bright rust morning', 'salt on skin', 'velvet ash falling',
+    'sour bitter rain', 'rough bark cool',
+    "yesterday's logic loop", 'theory of memory', 'tomorrow is null',
+    'infinity in silence', 'echo of an algorithm', 'abstract concept drifting',
+    'idea without form', 'system of patterns', 'code without meaning', 'the null hypothesis'
+  ].map(makeEntry);
+
+  var particles = [];
+
+  // The cloud's world span grows as the database grows.
+  function spanW() {
+    return (760 + database.length * 26) * controls.get('cloudDispersion');
+  }
+
+  var FOCAL = 900;
+  var NEAR_Z = 320;
+
+  // The size a dot settles at once it has flown to the phrase — fixed, so
+  // every phrase gets the same marker regardless of which dot you tapped.
+  var LAND_R = 5.5;
+  var LAND_PUFF = 30;
+
+  function spawnParticlesFor(entry) {
+    // A cloud needs far more, far fainter elements than a constellation —
+    // the volume comes from overlap, not from any single puff.
+    var cloudy = controls.get('renderStyle') === 'Soft Cloud';
+    var density = Math.round(controls.get('cloudDensity') * (cloudy ? 3 : 1));
+    var span = spanW();
+
+    // Each phrase owns a cluster; the cluster centre is pulled toward the
+    // middle so the cloud reads as a core with outliers, not an even field.
+    var pull = Math.pow(Math.random(), 1.7);
+    var ang = Math.random() * Math.PI * 2;
+    var cX = Math.cos(ang) * pull * span * 0.5;
+    var cY = Math.sin(ang) * pull * span * 0.3;
+    var cZ = 520 + Math.random() * 1500;
+    var spread = span * 0.06 + Math.random() * span * 0.05;
+
+    for (var i = 0; i < density; i++) {
+      var baseX = cX + (Math.random() - 0.5) * spread * 2;
+      var baseY = cY + (Math.random() - 0.5) * spread * 1.6;
+      var baseZ = cZ + (Math.random() - 0.5) * 420;
+
+      particles.push({
+        entry: entry,
+        x: baseX, y: baseY, z: baseZ,
+        baseX: baseX, baseY: baseY, baseZ: Math.max(360, baseZ),
+        seed: Math.random() * 1000,
+        sizeSeed: 0.55 + Math.random() * Math.random() * 1.9,
+
+        // Leaves carry momentum. Each particle integrates its own velocity
+        // against the flow field, so no two follow the same path.
+        vx: 0, vy: 0, vz: 0,
+        tumble: Math.random() * Math.PI * 2,
+        tumbleRate: 0.6 + Math.random() * 1.4,
+        drag: 1.4 + Math.random() * 1.2,   // lighter particles whip about more
+        edge: 1,
+        ease: 0,
+
+        state: 'IDLE',        // IDLE, ZOOMING, HELD, RETURNING
+        focus: 0,
+        holdTimer: 0,
+        sx: 0, sy: 0, scale: 1
+      });
+    }
+  }
+
+  function rebuildAllParticles() {
+    particles.length = 0;
+    database.forEach(spawnParticlesFor);
+  }
+
+  rebuildAllParticles();
+
+  // Palette is the only setting left that needs to invalidate anything.
+  controls.onChange('modernPalette', function () { glowSprite = null; puffSprite = null; });
+
+  // ── Projection ───────────────────────────────────────────
+
+  function project(p, cx, cy) {
+    var scale = FOCAL / Math.max(120, p.z);
+    return {
+      x: cx + p.x * scale * VIEW_FIT,
+      y: cy + p.y * scale * VIEW_FIT,
+      scale: scale
+    };
+  }
+
+  // ── Shared wind field ────────────────────────────────────
+
+  var wind = {
+    pattern: 'S',
+    nextPattern: 'Z',
+    blend: 1,
+    blendSpeed: 0.12,
+    timer: 0,
+    nextSwitchAt: 4,      // engage early instead of opening on a long calm
+    phase: Math.random() * 1000
+  };
+
+  function pathModeOptions() {
+    var mode = controls.get('windPathMode') || '';
+    var rot = mode.indexOf('90') !== -1;
+
+    if (mode.charAt(0) === 'S') return ['calm', 'calm', rot ? 'S90' : 'S'];
+    if (mode.charAt(0) === 'Z') return ['calm', 'calm', rot ? 'Z90' : 'Z'];
+    return ['calm', 'calm', 'S', 'S90', 'Z', 'Z90'];
+  }
+
+  function pickNextPattern(current) {
+    var options = pathModeOptions();
+    var choice = options[Math.floor(Math.random() * options.length)];
+    if (choice === current) choice = options[(options.indexOf(choice) + 1) % options.length];
+    return choice;
+  }
+
+  function curveOffset(pattern, u, phase) {
+    if (pattern === 'S') return Math.sin(u * Math.PI + phase * 0.15) * 0.9;
+    if (pattern === 'Z') return -Math.sin(u * Math.PI * 0.8 + phase * 0.12 + 1.4) * 0.9 + u * 0.4;
+    return 0;
+  }
+
+  // A rotated pattern reads the spline along the vertical axis and pushes
+  // across it, so the same S or Z shape sweeps top-to-bottom instead of
+  // left-to-right. Everything else about the curve is identical.
+  function forceFor(pattern, baseX, baseY, span) {
+    if (pattern === 'calm') return { x: 0, y: 0 };
+
+    var strength = controls.get('windStrength');
+    var rotated = pattern.indexOf('90') !== -1;
+    var shape = rotated ? pattern.charAt(0) : pattern;
+
+    // The cloud is wider than it is tall, so the vertical axis needs its
+    // own span or the rotated curve would only ever use its middle.
+    var axisSpan = rotated ? span * 0.34 : span * 0.5;
+    var along = rotated ? baseY : baseX;
+
+    var u = Math.max(-1, Math.min(1, along / (axisSpan || 1)));
+    var mixed = curveOffset(shape, u, wind.phase);
+    var cross = mixed * strength * 7 * Math.sin(u * 1.7 + wind.phase * 0.08);
+
+    return rotated
+      ? { x: cross, y: mixed * strength * 14 }
+      : { x: mixed * strength * 14, y: cross };
+  }
+
+  function updateWind(dt) {
+    var freq = controls.get('windFrequency');
+    wind.timer += dt;
+    wind.phase += dt;
+
+    if (wind.timer > wind.nextSwitchAt && wind.blend >= 1) {
+      wind.pattern = wind.nextPattern;
+      wind.nextPattern = pickNextPattern(wind.pattern);
+      wind.blend = 0;
+      wind.timer = 0;
+      wind.nextSwitchAt = freq + Math.random() * freq;
+    }
+
+    if (wind.blend < 1) wind.blend = Math.min(1, wind.blend + dt * wind.blendSpeed);
+  }
+
+  function windForce(baseX, baseY, span) {
+    var a = forceFor(wind.pattern, baseX, baseY, span);
+    var b = forceFor(wind.nextPattern, baseX, baseY, span);
+    var k = wind.blend;
+
+    // Blend the resolved force vectors, not the scalar offsets — a rotated
+    // pattern and an upright one push along different axes, so blending
+    // before resolution would collapse them into the same direction.
+    return {
+      x: a.x + (b.x - a.x) * k,
+      y: a.y + (b.y - a.y) * k
+    };
+  }
+
+  // ── Glow sprite (ambient bloom) ──────────────────────────
+
+  var glowSprite = null;
+  var puffSprite = null;
+
+  // A cloud puff needs a long, soft tail — a two-stop gradient leaves a
+  // visible disc edge, which reads as a bubble rather than vapour. Many
+  // stops along a gaussian curve is what removes the edge entirely.
+  function buildPuffSprite() {
+    var pal = PALETTES[controls.get('modernPalette')];
+    var size = 128;
+    var c = document.createElement('canvas');
+    c.width = c.height = size;
+    var g = c.getContext('2d');
+    var grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+
+    for (var i = 0; i <= 12; i++) {
+      var u = i / 12;
+      var a = Math.exp(-u * u * 5.4) * (1 - u);
+      grad.addColorStop(u, hexToRgba(pal.ink, a));
+    }
+
+    g.fillStyle = grad;
+    g.fillRect(0, 0, size, size);
+    return c;
+  }
+
+  function isDarkBg(hex) {
+    if (hex.charAt(0) !== '#') return true;
+    var h = hex.slice(1);
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h, 16);
+    var lum = 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255);
+    return lum < 128;
+  }
+
+  function buildGlowSprite() {
+    var pal = PALETTES[controls.get('modernPalette')];
+    var size = 64;
+    var c = document.createElement('canvas');
+    c.width = c.height = size;
+    var g = c.getContext('2d');
+    var grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    grad.addColorStop(0, hexToRgba(pal.accent, 0.55));
+    grad.addColorStop(0.4, hexToRgba(pal.accent, 0.14));
+    grad.addColorStop(1, hexToRgba(pal.accent, 0));
+    g.fillStyle = grad;
+    g.fillRect(0, 0, size, size);
+    return c;
+  }
+
+  function hexToRgba(hex, a) {
+    if (hex.charAt(0) !== '#') return hex;
+    var h = hex.slice(1);
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  // ── Interaction ──────────────────────────────────────────
+
+  var pointer = { x: -9999, y: -9999, active: false };
+  var hovered = null;
+  var active = null;        // the dot whose phrase is currently claimed
+  var coarse = false;       // last input was a finger, not a mouse
+
+  // Particles are re-sorted by depth every frame, so any pick that depends
+  // on array order will flip between frames. Score strictly on pointer
+  // distance with a small depth bias, then hold the current pick while it
+  // stays plausible — otherwise a pointer resting between two dots
+  // oscillates between them.
+  function pickAt(px, py, sticky) {
+    // A fingertip covers far more than a cursor does, and there is no hover
+    // beforehand to show what you're about to hit.
+    var threshold = controls.get('hoverSensitivity') * (coarse ? 1.8 : 1);
+    var t2 = threshold * threshold;
+    var best = null, bestScore = Infinity;
+
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i];
+      if (p.scale <= 0 || p.edge < 0.35) continue;
+      var dx = p.sx - px, dy = p.sy - py;
+      var d2 = dx * dx + dy * dy;
+      if (d2 > t2) continue;
+
+      var score = d2 + p.z * 0.02;      // nearer to pointer wins, then nearer to viewer
+      if (score < bestScore) { bestScore = score; best = p; }
+    }
+
+    if (sticky && hovered && hovered !== best) {
+      var hx = hovered.sx - px, hy = hovered.sy - py;
+      if (hx * hx + hy * hy < t2 * 1.4) return hovered;
+    }
+    return best;
+  }
+
+  canvas.addEventListener('pointermove', function (e) {
+    coarse = e.pointerType === 'touch' || e.pointerType === 'pen';
+    pointer.x = e.clientX;
+    pointer.y = e.clientY;
+    pointer.active = true;
+  });
+
+  canvas.addEventListener('pointerleave', function () {
+    pointer.active = false;
+    pointer.x = pointer.y = -9999;
+  });
+
+  // Touch has no hover state. Without this the last-touched dot stays lit
+  // for good, because pointerleave never fires on a finger lift.
+  canvas.addEventListener('pointerup', function (e) {
+    if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+      pointer.active = false;
+      pointer.x = pointer.y = -9999;
+      hovered = null;
+    }
+  });
+  canvas.addEventListener('pointercancel', function () {
+    pointer.active = false;
+    pointer.x = pointer.y = -9999;
+    hovered = null;
+  });
+
+  canvas.addEventListener('pointerdown', function (e) {
+    coarse = e.pointerType === 'touch' || e.pointerType === 'pen';
+    pointer.x = e.clientX;
+    pointer.y = e.clientY;
+    var hit = pickAt(e.clientX, e.clientY, !coarse);
+
+    function standDown(except, fast) {
+      for (var i = 0; i < particles.length; i++) {
+        var p = particles[i];
+        if (p !== except && p.focus > 0) { p.state = 'RETURNING'; p.fast = !!fast; }
+      }
+    }
+
+    if (!hit) {
+      standDown(null, false);   // clicking empty space: slow release
+      active = null;
+      return;
+    }
+
+    if (hit === active) {
+      hit.state = 'RETURNING';  // tapping the same dot sends it back, slowly
+      hit.fast = false;
+      active = null;
+      return;
+    }
+
+    // Only one phrase is ever claimed at a time. Without this, the previous
+    // dot stays held and keeps its word on screen while the new one climbs.
+    standDown(hit, true);
+    hit.state = 'ZOOMING';
+    hit.fast = false;
+    hit.holdTimer = 0;
+    active = hit;
+  });
+
+  function pickAt(px, py) {
+    var threshold = controls.get('hoverSensitivity');
+    var best = null, bestD = threshold * threshold;
+
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i];
+      if (p.scale <= 0) continue;
+      var dx = p.sx - px, dy = p.sy - py;
+      var d = dx * dx + dy * dy;
+      // Nearer particles win ties.
+      if (d < bestD || (d < threshold * threshold && best && p.z < best.z && d < bestD * 1.6)) {
+        best = p; bestD = d;
+      }
+    }
+    return best;
+  }
+
+  // ── Render loop ──────────────────────────────────────────
+
+  // Reduced motion damps the air rather than stopping it dead — a frozen
+  // render would lose the whole point of the piece.
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var MOTION = reduceMotion ? 0.35 : 1;
+  var t = 0;
+  var last = performance.now();
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+    // Read the element rather than the window: on mobile the two disagree
+    // whenever the browser chrome slides in or out.
+    W = canvas.clientWidth || window.innerWidth;
+    H = canvas.clientHeight || window.innerHeight;
+
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    // The cloud is authored in world units sized for a desktop viewport.
+    // Without this, a phone shows only the middle third of it — the piece
+    // reads as a handful of stray dots rather than a cloud.
+    VIEW_FIT = Math.max(0.34, Math.min(1, Math.min(W, H * 1.5) / 1200));
+
+    // Positions compress fully; dots compress far less, or they'd vanish.
+    SIZE_FIT = 0.58 + 0.42 * VIEW_FIT;
+  }
+
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', resize);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
+  resize();
+
+  // The phrase follows whichever dot currently owns the slot. Holding the
+  // particle rather than a copy of its text is what keeps the two in step.
+  var textParticle = null;
+
+  function easeInOut(x) {
+    return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  }
+
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    t += dt * MOTION;
+
+    var pal = PALETTES[controls.get('modernPalette')];
+    var drift = controls.get('driftSpeed');
+    var sensoryWeight = controls.get('sensoryWeight');
+    var bloom = controls.get('ambientBloom');
+    var revealDuration = controls.get('revealDuration');
+    var span = spanW();
+    var cx = W / 2, cy = H / 2;
+
+    var cloudy = controls.get('renderStyle') === 'Soft Cloud';
+
+    // Clouds move on a bigger, slower scale than dust: wider eddies, less
+    // of them, and everything at roughly half speed.
+    var FS = cloudy ? 0.45 : 1;      // spatial frequency of the flow field
+    var TS = cloudy ? 0.55 : 1;      // how fast the field itself evolves
+
+    // Where a tapped dot flies to: the fixed slot the phrase occupies, sitting
+    // just above the words themselves. Both are derived from the same anchor
+    // so the dot and its phrase can never drift apart.
+    var tScale = controls.get('textScale');
+    var anchorY0 = Math.min(H - tScale * 1.4, cy + tScale * 1.5);
+    var anchorX = cx;
+    var anchorY = anchorY0 - tScale * 1.55;
+
+    updateWind(dt * MOTION);
+
+    // Gusts swell and drop rather than blowing at a constant rate.
+    var gustEnv = 0.35 + 0.65 * Math.abs(Math.sin(t * Math.PI / Math.max(4, controls.get('windFrequency'))));
+    if (bloom > 0 && !glowSprite) glowSprite = buildGlowSprite();
+
+    // Background
+    ctx.fillStyle = pal.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // ── Update ──
+    var maxFocus = 0;
+
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i];
+
+      // Slow ramps: the phrase should surface and recede, not snap.
+      if (p.state === 'ZOOMING') {
+        p.focus = Math.min(1, p.focus + dt / Math.max(0.9, revealDuration * 0.5));
+        if (p.focus >= 1) { p.state = 'HELD'; p.holdTimer = 0; }
+      } else if (p.state === 'HELD') {
+        p.holdTimer += dt;
+        if (p.holdTimer > revealDuration) p.state = 'RETURNING';
+      } else if (p.state === 'RETURNING') {
+        // Handing over to another dot clears quickly; letting go keeps the
+        // slow fade. The phrase reads this same value, so word and dot
+        // always leave together.
+        var rel = p.fast ? 0.26 : Math.max(1.0, revealDuration * 0.55);
+        p.focus = Math.max(0, p.focus - dt / rel);
+        if (p.focus <= 0) { p.state = 'IDLE'; p.fast = false; }
+      }
+
+      if (p.focus > maxFocus) maxFocus = p.focus;
+
+      // ── Leaves in the wind ──
+      // A layered-sine flow field stands in for curl noise. Each particle
+      // accelerates toward the local field value and is pulled back by drag,
+      // so it overshoots, stalls and tumbles instead of tracing a clean
+      // sine. Drag varies per particle, which is what separates the ones
+      // that skitter from the ones that wallow.
+      var half = span * 0.5;
+      var halfY = span * 0.34;
+
+      var fx = Math.sin(p.baseY * 0.0042 * FS + t * 0.61 * TS)
+             + 0.55 * Math.sin(p.baseZ * 0.0031 * FS - t * 0.43 * TS + p.seed * 0.01);
+      var fy = Math.cos(p.baseX * 0.0037 * FS - t * 0.52 * TS)
+             + 0.55 * Math.cos(p.baseZ * 0.0026 * FS + t * 0.58 * TS + p.seed * 0.013);
+      var fz = Math.sin(p.baseX * 0.0024 * FS + t * 0.36 * TS)
+             + 0.50 * Math.cos(p.baseY * 0.0029 * FS - t * 0.47 * TS);
+
+      var flow = drift * 210 * MOTION * (cloudy ? 0.5 : 1);
+      var gust = windForce(p.baseX, p.baseY, span);
+
+      p.vx += ((fx * flow + gust.x * gustEnv * 2.4) - p.vx * p.drag) * dt;
+      p.vy += ((fy * flow * 0.62 + gust.y * gustEnv * 2.0) - p.vy * p.drag) * dt;
+      p.vz += ((fz * flow * 0.85) - p.vz * p.drag) * dt;
+
+      p.baseX += p.vx * dt;
+      p.baseY += p.vy * dt;
+      p.baseZ += p.vz * dt;
+
+      // Faster air spins the leaf harder.
+      p.tumble += dt * MOTION * p.tumbleRate * (0.8 + Math.abs(p.vx) * 0.004);
+
+      // Wrap the volume so the cloud never empties out.
+      if (p.baseX > half)   p.baseX -= span;
+      if (p.baseX < -half)  p.baseX += span;
+      if (p.baseY > halfY)  p.baseY -= halfY * 2;
+      if (p.baseY < -halfY) p.baseY += halfY * 2;
+      if (p.baseZ > 2100)   p.baseZ = 380;
+      if (p.baseZ < 380)    p.baseZ = 2100;
+
+      // Fade at the seams so nothing pops in or out.
+      var edgeU = Math.max(Math.abs(p.baseX) / half, Math.abs(p.baseY) / halfY);
+      p.edge = edgeU > 0.82 ? Math.max(0, (1 - edgeU) / 0.18) : 1;
+
+      // A tapped dot flies out of the cloud to the phrase's slot. The flight
+      // runs in screen space: the target is a fixed point on the canvas, so
+      // solving it back through the projection would only fight the
+      // perspective divide for no visible gain.
+      var e = p.focus > 0 ? easeInOut(p.focus) : 0;
+      p.ease = e;
+
+      p.x = p.baseX;
+      p.y = p.baseY;
+      p.z = p.baseZ + (NEAR_Z - p.baseZ) * e;   // also sorts it clear of the cloud
+
+      var pr = project(p, cx, cy);
+      p.sx = pr.x + (anchorX - pr.x) * e;
+      p.sy = pr.y + (anchorY - pr.y) * e;
+      p.scale = pr.scale;
+    }
+
+    // Sort back-to-front so near particles occlude correctly.
+    particles.sort(function (a, b) { return b.z - a.z; });
+
+    // Hover
+    hovered = pointer.active ? pickAt(pointer.x, pointer.y, true) : null;
+    canvas.classList.toggle('is-over', !!hovered);
+
+    var dim = 1 - controls.get('ambienceDim') * maxFocus;
+
+    // ── Constellation web ──
+    // Links surface from nothing at the edge of reach rather than snapping
+    // on. Per-line alpha would mean one stroke call each, so lines are
+    // sorted into alpha bands and each band is stroked as a single path.
+    if (controls.get('constellationWeb') && !cloudy) {
+      var reach = 96 * VIEW_FIT;
+      var BANDS = 8;
+      var bands = [];
+      for (var bi = 0; bi < BANDS; bi++) bands.push([]);
+
+      for (var a = 0; a < particles.length; a++) {
+        var pa = particles[a];
+        if (pa.scale < 0.5 || pa.focus > 0 || pa.edge < 0.4) continue;
+
+        for (var b = a + 1; b < particles.length; b++) {
+          var pb = particles[b];
+          if (pb.scale < 0.5 || pb.focus > 0 || pb.edge < 0.4) continue;
+
+          var lx = pa.sx - pb.sx, ly = pa.sy - pb.sy;
+          if (Math.abs(lx) > reach || Math.abs(ly) > reach) continue;
+          var dist2 = lx * lx + ly * ly;
+          if (dist2 > reach * reach) continue;
+
+          // Smoothstep, then biased further toward the faint end, so the
+          // approach into visibility is slow and the link only firms up
+          // once the two are genuinely close.
+          var n = 1 - Math.sqrt(dist2) / reach;
+          var soft = n * n * (3 - 2 * n);
+          soft = Math.pow(soft, 1.7);
+          soft *= pa.edge * pb.edge * Math.min(1, (pa.scale + pb.scale) * 0.45);
+
+          var idx = Math.floor(soft * BANDS);
+          if (idx < 1) continue;                       // drop the invisible tail
+          if (idx > BANDS - 1) idx = BANDS - 1;
+          bands[idx].push(pa.sx, pa.sy, pb.sx, pb.sy);
+        }
+      }
+
+      ctx.strokeStyle = pal.line;
+      ctx.lineWidth = 0.3;
+      for (var bd = 1; bd < BANDS; bd++) {
+        var seg = bands[bd];
+        if (!seg.length) continue;
+        ctx.globalAlpha = (bd / (BANDS - 1)) * 0.85 * dim;
+        ctx.beginPath();
+        for (var s = 0; s < seg.length; s += 4) {
+          ctx.moveTo(seg[s], seg[s + 1]);
+          ctx.lineTo(seg[s + 2], seg[s + 3]);
+        }
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // ── Particles ──
+    if (cloudy && !puffSprite) puffSprite = buildPuffSprite();
+
+    // On a dark ground, overlapping vapour accumulates light; on a pale
+    // ground it accumulates shadow, so the blend has to flip with it.
+    var additive = cloudy && isDarkBg(pal.bg);
+    if (additive) ctx.globalCompositeOperation = 'lighter';
+
+    for (var k = 0; k < particles.length; k++) {
+      var q = particles[k];
+
+      if (q.sx < -400 || q.sx > W + 400 || q.sy < -400 || q.sy > H + 400) continue;
+
+      // Sensory phrases sit heavier and brighter; abstract ones recede.
+      var lean = q.entry.sensory ? 1 : -1;
+      var alpha = 0.42 + lean * sensoryWeight * 0.36;
+      alpha = Math.max(0.06, Math.min(0.95, alpha));
+
+      var isHot = (q === hovered) || q.focus > 0;
+
+      if (cloudy) {
+        // Depth is carried by size and faintness, not by hard edges.
+        var pf = q.sizeSeed * q.scale * 34 * SIZE_FIT;
+        pf += (LAND_PUFF - pf) * q.ease;
+        if (pf < 3) continue;
+
+        var pa2 = alpha * 0.16 * q.edge * Math.min(1, 0.4 + q.scale * 0.5);
+        if (isHot) pa2 *= 2.4;
+        if (pa2 < 0.004 && q.ease <= 0) continue;
+
+        ctx.globalAlpha = pa2 * (isHot ? 1 : dim);
+        ctx.drawImage(puffSprite, q.sx - pf, q.sy - pf, pf * 2, pf * 2);
+
+        // A core keeps each phrase clickable and stops the whole thing
+        // dissolving into fog with nothing to aim at.
+        if (q.scale > 0.7 || q.ease > 0) {
+          var cr = Math.max(0.5, q.sizeSeed * q.scale * 0.7);
+          cr += (LAND_R - cr) * q.ease;
+          ctx.globalAlpha = Math.min(0.5 + 0.5 * q.ease, pa2 * 5 + q.ease) * (isHot ? 1 : dim);
+          ctx.fillStyle = q.entry.sensory ? pal.ink : pal.mist;
+          ctx.beginPath();
+          ctx.arc(q.sx, q.sy, cr, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        continue;
+      }
+
+      // A leaf turning edge-on all but disappears, then flashes broad again —
+      // but a dot that has flown out to be read should hold steady.
+      var tum = 0.5 + 0.5 * Math.abs(Math.sin(q.tumble));
+      tum += (1 - tum) * q.ease;
+      var r = q.sizeSeed * q.scale * 1.7 * tum * SIZE_FIT;
+      r += (LAND_R - r) * q.ease;
+      if (r < 0.25) continue;
+
+      alpha *= Math.min(1, 0.35 + q.scale * 0.9) * q.edge;
+      alpha += (1 - alpha) * q.ease;    // a dot in flight is never faint
+      if (alpha < 0.01) continue;
+      if (isHot) alpha = Math.min(1, alpha + 0.35);
+
+      if (bloom > 0 && glowSprite && q.scale > 0.55) {
+        var gs = r * (14 + bloom * 26);
+        ctx.globalAlpha = bloom * 0.7 * dim * (q.entry.sensory ? 1 : 0.55);
+        ctx.drawImage(glowSprite, q.sx - gs / 2, q.sy - gs / 2, gs, gs);
+      }
+
+      ctx.globalAlpha = alpha * (isHot ? 1 : dim);
+      ctx.fillStyle = q.entry.sensory ? pal.ink : pal.mist;
+      ctx.beginPath();
+      ctx.arc(q.sx, q.sy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (additive) ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+
+    // ── Revealed phrase ──
+    // Always the same place on screen, whichever dot was tapped.
+    if (active && active.state === 'IDLE' && active.focus <= 0) active = null;
+
+    // The phrase reads its own dot's focus rather than running a separate
+    // timer, so the two arrive and leave on exactly the same curve. The
+    // outgoing phrase holds the slot until its dot has cleared, which is
+    // what stops two words competing for one position.
+    if (!textParticle || textParticle === active || textParticle.focus <= 0.02) {
+      textParticle = active;
+    }
+
+    if (textParticle && textParticle.focus > 0.004) {
+      var fade = easeInOut(textParticle.focus);
+      var entry = textParticle.entry;
+
+      // A soft zoom — enough to feel like it arrives, not enough to read
+      // as a transition effect.
+      var size = controls.get('textScale') * (0.94 + fade * 0.06);
+      var weight = entry.sensory ? 600 : 300;
+      var family = FONT_STACKS[controls.get('typographyStyle')];
+
+      // Fit to the viewport. Measure at the intended size, then step down if
+      // it would run off the edge — on a phone the longer phrases overflow by
+      // more than a hundred pixels at the authored size.
+      var maxTextW = W - 48;
+      ctx.font = weight + ' ' + size.toFixed(1) + 'px ' + family;
+      var natural = ctx.measureText(entry.phrase).width;
+      if (natural > maxTextW) size *= maxTextW / natural;
+
+      ctx.font = weight + ' ' + size.toFixed(1) + 'px ' + family;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = pal.ink;
+      ctx.globalAlpha = fade * (entry.sensory ? 1 : 0.62);
+
+      var ty = anchorY0 + (1 - fade) * 9;
+      ctx.fillText(entry.phrase, cx, ty);
+
+      // The rule draws itself outward from the centre as the phrase lands.
+      var tw = ctx.measureText(entry.phrase).width * fade;
+      ctx.globalAlpha = fade * 0.34;
+      ctx.strokeStyle = pal.accent;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - tw / 2, ty + size * 0.78);
+      ctx.lineTo(cx + tw / 2, ty + size * 0.78);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+
+  // ── Panel chrome ─────────────────────────────────────────
+
+  var panel = document.getElementById('panel');
+  var toggle = document.getElementById('panel-toggle');
+
+  var note = document.createElement('div');
+  note.className = 'ctl-note';
+  note.innerHTML = 'Click a particle to pull it forward and read it. ' +
+    'Click again, or click empty space, to send it back.<br><br>' +
+    '<span class="ctl-count">' + database.length + '</span> phrases &middot; ' +
+    '<span class="ctl-count">' + particles.length + '</span> particles';
+  panel.appendChild(note);
+
+  var resetBtn = document.createElement('button');
+  resetBtn.type = 'button';
+  resetBtn.className = 'ctl-btn';
+  resetBtn.textContent = 'Reset to defaults';
+  resetBtn.style.marginTop = '16px';
+  resetBtn.addEventListener('click', function () {
+    try { window.localStorage.removeItem(STORE_KEY); } catch (e) {}
+    window.location.reload();
+  });
+  panel.appendChild(resetBtn);
+
+  toggle.addEventListener('click', function () {
+    var open = panel.classList.toggle('is-open');
+    toggle.setAttribute('aria-expanded', String(open));
+  });
+
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && panel.classList.contains('is-open')) {
+      panel.classList.remove('is-open');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+  });
+})();
+</script>
+</body>
+</html>

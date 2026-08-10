@@ -1,0 +1,961 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Songsheet — Word Cloud (wireframe)</title>
+<style>
+  :root {
+    --bg:        #F4F1EA;
+    --chrome:    #FBF9F4;
+    --ink:       #2B2A27;
+    --mist:      rgba(140,120,95,0.55);
+    --accent:    #B08968;
+    --line:      rgba(43,42,39,0.14);
+    --dim:       rgba(43,42,39,0.5);
+    --sans:      system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    font-family: var(--sans);
+    color: var(--ink);
+  }
+
+  #app { display: flex; flex-direction: column; height: 100%; }
+
+  /* ── Header ─────────────────────────────────────────── */
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 0 0 auto;
+    padding: 14px 20px;
+    background: var(--chrome);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-right: 6px;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+  }
+
+  .brand svg { color: var(--accent); }
+
+  .nav-btn {
+    display: grid;
+    place-items: center;
+    width: 40px; height: 34px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 140ms ease, border-color 140ms ease;
+  }
+
+  .nav-btn:hover { background: rgba(43,42,39,0.05); }
+  .nav-btn[aria-current="page"] { background: rgba(176,137,104,0.16); border-color: rgba(176,137,104,0.55); }
+  .nav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .wire-tag {
+    margin-left: auto;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  /* ── Body ───────────────────────────────────────────── */
+
+  main { display: flex; flex: 1 1 auto; min-height: 0; }
+
+  #stage { position: relative; flex: 1 1 auto; min-width: 0; }
+  #canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: default; }
+  #canvas.is-over { cursor: pointer; }
+
+  #empty {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 30px;
+    text-align: center;
+  }
+
+  #empty.show { display: flex; }
+  #empty p { max-width: 300px; margin: 0; font-size: 13px; line-height: 1.7; color: var(--dim); }
+  #empty strong { display: block; font-size: 15px; font-weight: 500; color: var(--ink); }
+
+  #toast {
+    position: absolute;
+    left: 50%;
+    bottom: 34px;
+    transform: translate(-50%, 8px);
+    padding: 6px 13px;
+    border-radius: 20px;
+    background: var(--ink);
+    color: var(--chrome);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  /* ── Panel ──────────────────────────────────────────── */
+
+  #panel {
+    flex: 0 0 296px;
+    padding: 22px 20px 40px;
+    overflow-y: auto;
+    background: var(--chrome);
+    border-left: 1px solid var(--line);
+    font-size: 12px;
+  }
+
+  .field { margin-bottom: 13px; }
+  .field > label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 11px;
+    color: var(--dim);
+  }
+
+  select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 12px;
+  }
+
+  select:disabled { opacity: 0.4; }
+  select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 13px;
+  }
+
+  .row span { color: var(--dim); font-size: 11px; line-height: 1.5; }
+
+  .switch {
+    position: relative;
+    flex: 0 0 auto;
+    width: 32px; height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 9px;
+    background: rgba(43,42,39,0.18);
+    cursor: pointer;
+    transition: background 160ms ease;
+  }
+
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 160ms ease;
+  }
+
+  .switch[aria-checked="true"] { background: var(--accent); }
+  .switch[aria-checked="true"]::after { transform: translateX(14px); }
+
+  .legend {
+    display: none;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    margin: -2px 0 14px;
+  }
+
+  .legend.show { display: flex; }
+
+  .legend span {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  .rule {
+    height: 1px;
+    margin: 22px 0;
+    background: var(--line);
+  }
+
+  .count {
+    margin-top: 22px;
+    font-size: 11px;
+    line-height: 1.8;
+    color: var(--dim);
+  }
+
+  .count em { font-style: normal; color: var(--ink); }
+
+  @media (max-width: 760px) {
+    main { flex-direction: column; }
+    #panel { flex: 0 0 auto; max-height: 46%; border-left: 0; border-top: 1px solid var(--line); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #toast { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <div class="brand">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="7" cy="18" r="2.6"/><circle cx="17.5" cy="15.5" r="2.6"/>
+        <path d="M9.6 18V7.2l10.5-2.2v10.5"/>
+      </svg>
+      SONGSHEET
+    </div>
+
+    <button class="nav-btn" title="Projects" aria-label="Projects">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2.4h7A1.5 1.5 0 0 1 19 10v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 3 17z"/>
+      </svg>
+    </button>
+
+    <button class="nav-btn" title="Object writing" aria-label="Object writing">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3.5l1.9 4.9 4.9 1.9-4.9 1.9L12 17.1l-1.9-4.9L5.2 10.3l4.9-1.9z"/>
+        <path d="M18.5 16.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>
+      </svg>
+    </button>
+
+    <button class="nav-btn" id="cloud-btn" aria-current="page" title="Word cloud" aria-label="Word cloud">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M6.8 18.5a3.8 3.8 0 0 1-.5-7.57 5 5 0 0 1 9.63-1.6A3.9 3.9 0 0 1 17.6 18.5z"/>
+        <circle cx="9.6" cy="14.6" r="0.9" fill="currentColor" stroke="none"/>
+        <circle cx="13.4" cy="13.2" r="0.9" fill="currentColor" stroke="none"/>
+        <circle cx="12.4" cy="16.4" r="0.9" fill="currentColor" stroke="none"/>
+      </svg>
+    </button>
+
+    <div class="wire-tag">Wireframe</div>
+  </header>
+
+  <main>
+    <div id="stage">
+      <canvas id="canvas"></canvas>
+      <div id="empty">
+        <strong>Nothing to draw from yet</strong>
+        <p>The cloud builds itself from your object writing and notes. Write an entry and it will show up here.</p>
+      </div>
+      <div id="toast">Copied</div>
+    </div>
+
+    <aside id="panel">
+      <div class="field">
+        <label for="f-project">Projects</label>
+        <select id="f-project"></select>
+      </div>
+
+      <div class="field">
+        <label for="f-content">Content</label>
+        <select id="f-content"></select>
+      </div>
+
+      <div class="row">
+        <span>Sense scan</span>
+        <button class="switch" id="f-sense" role="switch" aria-checked="false" aria-label="Sense scan"></button>
+      </div>
+
+      <div class="legend" id="legend"></div>
+
+      <div class="row">
+        <span>Hide what's already in your lyrics</span>
+        <button class="switch" id="f-unused" role="switch" aria-checked="true" aria-label="Hide phrases already used in lyrics"></button>
+      </div>
+
+      <div class="rule"></div>
+
+      <div class="field">
+        <label for="f-palette">Palette</label>
+        <select id="f-palette">
+          <option>Earthy Sand</option>
+          <option>Slate Minimal</option>
+          <option>Nordic Mist</option>
+          <option>OLED Cosmic</option>
+          <option>Deep Blue</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="f-type">Typography</label>
+        <select id="f-type">
+          <option>Editorial Serif</option>
+          <option>Clean Sans-Serif</option>
+          <option>Technical Mono</option>
+        </select>
+      </div>
+
+      <div class="count" id="count"></div>
+    </aside>
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── Mock content ────────────────────────────────────────
+  // Stands in for the Supabase rows. `kind` is what the filter switches on.
+
+  var PROJECTS = [
+    { id: 'p1', name: 'Blue Hour',       created: '2026-02-11' },
+    { id: 'p2', name: 'Paper Anchor',    created: '2026-06-03' },
+    { id: 'p3', name: 'Field Recording', created: '2025-11-27' }
+  ];
+
+  var ITEMS = [
+    { p:'p1', kind:'title',      text:'Blue Hour — working title' },
+    { p:'p1', kind:'objectwriting', text:'The kettle ticks as it cools, a slow iron pulse under the counter light. Damp wool on the radiator, that scorched-lanolin smell, and outside the frost has gone glassy over the gravel.' },
+    { p:'p1', kind:'objectwriting', text:'Her coat still holds the cold when she comes in, smoke and wet leaves caught in the collar, and the hallway takes a minute to forgive it.' },
+    { p:'p1', kind:'note',       text:'Second verse wants to stay in the kitchen. Do not leave the house. The whole song is one room getting colder.' },
+    { p:'p1', kind:'lyric',      text:'The kettle ticks, the frost goes glassy, I am still waiting in the hallway light' },
+    { p:'p1', kind:'production', text:'Tape saturation on the room mic, high-pass the acoustic at 120, keep the click bleed.' },
+
+    { p:'p2', kind:'title',      text:'Paper Anchor (v3)' },
+    { p:'p2', kind:'objectwriting', text:'Salt dried white along the rope, rough enough to catch the skin of a thumb. Diesel and bladderwrack, and the harbour wall sweating green in the heat.' },
+    { p:'p2', kind:'objectwriting', text:'Sun through the tarpaulin turns everything orange, warm plastic breath, a wasp knocking against it over and over with a papery patience.' },
+    { p:'p2', kind:'note',       text:'Bridge idea — the anchor is made of paper, it never holds, that is the joke and also the grief.' },
+    { p:'p2', kind:'note',       text:'Ask Dan about the pedal steel. Chorus feels thin without something bending underneath it.' },
+    { p:'p2', kind:'lyric',      text:'Salt on the rope and the harbour sweating, I threw a paper anchor overboard' },
+    { p:'p2', kind:'production', text:'Double the chorus vocal, pan wide, low shelf on the pedal steel.' },
+
+    { p:'p3', kind:'title',      text:'Field Recording' },
+    { p:'p3', kind:'objectwriting', text:'Bracken up to the knee, dry and snapping, dust rising off it that tastes faintly of pepper. A crow somewhere behind, too close, sounding bored.' },
+    { p:'p3', kind:'objectwriting', text:'The stone was still warm on the underside, moss velvet in the shade of it, and a beetle went over my knuckle like a dropped coin.' },
+    { p:'p3', kind:'note',       text:'Nothing here is about a person yet. Maybe that is fine. Maybe the absence is the subject.' },
+    { p:'p3', kind:'note',       text:'Tempo around 84. Slower than it wants to be.' },
+    { p:'p3', kind:'lyric',      text:'Dry bracken up to the knee and a bored crow calling, nothing here about you yet' },
+    { p:'p3', kind:'production', text:'Keep the actual field recording under the intro, 40 seconds, fade at bar 9.' }
+  ];
+
+  // ── Filter ──────────────────────────────────────────────
+
+  var CONTENT_SETS = {
+    all: [
+      { value: 'ow+notes', label: 'Object writing + Notes', kinds: ['objectwriting','note'] },
+      { value: 'ow',       label: 'Object writing only',    kinds: ['objectwriting'] }
+    ],
+    one: [
+      { value: 'ow+notes', label: 'Object writing + Notes',    kinds: ['objectwriting','note'] },
+      { value: 'ow',       label: 'Object writing only',       kinds: ['objectwriting'] },
+      { value: 'all',      label: 'Everything (incl. lyrics)', kinds: ['objectwriting','note','lyric'] }
+    ]
+  };
+
+  var elProject  = document.getElementById('f-project');
+  var elContent  = document.getElementById('f-content');
+  var elUnused   = document.getElementById('f-unused');
+  var elSense    = document.getElementById('f-sense');
+  var elLegend   = document.getElementById('legend');
+  var elCount    = document.getElementById('count');
+  var elEmpty    = document.getElementById('empty');
+  var elToast    = document.getElementById('toast');
+
+  // All projects sits at the top and is the initial state; the rest follow
+  // newest first, so recent work is nearest the top of the list.
+  var allOpt = document.createElement('option');
+  allOpt.value = 'all';
+  allOpt.textContent = 'All projects';
+  elProject.appendChild(allOpt);
+
+  PROJECTS.slice()
+    .sort(function (a, b) { return a.created < b.created ? 1 : -1; })
+    .forEach(function (p) {
+      var o = document.createElement('option');
+      o.value = p.id; o.textContent = p.name;
+      elProject.appendChild(o);
+    });
+
+  elProject.value = 'all';
+
+  function scope() { return elProject.value === 'all' ? 'all' : 'one'; }
+
+  function fillContent() {
+    var set = CONTENT_SETS[scope()];
+    var prev = elContent.value;
+    elContent.innerHTML = '';
+    set.forEach(function (c) {
+      var o = document.createElement('option');
+      o.value = c.value; o.textContent = c.label;
+      elContent.appendChild(o);
+    });
+    elContent.value = set.some(function (c) { return c.value === prev; }) ? prev : set[0].value;
+  }
+
+  fillContent();
+
+  function currentKinds() {
+    var set = CONTENT_SETS[scope()];
+    var found = set.filter(function (c) { return c.value === elContent.value; })[0] || set[0];
+    return found.kinds;
+  }
+
+  function selectedItems() {
+    var kinds = currentKinds();
+    var pid = scope() === 'one' ? elProject.value : null;
+    return ITEMS.filter(function (it) {
+      if (pid && it.p !== pid) return false;
+      return kinds.indexOf(it.kind) !== -1;
+    });
+  }
+
+  // Lyric vocabulary for the "unused thoughts" filter — scoped the same way
+  // as the draw, so a single-project cloud only checks that project's lyrics.
+  function lyricWords() {
+    var pid = scope() === 'one' ? elProject.value : null;
+    var set = Object.create(null);
+    ITEMS.forEach(function (it) {
+      if (it.kind !== 'lyric') return;
+      if (pid && it.p !== pid) return;
+      words(it.text).forEach(function (w) { if (!STOP[w]) set[w] = true; });
+    });
+    return set;
+  }
+
+  // ── Phrase extraction ───────────────────────────────────
+
+  var STOP = {};
+  ('the a an of and or but so to in on at it its is was were be been that this with for from as by if then than there here he she they we you i my your his her their our me him them ' +
+   'not no just still all any some very over under into out up down off about like when while what which who how')
+    .split(' ').forEach(function (w) { STOP[w] = true; });
+
+  // The eight categories the Sense Scan already uses elsewhere in the app.
+  // `tint` is the highlight colour behind the word in the editor; `dot` is a
+  // deeper reading of the same hue, because a highlight pastel vanishes once
+  // it's a 3px dot on a pale ground.
+  var SENSES = [
+    { key:'sight', label:'Sight', tint:'#F7EDC0', dot:'#C9A227',
+      words:'white black blank blanc pale bright dark dim light glassy clouds lines shaded shadow glow orange green amber gold silver clean' },
+    { key:'sound', label:'Sound', tint:'#D6E4FB', dot:'#4A78C4',
+      words:'tick ticking hum buzz knock knocking crack snap ring echo silence loud quiet calling bored papery rustle' },
+    { key:'smell', label:'Smell', tint:'#D3F2E3', dot:'#3F9C79',
+      words:'smell scent fragrant smoke smoky diesel lanolin musty reek breath' },
+    { key:'taste', label:'Taste', tint:'#FBD9E4', dot:'#C2557E',
+      words:'taste tastes tasteful tastefully sweet sour bitter salt salty pepper honey lemon butter bread balm' },
+    { key:'touch', label:'Touch', tint:'#E4DBF7', dot:'#7A5FC0',
+      words:'touch warm cold cool hot damp wet dry rough smooth velvet silk grit gritty soft hard sticky slick coarse frost frozen ice thin thick flatness temperature scorched sharp' },
+    { key:'organic', label:'Organic', tint:'#FBE0C8', dot:'#C97B33',
+      words:'skin bones bone blood knuckle knee thumb hand arm moss bark bracken beetle crow wasp wood stone granite mould gravel leaves bladderwrack wool iron rust rusty tar rope dust dusty ash' },
+    { key:'kinesthetic', label:'Kinesthetic', tint:'#C9F2E9', dot:'#2F9B8A',
+      words:'leaning weight floating sits holding cradles rising dropped snapping sweating balanced bending resting hanging heavy pulse squeezing tying locked locking spread' },
+    { key:'verbs', label:'Verbs', tint:'#DDD8F8', dot:'#6C63C4',
+      words:'forget forgive thinks return become meet met waiting throw threw ask catch holds comes turns went sounding cools cooling wants' }
+  ];
+
+  // First match in the word list wins, so a word only ever belongs to one
+  // category — same rule the editor scan uses.
+  var SENSE_OF = {};
+  SENSES.forEach(function (s) {
+    s.words.split(' ').forEach(function (w) { if (!SENSE_OF[w]) SENSE_OF[w] = s; });
+  });
+
+  // A phrase takes the sense of its first sensory word, in reading order.
+  function senseOf(run) {
+    for (var i = 0; i < run.length; i++) {
+      if (SENSE_OF[run[i]]) return SENSE_OF[run[i]];
+    }
+    return null;
+  }
+
+  function words(text) {
+    return text.toLowerCase().split(/[^a-z'’-]+/).filter(Boolean);
+  }
+
+  function extract(items) {
+    var seen = Object.create(null);
+    var out = [];
+
+    items.forEach(function (it) {
+      it.text.split(/[.,;:—–!?()"]+|\s+(?:and|but|so|then|because|while|that)\s+/i).forEach(function (frag) {
+        var w = words(frag);
+        if (w.length < 2) return;
+
+        var tries = Math.max(2, Math.ceil(w.length / 2));
+        for (var a = 0; a < tries; a++) {
+          var len = 2 + Math.floor(Math.random() * 3);
+          if (len > w.length) continue;
+          var start = Math.floor(Math.random() * (w.length - len + 1));
+          var run = w.slice(start, start + len);
+          if (STOP[run[0]] || STOP[run[run.length - 1]]) continue;
+          var phrase = run.join(' ');
+          if (phrase.length < 8) continue;
+          if (seen[phrase]) continue;
+          seen[phrase] = true;
+          var sense = senseOf(run);
+          out.push({
+            phrase: phrase,
+            words: run,
+            sense: sense,
+            sensory: !!sense
+          });
+        }
+      });
+    });
+
+    return out;
+  }
+
+  function shuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  var CAP = 120;
+  var pool = [];
+  var hiddenCount = 0;
+
+  function rebuild() {
+    var items = selectedItems();
+    var all = extract(items);
+    hiddenCount = 0;
+
+    if (elUnused.getAttribute('aria-checked') === 'true') {
+      var used = lyricWords();
+      all = all.filter(function (p) {
+        var hit = p.words.some(function (w) { return used[w]; });
+        if (hit) hiddenCount++;
+        return !hit;
+      });
+    }
+
+    pool = shuffle(all).slice(0, CAP);
+    buildParticles();
+    report(items);
+  }
+
+  function report(items) {
+    elCount.innerHTML =
+      '<em>' + pool.length + '</em> phrases from <em>' + items.length + '</em> entries' +
+      (hiddenCount ? '<br><em>' + hiddenCount + '</em> hidden' : '');
+
+    elEmpty.classList.toggle('show', pool.length === 0);
+  }
+
+  // ── Cloud ───────────────────────────────────────────────
+  // Simplified from the reference piece — enough drift, depth and reveal to
+  // judge the interaction. The shipped version uses the full flow field.
+
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+  var W = 0, H = 0, DPR = 1;
+  var FOCAL = 900, NEAR_Z = 320, LAND_R = 5.5;
+  var MAX_PARTICLES = 1400;
+
+  var PALETTES = {
+    'Earthy Sand':   { bg:'#F4F1EA', ink:'#2B2A27', mist:'rgba(140,120,95,0.5)',  accent:'#B08968', line:'rgba(43,42,39,0.16)' },
+    'Slate Minimal': { bg:'#121214', ink:'#F5F5F7', mist:'rgba(180,180,190,0.55)',accent:'#9AA0AA', line:'rgba(245,245,247,0.18)' },
+    'Nordic Mist':   { bg:'#2E3440', ink:'#ECEFF4', mist:'rgba(180,196,214,0.55)',accent:'#88C0D0', line:'rgba(236,239,244,0.18)' },
+    'OLED Cosmic':   { bg:'#000000', ink:'#FFFFFF', mist:'rgba(140,120,220,0.5)', accent:'#7C6FE0', line:'rgba(255,255,255,0.14)' },
+    'Deep Blue':     { bg:'#0A1C33', ink:'#FFFFFF', mist:'rgba(186,212,244,0.55)',accent:'#7FB2FF', line:'rgba(255,255,255,0.16)' }
+  };
+
+  var FONTS = {
+    'Clean Sans-Serif': "system-ui, -apple-system, 'Helvetica Neue', sans-serif",
+    'Editorial Serif':  "Georgia, 'Times New Roman', serif",
+    'Technical Mono':   "ui-monospace, 'SF Mono', 'Courier New', monospace"
+  };
+
+  function isDarkBg(hex) {
+    var h = hex.slice(1);
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var n = parseInt(h, 16);
+    return (0.2126*((n>>16)&255) + 0.7152*((n>>8)&255) + 0.0722*(n&255)) < 128;
+  }
+
+  function senseScanOn() { return elSense.getAttribute('aria-checked') === 'true'; }
+
+  // On a dark ground the editor's highlight pastels read well; on a pale one
+  // they wash out, so the deeper variant takes over.
+  function senseColour(sense, pal) {
+    return isDarkBg(pal.bg) ? sense.tint : sense.dot;
+  }
+
+  var particles = [];
+
+  function span() { return 760 + pool.length * 26; }
+
+  function buildParticles() {
+    particles.length = 0;
+    if (!pool.length) return;
+
+    var per = Math.max(2, Math.min(7, Math.floor(MAX_PARTICLES / pool.length)));
+    var s = span();
+
+    pool.forEach(function (entry) {
+      var pull = Math.pow(Math.random(), 1.7);
+      var ang = Math.random() * Math.PI * 2;
+      var cX = Math.cos(ang) * pull * s * 0.5;
+      var cY = Math.sin(ang) * pull * s * 0.3;
+      var cZ = 520 + Math.random() * 1500;
+      var spread = s * 0.06 + Math.random() * s * 0.05;
+
+      for (var i = 0; i < per; i++) {
+        particles.push({
+          entry: entry,
+          baseX: cX + (Math.random() - 0.5) * spread * 2,
+          baseY: cY + (Math.random() - 0.5) * spread * 1.6,
+          baseZ: Math.max(380, cZ + (Math.random() - 0.5) * 420),
+          seed: Math.random() * 1000,
+          sizeSeed: 0.55 + Math.random() * Math.random() * 1.9,
+          vx: 0, vy: 0, vz: 0,
+          tumble: Math.random() * Math.PI * 2,
+          tumbleRate: 0.6 + Math.random() * 1.4,
+          drag: 1.4 + Math.random() * 1.2,
+          edge: 1, ease: 0, focus: 0,
+          state: 'IDLE', holdTimer: 0,
+          sx: 0, sy: 0, scale: 1, z: 0
+        });
+      }
+    });
+  }
+
+  var pointer = { x: -9999, y: -9999, active: false };
+  var hovered = null, active = null, textParticle = null;
+
+  function pickAt(px, py, sticky) {
+    var t2 = 27 * 27, best = null, bestScore = Infinity;
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i];
+      if (p.scale <= 0 || p.edge < 0.35) continue;
+      var dx = p.sx - px, dy = p.sy - py;
+      var d2 = dx * dx + dy * dy;
+      if (d2 > t2) continue;
+      var score = d2 + p.z * 0.02;
+      if (score < bestScore) { bestScore = score; best = p; }
+    }
+    if (sticky && hovered && hovered !== best) {
+      var hx = hovered.sx - px, hy = hovered.sy - py;
+      if (hx * hx + hy * hy < t2 * 1.4) return hovered;
+    }
+    return best;
+  }
+
+  function localPoint(e) {
+    var r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  canvas.addEventListener('pointermove', function (e) {
+    var pt = localPoint(e);
+    pointer.x = pt.x; pointer.y = pt.y; pointer.active = true;
+  });
+
+  canvas.addEventListener('pointerleave', function () {
+    pointer.active = false; pointer.x = pointer.y = -9999;
+  });
+
+  var toastTimer = null;
+  function toast(msg) {
+    elToast.textContent = msg;
+    elToast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { elToast.classList.remove('show'); }, 1400);
+  }
+
+  canvas.addEventListener('pointerdown', function (e) {
+    var pt = localPoint(e);
+    pointer.x = pt.x; pointer.y = pt.y;
+    var hit = pickAt(pt.x, pt.y, true);
+
+    function standDown(except, fast) {
+      particles.forEach(function (p) {
+        if (p !== except && p.focus > 0) { p.state = 'RETURNING'; p.fast = !!fast; }
+      });
+    }
+
+    if (!hit) { standDown(null, false); active = null; return; }
+
+    if (hit === active) {
+      hit.state = 'RETURNING'; hit.fast = false; active = null; return;
+    }
+
+    standDown(hit, true);
+    hit.state = 'ZOOMING'; hit.fast = false; hit.holdTimer = 0;
+    active = hit;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(hit.entry.phrase).then(
+        function () { toast('Copied'); },
+        function () { toast('Copy blocked'); }
+      );
+    } else {
+      toast('Copy unavailable');
+    }
+  });
+
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var MOTION = reduceMotion ? 0.35 : 1;
+  var t = 0, last = performance.now();
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    var r = canvas.getBoundingClientRect();
+    W = r.width; H = r.height;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  window.addEventListener('resize', resize);
+
+  function easeInOut(x) {
+    return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  }
+
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    t += dt * MOTION;
+
+    var pal = PALETTES[document.getElementById('f-palette').value];
+    var scanning = senseScanOn();
+    var cx = W / 2, cy = H / 2;
+    var s = span(), half = s * 0.5, halfY = s * 0.34;
+    var tScale = Math.max(24, Math.min(44, W * 0.05));
+    var anchorY0 = Math.min(H - tScale * 1.4, cy + tScale * 1.5);
+    var anchorY = anchorY0 - tScale * 1.55;
+    var reveal = 3;
+
+    ctx.fillStyle = pal.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    var maxFocus = 0;
+
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i];
+
+      if (p.state === 'ZOOMING') {
+        p.focus = Math.min(1, p.focus + dt / 1.5);
+        if (p.focus >= 1) { p.state = 'HELD'; p.holdTimer = 0; }
+      } else if (p.state === 'HELD') {
+        p.holdTimer += dt;
+        if (p.holdTimer > reveal) p.state = 'RETURNING';
+      } else if (p.state === 'RETURNING') {
+        var rel = p.fast ? 0.26 : 1.65;
+        p.focus = Math.max(0, p.focus - dt / rel);
+        if (p.focus <= 0) { p.state = 'IDLE'; p.fast = false; }
+      }
+
+      if (p.focus > maxFocus) maxFocus = p.focus;
+
+      var fx = Math.sin(p.baseY * 0.0042 + t * 0.61) + 0.55 * Math.sin(p.baseZ * 0.0031 - t * 0.43 + p.seed * 0.01);
+      var fy = Math.cos(p.baseX * 0.0037 - t * 0.52) + 0.55 * Math.cos(p.baseZ * 0.0026 + t * 0.58 + p.seed * 0.013);
+      var fz = Math.sin(p.baseX * 0.0024 + t * 0.36) + 0.50 * Math.cos(p.baseY * 0.0029 - t * 0.47);
+      var flow = 0.8 * 210 * MOTION;
+
+      p.vx += (fx * flow - p.vx * p.drag) * dt;
+      p.vy += (fy * flow * 0.62 - p.vy * p.drag) * dt;
+      p.vz += (fz * flow * 0.85 - p.vz * p.drag) * dt;
+
+      p.baseX += p.vx * dt; p.baseY += p.vy * dt; p.baseZ += p.vz * dt;
+      p.tumble += dt * MOTION * p.tumbleRate * (0.8 + Math.abs(p.vx) * 0.004);
+
+      if (p.baseX > half)   p.baseX -= s;
+      if (p.baseX < -half)  p.baseX += s;
+      if (p.baseY > halfY)  p.baseY -= halfY * 2;
+      if (p.baseY < -halfY) p.baseY += halfY * 2;
+      if (p.baseZ > 2100)   p.baseZ = 380;
+      if (p.baseZ < 380)    p.baseZ = 2100;
+
+      var edgeU = Math.max(Math.abs(p.baseX) / half, Math.abs(p.baseY) / halfY);
+      p.edge = edgeU > 0.82 ? Math.max(0, (1 - edgeU) / 0.18) : 1;
+
+      var e = p.focus > 0 ? easeInOut(p.focus) : 0;
+      p.ease = e;
+      p.z = p.baseZ + (NEAR_Z - p.baseZ) * e;
+
+      var scale = FOCAL / Math.max(120, p.z);
+      var px = cx + p.baseX * scale, py = cy + p.baseY * scale;
+      p.sx = px + (cx - px) * e;
+      p.sy = py + (anchorY - py) * e;
+      p.scale = scale;
+    }
+
+    particles.sort(function (a, b) { return b.z - a.z; });
+
+    hovered = pointer.active ? pickAt(pointer.x, pointer.y, true) : null;
+    canvas.classList.toggle('is-over', !!hovered);
+
+    var dim = 1 - 0.2 * maxFocus;
+
+    // Constellation web — skipped on dense clouds, as in the port notes.
+    if (particles.length <= 900) {
+      var reach = 96, BANDS = 8, bands = [];
+      for (var bi = 0; bi < BANDS; bi++) bands.push([]);
+
+      for (var a = 0; a < particles.length; a++) {
+        var pa = particles[a];
+        if (pa.scale < 0.5 || pa.focus > 0 || pa.edge < 0.4) continue;
+        for (var b = a + 1; b < particles.length; b++) {
+          var pb = particles[b];
+          if (pb.scale < 0.5 || pb.focus > 0 || pb.edge < 0.4) continue;
+          var lx = pa.sx - pb.sx, ly = pa.sy - pb.sy;
+          if (Math.abs(lx) > reach || Math.abs(ly) > reach) continue;
+          var d2 = lx * lx + ly * ly;
+          if (d2 > reach * reach) continue;
+          var n = 1 - Math.sqrt(d2) / reach;
+          var soft = Math.pow(n * n * (3 - 2 * n), 1.7) * pa.edge * pb.edge * Math.min(1, (pa.scale + pb.scale) * 0.45);
+          var idx = Math.floor(soft * BANDS);
+          if (idx < 1) continue;
+          if (idx > BANDS - 1) idx = BANDS - 1;
+          bands[idx].push(pa.sx, pa.sy, pb.sx, pb.sy);
+        }
+      }
+
+      ctx.strokeStyle = pal.line;
+      ctx.lineWidth = 0.3;
+      for (var bd = 1; bd < BANDS; bd++) {
+        var seg = bands[bd];
+        if (!seg.length) continue;
+        ctx.globalAlpha = (bd / (BANDS - 1)) * 0.85 * dim;
+        ctx.beginPath();
+        for (var sI = 0; sI < seg.length; sI += 4) {
+          ctx.moveTo(seg[sI], seg[sI + 1]);
+          ctx.lineTo(seg[sI + 2], seg[sI + 3]);
+        }
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    for (var k = 0; k < particles.length; k++) {
+      var q = particles[k];
+      if (q.sx < -200 || q.sx > W + 200 || q.sy < -200 || q.sy > H + 200) continue;
+
+      var alpha = q.entry.sensory ? 0.78 : 0.12;
+      var isHot = (q === hovered) || q.focus > 0;
+
+      var tum = 0.5 + 0.5 * Math.abs(Math.sin(q.tumble));
+      tum += (1 - tum) * q.ease;
+      var r = q.sizeSeed * q.scale * 1.7 * tum;
+      r += (LAND_R - r) * q.ease;
+      if (r < 0.25) continue;
+
+      alpha *= Math.min(1, 0.35 + q.scale * 0.9) * q.edge;
+      alpha += (1 - alpha) * q.ease;
+      if (alpha < 0.01) continue;
+      if (isHot) alpha = Math.min(1, alpha + 0.35);
+
+      ctx.globalAlpha = alpha * (isHot ? 1 : dim);
+      ctx.fillStyle = q.entry.sense
+        ? (scanning ? senseColour(q.entry.sense, pal) : pal.ink)
+        : pal.mist;
+      ctx.beginPath();
+      ctx.arc(q.sx, q.sy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    if (active && active.state === 'IDLE' && active.focus <= 0) active = null;
+    if (!textParticle || textParticle === active || textParticle.focus <= 0.02) textParticle = active;
+
+    if (textParticle && textParticle.focus > 0.004) {
+      var fade = easeInOut(textParticle.focus);
+      var entry = textParticle.entry;
+      var size = tScale * (0.94 + fade * 0.06);
+
+      ctx.font = (entry.sensory ? 600 : 300) + ' ' + size.toFixed(1) + 'px ' + FONTS[document.getElementById('f-type').value];
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = pal.ink;
+      ctx.globalAlpha = fade * (entry.sensory ? 1 : 0.62);
+
+      var ty = anchorY0 + (1 - fade) * 9;
+      ctx.fillText(entry.phrase, cx, ty);
+
+      var tw = ctx.measureText(entry.phrase).width * fade;
+      ctx.globalAlpha = fade * 0.34;
+      ctx.strokeStyle = (scanning && entry.sense) ? senseColour(entry.sense, pal) : pal.accent;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - tw / 2, ty + size * 0.78);
+      ctx.lineTo(cx + tw / 2, ty + size * 0.78);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  // ── Wiring ──────────────────────────────────────────────
+
+  elProject.addEventListener('change', function () {
+    fillContent();
+    rebuild();
+  });
+
+  elContent.addEventListener('change', rebuild);
+
+  // Pills, matching the sense chips in the object writing editor.
+  SENSES.forEach(function (sn) {
+    var chip = document.createElement('span');
+    chip.textContent = sn.label;
+    chip.style.background = sn.tint;
+    chip.style.color = sn.dot;
+    elLegend.appendChild(chip);
+  });
+
+  elSense.addEventListener('click', function () {
+    var on = senseScanOn();
+    elSense.setAttribute('aria-checked', String(!on));
+    elLegend.classList.toggle('show', !on);
+  });
+
+  elUnused.addEventListener('click', function () {
+    var on = elUnused.getAttribute('aria-checked') === 'true';
+    elUnused.setAttribute('aria-checked', String(!on));
+    rebuild();
+  });
+
+  document.getElementById('cloud-btn').addEventListener('click', function () {
+    toast('Already here');
+  });
+
+  resize();
+  rebuild();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
