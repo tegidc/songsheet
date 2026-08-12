@@ -30,10 +30,15 @@ function contentOptions(scoped: boolean): ContentFilter[] {
 // (FullScreenEditor's, really: scroll lock + Escape) but has no backdrop of
 // its own to click through — it *is* the page below the header.
 export function WordCloudView({
-  onClose, onWriteEntry,
+  onClose, onWriteEntry, headerH, isMobile,
 }: {
   onClose: () => void;
   onWriteEntry: () => void;
+  /** Measured height of App's sticky header, which passes *over* this view
+      (z-20 against this view's z-10). Anything that must be seen or clicked
+      near the top has to start below it — see the panel and its × below. */
+  headerH: number;
+  isMobile?: boolean;
 }) {
   const prefs = useWordCloudPrefs();
   const palette = PALETTES[prefs.palette];
@@ -156,17 +161,18 @@ export function WordCloudView({
         )}
       </div>
 
-      {/* Collapsed, the panel is this one button — parked in the bottom-right
-          corner directly above `FloatingOWButton` (fixed bottom-5 right-5,
-          which App keeps rendered over the cloud), so the two read as a stack
-          in the same corner rather than one sitting on the other. A word, not
-          a glyph: no icon says "the things that change what this cloud shows",
-          and the panel's own header uses the same word so the button and what
-          it opens are named the same thing. */}
+      {/* Collapsed, the panel is this one button — top right, tucked just under
+          the header and aligned with its own right edge (the header's px-4/
+          md:px-6), so it reads as hanging from the header rather than floating
+          loose in the field. It cannot sit *in* the top corner: the header
+          passes over this view and would swallow it. A word, not a glyph: no
+          icon says "the things that change what this cloud shows", and the
+          panel's own header uses the same word, so the button and what it
+          opens are named the same thing. */}
       {!showPanel && (
         <button onClick={() => setShowPanel(true)} title="Show controls"
-          className="absolute bottom-[60px] right-5 z-20 text-[11px] uppercase tracking-wide px-3 py-1.5 border rounded-sm transition-opacity opacity-80 hover:opacity-100"
-          style={{ fontFamily: MONO, color: palette.ink, borderColor: palette.line, background: palette.bg }}>
+          className="absolute right-4 md:right-6 z-20 text-[11px] uppercase tracking-wide px-3 py-1.5 border rounded-sm transition-opacity opacity-80 hover:opacity-100"
+          style={{ top: headerH + 12, fontFamily: MONO, color: palette.ink, borderColor: palette.line, background: palette.bg }}>
           Controls
         </button>
       )}
@@ -174,12 +180,23 @@ export function WordCloudView({
       {/* Panel */}
       {showPanel && (
       <aside className="shrink-0 w-full md:w-[260px] max-h-[46%] md:max-h-none overflow-y-auto px-5 py-6 flex flex-col gap-4 border-t md:border-t-0 md:border-l"
-        style={{ borderColor: palette.line }}>
-        <div className="flex items-center justify-between gap-3 -mt-1">
+        style={{
+          borderColor: palette.line,
+          // On desktop the panel is a full-height right-hand column, so its
+          // first row starts *behind* the header — which is where the × that
+          // puts the panel away was, unseeable and unclickable. It starts below
+          // the header instead. On mobile the panel is a bottom band and never
+          // reaches the header, so py-6 stands.
+          paddingTop: isMobile ? undefined : headerH + 20,
+        }}>
+        <div className="flex items-center justify-between gap-3">
           <span className="text-[10px] uppercase tracking-wide" style={{ fontFamily: MONO, color: palette.mist }}>Controls</span>
+          {/* Same word, same corner as the button that opened it, so closing is
+              where opening was. Bordered rather than a bare glyph: the one
+              control here that isn't a setting shouldn't be the quietest. */}
           <button onClick={() => setShowPanel(false)} aria-label="Hide controls" title="Hide controls"
-            className="shrink-0 -mr-1 p-1 text-[14px] leading-none transition-opacity opacity-70 hover:opacity-100"
-            style={{ fontFamily: MONO, color: palette.mist }}>
+            className="shrink-0 w-[22px] h-[22px] flex items-center justify-center border rounded-sm text-[13px] leading-none transition-opacity opacity-70 hover:opacity-100"
+            style={{ fontFamily: MONO, color: palette.ink, borderColor: palette.line }}>
             ×
           </button>
         </div>

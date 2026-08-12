@@ -895,7 +895,9 @@ export default function App() {
         <WordCloudErrorBoundary onClose={() => setShowWordCloud(false)}>
           <WordCloudView
             onClose={() => setShowWordCloud(false)}
-            onWriteEntry={() => { setShowWordCloud(false); setShowGlobalOW(true); }} />
+            onWriteEntry={() => { setShowWordCloud(false); setShowGlobalOW(true); }}
+            headerH={headerH}
+            isMobile={isMobile} />
         </WordCloudErrorBoundary>
       ) : (
       <>
