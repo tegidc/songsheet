@@ -177,6 +177,14 @@ export function WordCloudCanvas({
     }
     resize();
     window.addEventListener("resize", resize);
+    // The window is not the only thing that changes this canvas's size — the
+    // controls panel beside it collapses and returns, which widens and narrows
+    // the canvas without any window resize to hear about it. Left to the
+    // listener above, the backing store would keep the old dimensions and the
+    // browser would stretch them, so the field would go soft *and* the pointer
+    // maths (W/H, VIEW_FIT) would be reading a canvas that is no longer there.
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
 
     const pointer = { x: -9999, y: -9999, active: false };
     let hovered: Particle | null = null;
@@ -466,6 +474,7 @@ export function WordCloudCanvas({
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
+      ro.disconnect();
       document.removeEventListener("visibilitychange", handleVisibility);
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerleave", onPointerLeave);

@@ -50,6 +50,15 @@ export function WordCloudView({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // The panel starts put away, every time. The cloud is the whole point of the
+  // view and the controls are largely set-and-forget — the four that are worth
+  // remembering already persist themselves (Palette/Typography/Sense scan/
+  // lyrics-hide, see lib/wordcloud/prefs.ts), so what's left to decide on open
+  // is nothing. Deliberately *not* persisted alongside those: a remembered-open
+  // panel would mean the view could open with a quarter of the cloud missing
+  // and no way to tell that was a choice made last time.
+  const [showPanel, setShowPanel] = useState(false);
+
   // Projects and Content always reset to "wide open" on each fresh open —
   // unlike Palette/Typography/Sense scan/lyrics-hide, which persist (§9).
   const [projects, setProjects] = useState<CloudProjectRow[] | null>(null);
@@ -147,9 +156,34 @@ export function WordCloudView({
         )}
       </div>
 
+      {/* Collapsed, the panel is this one button — parked in the bottom-right
+          corner directly above `FloatingOWButton` (fixed bottom-5 right-5,
+          which App keeps rendered over the cloud), so the two read as a stack
+          in the same corner rather than one sitting on the other. A word, not
+          a glyph: no icon says "the things that change what this cloud shows",
+          and the panel's own header uses the same word so the button and what
+          it opens are named the same thing. */}
+      {!showPanel && (
+        <button onClick={() => setShowPanel(true)} title="Show controls"
+          className="absolute bottom-[60px] right-5 z-20 text-[11px] uppercase tracking-wide px-3 py-1.5 border rounded-sm transition-opacity opacity-80 hover:opacity-100"
+          style={{ fontFamily: MONO, color: palette.ink, borderColor: palette.line, background: palette.bg }}>
+          Controls
+        </button>
+      )}
+
       {/* Panel */}
+      {showPanel && (
       <aside className="shrink-0 w-full md:w-[260px] max-h-[46%] md:max-h-none overflow-y-auto px-5 py-6 flex flex-col gap-4 border-t md:border-t-0 md:border-l"
         style={{ borderColor: palette.line }}>
+        <div className="flex items-center justify-between gap-3 -mt-1">
+          <span className="text-[10px] uppercase tracking-wide" style={{ fontFamily: MONO, color: palette.mist }}>Controls</span>
+          <button onClick={() => setShowPanel(false)} aria-label="Hide controls" title="Hide controls"
+            className="shrink-0 -mr-1 p-1 text-[14px] leading-none transition-opacity opacity-70 hover:opacity-100"
+            style={{ fontFamily: MONO, color: palette.mist }}>
+            ×
+          </button>
+        </div>
+
         <div className="flex flex-col gap-1.5">
           <label className="text-[10px] uppercase tracking-wide" style={{ fontFamily: MONO, color: palette.mist }}>Projects</label>
           <select value={projectFilter} onChange={e => setProjectFilter(e.target.value)}
@@ -246,6 +280,7 @@ export function WordCloudView({
           </div>
         )}
       </aside>
+      )}
     </div>
   );
 }
