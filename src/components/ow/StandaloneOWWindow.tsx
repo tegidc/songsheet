@@ -107,7 +107,7 @@ export function StandaloneOWWindow({
 
   const footer = (
     <>
-      {saveError && <span className="text-[11px] text-red-500 mr-1" style={{ fontFamily: MONO }}>{saveError}</span>}
+      {saveError && <span className="text-[11px] text-destructive mr-1" style={{ fontFamily: MONO }}>{saveError}</span>}
       {entry && (
         <>
           <button onClick={() => { navigator.clipboard.writeText(body).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 1500); }}

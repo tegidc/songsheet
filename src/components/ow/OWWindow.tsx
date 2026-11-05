@@ -161,7 +161,7 @@ export function OWWindow({
                   </button>
                 </div>
               )}
-              <span className={`tabular-nums text-[12px] ml-0.5 ${isLow ? "text-red-500" : "text-muted-foreground"}`}
+              <span className={`tabular-nums text-[12px] ml-0.5 ${isLow ? "text-destructive" : "text-muted-foreground"}`}
                 style={{ fontFamily: MONO }}>{timerDisplay}</span>
             </div>
 
