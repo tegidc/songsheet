@@ -7,6 +7,7 @@ import type { IdeaResult } from "../../lib/theory/ideas";
 import { formatDetectedKey } from "../../lib/theory/key";
 import { getParallelChords } from "../../lib/theory/substitutions";
 import type { Song } from "../../types";
+import { flash, usePlay } from "../../lib/audio/PlayContext";
 
 export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo, onReroll, onApply, onUndo,
   bridge, bridgeUndo, onBridgeGenerate, onBridgeApply, onBridgeUndo, onClose, onSetKey, onRedetect }: {
@@ -62,7 +63,15 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
   const parallelChords = activeKey ? getParallelChords(activeKey.key, activeKey.mode) : [];
   const noChords = !song.sections.some(s => (s.chordBars ?? []).some(b => b.trim()));
 
-  const ChordPill = ({ chord, dim }: { chord: string; dim?: boolean }) => (
+  const playApi = usePlay();
+  // Plain labels normally; in Play mode they sound when tapped.
+  const ChordPill = ({ chord, dim }: { chord: string; dim?: boolean }) => playApi.on ? (
+    <button type="button" onClick={e => { flash(e.currentTarget); playApi.play(chord); }}
+      className={`inline-block text-[11px] px-2 py-1 border border-border/30 rounded-sm bg-muted/15 ${dim ? "text-muted-foreground" : "text-foreground/80"}`}
+      style={{ fontFamily: MONO }}>
+      {chord}
+    </button>
+  ) : (
     <span
       className={`inline-block text-[11px] px-2 py-0.5 border border-border/30 rounded-sm bg-muted/15 ${dim ? "text-muted-foreground/45" : "text-foreground/65"}`}
       style={{ fontFamily: MONO }}>

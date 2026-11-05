@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { StandaloneOWWindow } from "../ow/StandaloneOWWindow";
+import { SettingsSection } from "./SettingsSection";
 import { FL } from "../common/FL";
 import { MONO, SERIF, TIMER_OPTS } from "../../data/constants";
 import { formatRelativeTime } from "../../format";
@@ -306,6 +307,11 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
         )}
       </div>
 
+      {/* Settings — per-device, quiet, under everything else */}
+      <div className="mt-auto">
+        <SettingsSection />
+      </div>
+
       {/* Sign out — bottom, muted */}
       <div className="px-3 py-3 border-t border-border/30">
         <button onClick={onSignOut}
@@ -345,3 +351,30 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
   );
 }
 
+/**
+ * The sidebar when nobody is signed in: there are no songs to list, but the
+ * per-device settings still need a home, and they work signed out.
+ */
+export function SettingsOnlySidebar({ mobile = false, onClose }: { mobile?: boolean; onClose?: () => void }) {
+  return (
+    <aside className={mobile
+        ? "w-full max-w-[85vw] h-full border-r border-border flex flex-col bg-background shadow-2xl"
+        : "w-64 shrink-0 border-r border-border flex flex-col bg-foreground/[0.025]"}
+      style={mobile ? undefined : { minHeight: "calc(100vh - 49px)" }}>
+      <div className="px-3 py-2 border-b border-border/60 flex items-center justify-between">
+        <FL className="text-muted-foreground/70">Songs</FL>
+        {mobile && (
+          <button onClick={onClose} className="text-muted-foreground/60 hover:text-foreground transition-colors p-1 -mr-1" title="Close">
+            <X size={14} />
+          </button>
+        )}
+      </div>
+      <p className="px-3 py-6 text-[10px] text-muted-foreground text-center italic" style={{ fontFamily: MONO }}>
+        Sign in to keep your songs
+      </p>
+      <div className="mt-auto">
+        <SettingsSection />
+      </div>
+    </aside>
+  );
+}

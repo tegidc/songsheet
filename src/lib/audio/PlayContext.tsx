@@ -1,0 +1,120 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import type { FretboardChord } from "../../types";
+import { getUiPrefs, useUiPrefs } from "../prefs";
+import * as engine from "./engine";
+import { guitarVoicing, keyboardVoicing, midiNames, shapeVoicing, type Voicing } from "./voicing";
+
+/**
+ * Play mode. While it is on, tapping a chord anywhere it is drawn sounds it and
+ * does nothing else — no select, no place, no edit, no picker, no write. Every
+ * tap site asks `usePlay().on` and, if so, calls `play` *instead of* its usual
+ * handler; that branch is the whole play-only guard.
+ *
+ * Session state on purpose: Play always starts off, so opening the app never
+ * makes a sound and never touches audio until asked.
+ */
+
+export interface PlayApi {
+  on: boolean;
+  setOn: (on: boolean) => void;
+  status: engine.EngineStatus;
+  note: string;
+  /** Sound a chord by name. `id` marks which on-screen chord it was (now-playing). */
+  play: (name: string, id?: string) => void;
+  /** Sound an exact fretboard shape. */
+  playShape: (shape: Pick<FretboardChord, "frets" | "tuning">, id?: string) => void;
+  /** The on-screen chord sounding most recently, or null. */
+  nowPlaying: string | null;
+}
+
+const noop = () => {};
+const IS_DEV = !!(import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV;
+const PlayCtx = createContext<PlayApi>({
+  on: false, setOn: noop, status: "off", note: "", play: noop, playShape: noop, nowPlaying: null,
+});
+export const usePlay = () => useContext(PlayCtx);
+
+export function PlayProvider({ fretboardChords, children }: {
+  /** The open song's fretboard log — a chord with one of these names plays its exact shape. */
+  fretboardChords: FretboardChord[] | undefined;
+  children: React.ReactNode;
+}) {
+  const [on, setOnState] = useState(false);
+  const [nowPlaying, setNowPlaying] = useState<string | null>(null);
+  const { instrument } = useUiPrefs();
+  const st = useSyncExternalStore(engine.subscribeStatus, engine.getStatus, engine.getStatus);
+
+  const shapes = useRef(fretboardChords);
+  useEffect(() => { shapes.current = fretboardChords; }, [fretboardChords]);
+
+  // Must run synchronously inside the tap that flips the switch — iOS only
+  // lets audio start from a user gesture.
+  const setOn = useCallback((next: boolean) => {
+    engine.setPlayOnFlag(next);
+    if (next) {
+      if (!engine.unlock()) return;
+      engine.setInstrument(getUiPrefs().instrument);
+      void engine.prepare(getUiPrefs().instrument);
+    } else {
+      engine.sleep();
+      setNowPlaying(null);
+    }
+    setOnState(next);
+  }, []);
+
+  // Instrument changes while on: load just that one
+  useEffect(() => { if (on) engine.setInstrument(instrument); }, [instrument, on]);
+
+  const voice = useCallback((name: string): Voicing | null => {
+    const trimmed = name.trim();
+    // A fretboard chord of this exact name plays its own shape. The most recent
+    // entry wins if the same name was logged twice.
+    const fc = [...(shapes.current ?? [])].reverse().find(c => c.name === trimmed);
+    if (fc) return shapeVoicing(fc);
+    return getUiPrefs().instrument === "guitar" ? guitarVoicing(trimmed) : keyboardVoicing(trimmed);
+  }, []);
+
+  const play = useCallback((name: string, id?: string) => {
+    const v = voice(name);
+    if (IS_DEV) console.debug("[play]", name, v ? midiNames(v.midi) : "(nothing)");
+    engine.playVoicing(v);
+    if (v) setNowPlaying(id ?? null);
+  }, [voice]);
+
+  const playShape = useCallback((shape: Pick<FretboardChord, "frets" | "tuning">, id?: string) => {
+    const v = shapeVoicing(shape);
+    engine.playVoicing(v);
+    if (v) setNowPlaying(id ?? null);
+  }, []);
+
+  const value = useMemo<PlayApi>(() => ({
+    on, setOn, status: st.status, note: st.note, play, playShape, nowPlaying,
+  }), [on, setOn, st.status, st.note, play, playShape, nowPlaying]);
+
+  return <PlayCtx.Provider value={value}>{children}</PlayCtx.Provider>;
+}
+
+/**
+ * The brief visual flash on a tapped chord. Web Animations on the element
+ * itself, so it costs no React state and never re-renders a row.
+ */
+export function flash(el: Element | null) {
+  if (!el || typeof (el as HTMLElement).animate !== "function") return;
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  (el as HTMLElement).animate(
+    reduce
+      ? [{ opacity: 0.55 }, { opacity: 1 }]
+      : [
+          { backgroundColor: "color-mix(in srgb, var(--accent-fill, var(--accent)) 38%, transparent)" },
+          { backgroundColor: "transparent" },
+        ],
+    { duration: reduce ? 220 : 420, easing: "ease-out" },
+  );
+}
+
+// Dev-only inspection hook, for checking voicings from the console
+if (IS_DEV && typeof window !== "undefined") {
+  (window as unknown as Record<string, unknown>).__songsheetAudio = {
+    keyboardVoicing, guitarVoicing, shapeVoicing, midiNames, engine: engine.engineDebug,
+  };
+}

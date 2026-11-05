@@ -5,6 +5,7 @@ import { CH, CW, MONO, PHRASE_MARKER, ROW_BREAK, SCOL, isEditorialBar } from "..
 import type { ChordRow, ChordSuggestion, ChordSuggestionSets } from "../../lib/theory/chords";
 import { CHORD_ROW_HEADING, CHORD_ROW_KEYS, inKey } from "../../lib/theory/chords";
 import type { Section } from "../../types";
+import { flash, usePlay } from "../../lib/audio/PlayContext";
 
 export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelChange,
   onDuplicate, onDelete, onMove, onToggleNaming, namingStyle, activeKey, warnFirst, nashville, songKey,
@@ -23,6 +24,7 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
   /** Prune the song's fretboard log. Only the From Fretboard row offers it. */
   onRemoveFretboardChord?: (name: string) => void;
 }) {
+  const playApi = usePlay();
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const [focusedBarIdx, setFocusedBarIdx] = useState<number | null>(null);
   const bars = section.chordBars;
@@ -194,8 +196,8 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
             {row.map(({ bar, idx: barIdx }) =>
               bar === PHRASE_MARKER ? (
                 /* Phrase-boundary marker — click to remove */
-                <button key={barIdx} onClick={() => setBar(barIdx, "")}
-                  title="Phrase marker — click to remove"
+                <button key={barIdx} onClick={() => { if (!playApi.on) setBar(barIdx, ""); }}
+                  title={playApi.on ? "Phrase marker" : "Phrase marker — click to remove"}
                   className="shrink-0 flex items-center justify-center text-muted-foreground/25 hover:text-muted-foreground/55 transition-colors"
                   style={{ width: 26, height: CH }}>
                   <span style={{ fontFamily: MONO, fontSize: 15, lineHeight: 1 }}>│</span>
@@ -212,11 +214,11 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
                   reff={el => { refs.current[barIdx] = el; }}
                   isDiatonic={!activeKey || !bar.trim() || isEditorialBar(bar) || inKey(bar, activeKey.key, activeKey.mode)}
                   warnWavy={warnFirst && barIdx === 0 && !isEditorialBar(bar)}
-                  nashville={nashville} songKey={songKey} />
+                  nashville={nashville} songKey={songKey} playId={`${section.id}:${barIdx}`} />
               )
             )}
             {/* Add-bar button only on the last visual row */}
-            {ri === visualRows.length - 1 && (
+            {ri === visualRows.length - 1 && !playApi.on && (
               <div className="shrink-0 flex items-center justify-center" style={{ width: CW, height: CH }}>
                 <button onClick={addBar}
                   className="w-5 h-5 rounded-full border border-dashed border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors flex items-center justify-center">
@@ -230,7 +232,7 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
         {/* Desktop chord suggestion panel */}
         {showSuggest && suggestions && (
           <div className="border-t border-border/40 px-3 py-2.5 bg-muted/20">
-            {focusedBarIdx === null && (
+            {focusedBarIdx === null && !playApi.on && (
               <p className="text-[10px] text-muted-foreground/60 italic" style={{ fontFamily: MONO }}>
                 Click a bar above, then use shortcuts or click a chord
               </p>
@@ -247,7 +249,11 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
                 <div className="flex flex-wrap gap-1">
                   {items.map((s, si) => {
                     const chip = (
-                      <button onClick={() => onSuggestChord(s.chord)}
+                      <button onClick={e => {
+                          // Play mode: sound it, place nothing
+                          if (playApi.on) { flash(e.currentTarget); playApi.play(s.chord); return; }
+                          onSuggestChord(s.chord);
+                        }}
                         className="relative flex flex-col items-center justify-center min-w-[42px] px-2 pt-3 pb-1 rounded-sm border border-border bg-background hover:bg-muted hover:border-foreground/30 transition-colors"
                         style={{ fontFamily: MONO }}>
                         {keyRow?.[si] && (
