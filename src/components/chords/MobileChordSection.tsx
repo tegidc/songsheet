@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Plus, Trash2, Copy, ChevronDown, ChevronUp, Repeat2, ClipboardPaste } from "lucide-react";
+import { Trash2, Copy, ChevronDown, ChevronUp, Repeat2, ClipboardPaste } from "lucide-react";
 import { ChordPickerSheet } from "./ChordPickerSheet";
-import { MONO, PHRASE_MARKER, ROW_BREAK, SCOL, isEditorialBar } from "../../data/constants";
+import { MONO, PHRASE_MARKER, ROW_BREAK, isEditorialBar } from "../../data/constants";
 import type { ChordRow, ChordSuggestionSets } from "../../lib/theory/chords";
 import { inKey } from "../../lib/theory/chords";
 import type { Section } from "../../types";
-import { flash, usePlay } from "../../lib/audio/PlayContext";
+import { usePlay } from "../../lib/audio/PlayContext";
+import { chordNameStyle, FunctionMark, NowDot, Numeral, Row, sectionLabel, useChordFunction, type Key } from "./swiss";
 
 export function MobileChordSection({ section, idx, total, onBarsChange, onShortLabelChange,
   onDuplicate, onDelete, onMove, onToggleNaming, namingStyle, activeKey, warnFirst,
@@ -58,64 +59,63 @@ export function MobileChordSection({ section, idx, total, onBarsChange, onShortL
     else visualRows[visualRows.length - 1].push({ bar, idx: barIdx });
   });
 
-  const actionBtn = "flex items-center gap-1 text-[11px] text-muted-foreground active:text-foreground transition-colors";
+  const actionBtn = "flex items-center gap-1 text-[12px] lowercase text-muted-foreground active:text-foreground transition-colors min-h-9";
 
   return (
-    <div className="border-b border-border/60 last:border-b-0">
-      {/* Section header (sits above the bars) */}
-      <div className={`${SCOL[section.type]} flex items-center gap-2 px-3 py-2`}>
-        <input value={section.shortLabel} onChange={e => onShortLabelChange(e.target.value)}
-          className="bg-transparent text-[11px] uppercase tracking-[0.14em] text-foreground/80 focus:outline-none flex-1 min-w-0 truncate"
-          style={{ fontFamily: MONO }} />
-        <button onClick={() => setShowActions(v => !v)}
-          className="shrink-0 text-muted-foreground active:text-foreground transition-colors px-1.5 py-0.5 text-[13px] leading-none tracking-wide"
-          style={{ fontFamily: MONO }} title="Section actions">⋯</button>
+    <Row className="py-3" label={
+      <div className="flex flex-col items-start gap-1 pt-2.5">
+        <span>{sectionLabel(section)}</span>
+        <button onClick={() => setShowActions(v => !v)} title="Section actions" aria-expanded={showActions}
+          className="text-muted-foreground active:text-foreground leading-none py-2 -my-1 pr-3">⋯</button>
       </div>
-
+    }>
       {/* Collapsible action row */}
       {showActions && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 bg-muted/30 border-t border-border/50" style={{ fontFamily: MONO }}>
-          <button onClick={() => onMove(-1)} disabled={idx === 0} className={`${actionBtn} disabled:opacity-25`}><ChevronUp size={12} />Up</button>
-          <button onClick={() => onMove(1)} disabled={idx === total - 1} className={`${actionBtn} disabled:opacity-25`}><ChevronDown size={12} />Down</button>
-          <button onClick={onDuplicate} className={actionBtn}><Copy size={12} />Duplicate</button>
-          <button onClick={onCopyBars} className={actionBtn}><span className="text-[10px]">cc</span>Copy</button>
-          {onPasteBars && <button onClick={onPasteBars} className={`${actionBtn} text-accent`}><ClipboardPaste size={12} />Paste</button>}
-          <button onClick={onRepeatBars} className={actionBtn}><Repeat2 size={12} />Repeat</button>
-          <button onClick={onToggleNaming} className={actionBtn}><span className="text-[11px]">{namingStyle === "number" ? "#" : "A"}</span>{namingStyle === "number" ? "1/2" : "A/B"}</button>
-          <button onClick={onDelete} className={`${actionBtn} active:text-destructive`}><Trash2 size={12} />Delete</button>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pb-2 mb-1 border-b border-border" style={{ fontFamily: MONO }}>
+          <label className="flex items-center gap-1.5 text-[12px] lowercase text-muted-foreground basis-full">
+            label
+            <input value={section.shortLabel} onChange={e => onShortLabelChange(e.target.value)}
+              className="flex-1 min-w-0 bg-transparent text-foreground border-b border-border focus:outline-none" />
+          </label>
+          <button onClick={() => onMove(-1)} disabled={idx === 0} className={`${actionBtn} disabled:opacity-25`}><ChevronUp size={12} />up</button>
+          <button onClick={() => onMove(1)} disabled={idx === total - 1} className={`${actionBtn} disabled:opacity-25`}><ChevronDown size={12} />down</button>
+          <button onClick={onDuplicate} className={actionBtn}><Copy size={11} />duplicate</button>
+          <button onClick={onCopyBars} className={actionBtn}>copy</button>
+          {onPasteBars && <button onClick={onPasteBars} className={actionBtn}><ClipboardPaste size={11} />paste</button>}
+          <button onClick={onRepeatBars} className={actionBtn}><Repeat2 size={12} />repeat</button>
+          <button onClick={onToggleNaming} className={actionBtn}>{namingStyle === "number" ? "1/2" : "a/b"}</button>
+          <button onClick={onDelete} className={`${actionBtn} active:text-destructive`}><Trash2 size={11} />delete</button>
         </div>
       )}
 
-      {/* Bars — tap to edit */}
-      <div className="px-3 py-3 flex flex-col gap-2">
+      {/* Bars — tap to edit (or, in Play mode, to hear) */}
+      <div className="flex flex-col">
         {visualRows.map((row, ri) => (
-          <div key={ri} className="flex flex-wrap items-center gap-2">
-            {row.map(({ bar, idx: barIdx }) =>
-              bar === PHRASE_MARKER ? (
-                <button key={barIdx} onClick={() => { if (!playApi.on) setBar(barIdx, ""); }} title={playApi.on ? "Phrase marker" : "Phrase marker — tap to remove"}
-                  className="text-muted-foreground/40 active:text-muted-foreground px-1" style={{ fontFamily: MONO, fontSize: 16 }}>│</button>
-              ) : (
-                <button key={barIdx} onClick={e => {
-                    // Play mode: sound it — never open the picker
-                    if (playApi.on) { if (bar.trim()) { flash(e.currentTarget); playApi.play(bar, `${section.id}:${barIdx}`); } return; }
-                    setSel(barIdx);
-                  }}
-                  className={[
-                    "min-w-[56px] h-11 px-2 rounded-md border flex items-center justify-center transition-colors",
-                    sel === barIdx ? "border-foreground/50 bg-muted/50" : "border-border active:bg-muted/40",
-                    activeKey && bar.trim() && !inKey(bar, activeKey.key, activeKey.mode) ? "text-amber-700" : "text-foreground",
-                    warnFirst && barIdx === 0 && bar.trim() ? "underline decoration-red-400 decoration-wavy" : "",
-                  ].join(" ")}
-                  style={{ fontFamily: MONO, fontSize: 14 }}>
-                  {bar.trim() || <Plus size={13} className="text-muted-foreground/50" />}
-                </button>
-              )
-            )}
+          <div key={ri} className="flex flex-wrap items-center">
+            {row.map(({ bar, idx: barIdx }, pos) => {
+              if (bar === PHRASE_MARKER) {
+                const prev = row[pos - 1];
+                if (prev && prev.bar !== PHRASE_MARKER) return null;   // drawn by the bar before it
+                return (
+                  <button key={barIdx} onClick={() => { if (!playApi.on) setBar(barIdx, ""); }}
+                    title={playApi.on ? "Phrase marker" : "Phrase marker — tap to remove"}
+                    className="w-5 self-stretch flex justify-center py-2"><span className="block w-px h-full bg-[var(--ink)]" /></button>
+                );
+              }
+              const next = row[pos + 1];
+              return (
+                <MobileBar key={barIdx} bar={bar} selected={sel === barIdx}
+                  playId={`${section.id}:${barIdx}`} activeKey={activeKey}
+                  offKey={!!activeKey && !!bar.trim() && !inKey(bar, activeKey.key, activeKey.mode)}
+                  wavy={warnFirst && barIdx === 0 && !!bar.trim()}
+                  onTap={() => setSel(barIdx)}
+                  phraseAfter={next?.bar === PHRASE_MARKER ? () => { if (!playApi.on) setBar(next.idx, ""); } : null} />
+              );
+            })}
             {ri === visualRows.length - 1 && !playApi.on && (
-              <button onClick={addBar} title="Add bar"
-                className="w-9 h-11 rounded-md border border-dashed border-border text-muted-foreground active:border-foreground active:text-foreground transition-colors flex items-center justify-center">
-                <Plus size={14} />
-              </button>
+              <button onClick={addBar} title="Add bar" aria-label="Add bar"
+                className="min-h-[44px] w-12 text-left text-muted-foreground active:text-foreground"
+                style={{ fontFamily: "var(--font-display)", fontSize: 20 }}>+</button>
             )}
           </div>
         ))}
@@ -139,8 +139,43 @@ export function MobileChordSection({ section, idx, total, onBarsChange, onShortL
           setSel(null);
         }}
         onStep={step}
+        activeKey={activeKey}
         canPrev={sel !== null && prevReal(sel) !== -1}
         canNext={sel !== null} />
+    </Row>
+  );
+}
+
+/** One bar on a phone: a 44px-tall button, half the row wide. */
+function MobileBar({ bar, selected, playId, activeKey, offKey, wavy, onTap, phraseAfter }: {
+  bar: string; selected: boolean; playId: string; activeKey: Key; offKey: boolean; wavy: boolean;
+  onTap: () => void; phraseAfter: (() => void) | null;
+}) {
+  const playApi = usePlay();
+  const fn = useChordFunction(bar, activeKey);
+  const has = !!bar.trim();
+  const playing = playApi.on && has && playApi.nowPlaying === playId;
+  return (
+    <div className="relative w-1/2 flex items-center pr-3">
+      <button onClick={() => {
+          // Play mode: sound it — never open the picker
+          if (playApi.on) { if (has) playApi.play(bar, playId); return; }
+          onTap();
+        }}
+        className={`flex flex-wrap items-center gap-x-1.5 min-w-0 w-full min-h-[44px] text-left border-b ${selected ? "border-[var(--rule)]" : "border-transparent"} ${offKey ? "text-[var(--accent-text)]" : "text-foreground"}`}>
+        {playing && <NowDot />}
+        <FunctionMark fn={fn} />
+        {has
+          ? <span className={wavy ? "underline decoration-destructive decoration-wavy underline-offset-4" : ""} style={chordNameStyle(bar, playing)}>{bar}</span>
+          : <span className="text-muted-foreground/50" style={chordNameStyle("—")}>—</span>}
+        {has && <Numeral chord={bar} activeKey={activeKey} />}
+      </button>
+      {phraseAfter && (
+        <button type="button" onClick={phraseAfter} aria-label="Phrase marker"
+          className="absolute right-1 top-2 bottom-2 w-4 flex justify-center">
+          <span className="block w-px h-full bg-[var(--ink)]" />
+        </button>
+      )}
     </div>
   );
 }
