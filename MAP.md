@@ -682,6 +682,66 @@ Colour, `z x c v b n m` From Fretboard. The bottom letter row completes the
 geometric shape and costs only two note letters (c, b) where the home row
 would have cost four, leaving A D F G free to type.
 
+### Play mode (`src/lib/audio/`)
+A **Play** switch on the Chords screen. While it is on, tapping a chord
+anywhere it is drawn sounds it and does nothing else; while it is off, every
+tap does exactly what it did before. Session state, off on every load.
+
+- `PlayContext.tsx` — `PlayProvider` (wraps the app in `App.tsx`, given the
+  open song's `fretboardChords`) and `usePlay()`: `{ on, setOn, status, note,
+  play(name, id?), playShape(shape, id?), nowPlaying }`. **The play-only guard
+  is one branch at each tap site**: `if (usePlay().on) { play(); return; }`
+  before the normal handler. Sites: `BarCell` (desktop bars render a button,
+  not an input, so nothing can focus or take a shortcut), `ChordRowGrid`'s
+  selector chips, `MobileChordSection`'s bar buttons (the picker drawer cannot
+  open), `FinalSectionView`'s chords over lyrics (row taps don't place, nothing
+  selects), `AnalyseChordsPanel`'s Common/Parallel pills, and the
+  `FretboardIdentifier` name (plays the live shape). Editorial taps that would
+  change data in the grid (phrase-marker remove, add-bar) are inert in Play.
+  `flash(el)` is the brief tap feedback (Web Animations, no React state).
+- `engine.ts` — one `AudioContext`, created by `unlock()` *inside the tap*
+  that switches Play on (iOS will not start audio otherwise); sets
+  `navigator.audioSession.type = "playback"` where WebKit has it, so the ringer
+  switch doesn't mute chords. Instrument → master gain (0.7) → compressor used
+  as a limiter, so fast taps on six-note shapes can't clip. `smplr` is a
+  *dynamic import*: nothing is fetched until Play is first switched on, and
+  then only the selected instrument (piano: `SplendidGrandPiano`, E1–C6 only;
+  guitar: `Soundfont` `acoustic_guitar_steel`). A failed load (offline) falls
+  back to Ambient and says so in the status line. One-shot: each tap releases
+  the previous chord (samples damp over ~0.25 s, the pad crossfades). Play off
+  releases everything and suspends the context.
+- `pad.ts` — the Ambient instrument, pure Web Audio, no samples: per note two
+  triangles ±7 cents and a quiet saw an octave down → lowpass 1.4 kHz → chord
+  bus (0.4 s attack, ~3 s hold, 2.5 s release) → dry + a convolver whose
+  impulse response is generated noise. Also the offline fallback.
+- `voicing.ts` — chord → MIDI, **playback only**. Reads names with `tonal`
+  `Chord.get` so suffixes and slash basses are heard (`Em7`, `Am9`,
+  `Fmaj9/C`, `Dm7b5`, `6/9`…); `normalise` accepts the app's own spellings
+  `tonal` doesn't (`(no5)`, `(add9)`, `°`, `ø`, `Δ`, `A-7`). `parseChord`,
+  `detectKey` and the numbering are untouched — they don't need to hear the
+  ninth. Keyboard (piano/ambient): bass in C2–B2, chord tones in a close
+  voicing up from the root's C3–B3 octave, under E5. Guitar: bass E2–D♯3,
+  then fifth/root/colour tones at least a minor third apart, ≤ 6 notes,
+  strummed ~30 ms. **A chord whose name matches one in the song's
+  `fretboardChords` plays that exact shape in its saved tuning** on every
+  instrument (muted strings skipped, rolled low → high), most recent entry
+  first. Unreadable names voice to `null`: nothing plays, nothing throws.
+- `PlayControls.tsx` (in `components/chords/`) — `PlayToggle` (the switch plus
+  a quiet `loading piano…` / fallback line; never blocks) and `PlayPalette`:
+  the selector's own rows (rotating In Key / Colour / From Fretboard + Used)
+  as play-only pills, shown while Play is on wherever the selector isn't —
+  always on mobile, where the selector lives only in a bar's drawer.
+- **Instrument** is a per-device preference in `src/lib/prefs.ts`
+  (`songsheet-ui-prefs` in localStorage, beside — not merged with — the Word
+  Cloud's own store), chosen in the sidebar's Settings section
+  (`sidebar/SettingsSection.tsx`). Signed out, the folder button opens
+  `SettingsOnlySidebar`, which holds Settings alone.
+- **Zero writes:** none of this touches `song`, so the autosave effect never
+  sees it. Instrument and Play live outside `projects.data` entirely.
+- **Keyboard shortcuts** are unchanged and do not play. In Play mode there is
+  no focused bar for them to place into (bars are buttons), so they are
+  simply idle.
+
 ### `src/app/App.tsx`
 Top-level state (song, tab, auth, sidebar, autosave, undo state for chord
 ideas/bridge ideas), the autosave effect (debounced + periodic forced save
