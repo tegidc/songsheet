@@ -5,10 +5,12 @@ import { FS, MONO, SCOL } from "../../data/constants";
 import { uid } from "../../format";
 import { resolveOverlaps, sortCP } from "../../lib/theory/layout";
 import type { CP, Section } from "../../types";
+import { flash, usePlay } from "../../lib/audio/PlayContext";
 
 export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
   section: Section; charWidth: number; onUpdate: (p: Partial<Section>) => void; isMobile?: boolean;
 }) {
+  const playApi = usePlay();
   const [selId, setSelId]       = useState<string | null>(null);
   const [editId, setEditId]     = useState<string | null>(null);
   const [addAt, setAddAt]       = useState<{ li: number; ci: number } | null>(null);
@@ -72,7 +74,11 @@ export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
     return () => window.removeEventListener("keydown", h);
   }, [selId, editId, editLine, cps, lines.length, onUpdate, isMobile]);
 
+  // Play mode owns the chord rows: nothing is selected, placed or edited.
+  useEffect(() => { if (playApi.on) { setSelId(null); setEditId(null); setAddAt(null); setMobileSheet(null); } }, [playApi.on]);
+
   const handleRowClick = (e: React.MouseEvent<HTMLDivElement>, li: number) => {
+    if (playApi.on) return;
     if (editId !== null) return;
     if (isMobile) return; // mobile uses tap handler below
     const rect = e.currentTarget.getBoundingClientRect();
@@ -82,6 +88,7 @@ export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
 
   // Mobile: tap chord row to open sheet at approximate char position
   const handleRowTap = (e: React.TouchEvent<HTMLDivElement>, li: number) => {
+    if (playApi.on) return;
     if (selId !== null) { setSelId(null); return; }
     const rect = e.currentTarget.getBoundingClientRect();
     const touch = e.changedTouches[0];
@@ -199,8 +206,12 @@ export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
                 <span key={cp.id}
                   style={{ position: "absolute", left: `${cp.charIdx}ch`, fontFamily: MONO, fontSize: chordFS, top: -2, whiteSpace: "nowrap" }}
                   className={`cursor-pointer transition-colors px-1 py-1 rounded-sm ${selId === cp.id ? "text-foreground bg-accent/20" : "text-accent hover:bg-accent/10"}`}
-                  onClick={e => { e.stopPropagation(); setSelId(cp.id); setEditId(null); }}
-                  onDoubleClick={isMobile ? undefined : e => { e.stopPropagation(); setSelId(cp.id); setEditId(cp.id); }}>
+                  onClick={e => {
+                    e.stopPropagation();
+                    if (playApi.on) { flash(e.currentTarget); playApi.play(cp.chord, `final:${cp.id}`); return; }
+                    setSelId(cp.id); setEditId(null);
+                  }}
+                  onDoubleClick={isMobile ? undefined : e => { e.stopPropagation(); if (playApi.on) return; setSelId(cp.id); setEditId(cp.id); }}>
                   {editId === cp.id ? (
                     <input value={cp.chord} onChange={e => updateChordVal(cp.id, e.target.value)}
                       onBlur={() => setEditId(null)}

@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import { FL } from "../common/FL";
 import { MONO } from "../../data/constants";
 import { identifyChord } from "../../lib/theory/identify";
+import { flash, usePlay } from "../../lib/audio/PlayContext";
 import { fetchSongTunings } from "../../lib/tunings";
 import {
   STRING_COUNT, TUNING_PRESETS, cloneTuning, noteName, soundingMidi,
@@ -42,6 +43,7 @@ export function FretboardIdentifier({ initialTuning, onSaveTuning, onAddChord, c
 }) {
   const [tuning, setTuning] = useState<Tuning>(() => cloneTuning(initialTuning ?? TUNING_PRESETS[0]));
   // Per string, low first: a fret number, 0 for open, null for not played.
+  const playApi = usePlay();
   const [frets, setFrets] = useState<(number | null)[]>(() => Array(STRING_COUNT).fill(null));
   const [saved, setSaved] = useState<Tuning[]>([]);
 
@@ -208,7 +210,14 @@ export function FretboardIdentifier({ initialTuning, onSaveTuning, onAddChord, c
           about the naming would be the app talking about itself. */}
       <div className="px-3 py-2.5 border-t border-border">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          {id.primary ? (
+          {id.primary && playApi.on ? (
+            // Play mode: the name sounds the shape on the neck, exactly
+            <button type="button" onClick={e => { flash(e.currentTarget); playApi.playShape({ frets, tuning }); }}
+              title={`Play ${id.primary.name}`}
+              className="text-[19px] text-foreground leading-tight px-1 -mx-1 rounded-sm" style={{ fontFamily: MONO }}>
+              {id.primary.name}
+            </button>
+          ) : id.primary ? (
             <span className="text-[19px] text-foreground leading-tight" style={{ fontFamily: MONO }}>
               {id.primary.name}
             </span>

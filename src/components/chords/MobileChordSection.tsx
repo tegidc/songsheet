@@ -5,6 +5,7 @@ import { MONO, PHRASE_MARKER, ROW_BREAK, SCOL, isEditorialBar } from "../../data
 import type { ChordRow, ChordSuggestionSets } from "../../lib/theory/chords";
 import { inKey } from "../../lib/theory/chords";
 import type { Section } from "../../types";
+import { flash, usePlay } from "../../lib/audio/PlayContext";
 
 export function MobileChordSection({ section, idx, total, onBarsChange, onShortLabelChange,
   onDuplicate, onDelete, onMove, onToggleNaming, namingStyle, activeKey, warnFirst,
@@ -21,6 +22,7 @@ export function MobileChordSection({ section, idx, total, onBarsChange, onShortL
   /** Prune the song's fretboard log. Only the From Fretboard row offers it. */
   onRemoveFretboardChord?: (name: string) => void;
 }) {
+  const playApi = usePlay();
   const [showActions, setShowActions] = useState(false);
   const [sel, setSel] = useState<number | null>(null);
   const bars = section.chordBars;
@@ -90,10 +92,14 @@ export function MobileChordSection({ section, idx, total, onBarsChange, onShortL
           <div key={ri} className="flex flex-wrap items-center gap-2">
             {row.map(({ bar, idx: barIdx }) =>
               bar === PHRASE_MARKER ? (
-                <button key={barIdx} onClick={() => setBar(barIdx, "")} title="Phrase marker — tap to remove"
+                <button key={barIdx} onClick={() => { if (!playApi.on) setBar(barIdx, ""); }} title={playApi.on ? "Phrase marker" : "Phrase marker — tap to remove"}
                   className="text-muted-foreground/40 active:text-muted-foreground px-1" style={{ fontFamily: MONO, fontSize: 16 }}>│</button>
               ) : (
-                <button key={barIdx} onClick={() => setSel(barIdx)}
+                <button key={barIdx} onClick={e => {
+                    // Play mode: sound it — never open the picker
+                    if (playApi.on) { if (bar.trim()) { flash(e.currentTarget); playApi.play(bar, `${section.id}:${barIdx}`); } return; }
+                    setSel(barIdx);
+                  }}
                   className={[
                     "min-w-[56px] h-11 px-2 rounded-md border flex items-center justify-center transition-colors",
                     sel === barIdx ? "border-foreground/50 bg-muted/50" : "border-border active:bg-muted/40",
@@ -105,7 +111,7 @@ export function MobileChordSection({ section, idx, total, onBarsChange, onShortL
                 </button>
               )
             )}
-            {ri === visualRows.length - 1 && (
+            {ri === visualRows.length - 1 && !playApi.on && (
               <button onClick={addBar} title="Add bar"
                 className="w-9 h-11 rounded-md border border-dashed border-border text-muted-foreground active:border-foreground active:text-foreground transition-colors flex items-center justify-center">
                 <Plus size={14} />
@@ -116,7 +122,7 @@ export function MobileChordSection({ section, idx, total, onBarsChange, onShortL
       </div>
 
       <ChordPickerSheet
-        open={sel !== null && isReal(sel)}
+        open={!playApi.on && sel !== null && isReal(sel)}
         title={`${section.shortLabel || section.label} · bar ${sel !== null ? bars.slice(0, sel + 1).filter(b => !isEditorialBar(b)).length : ""}`}
         value={sel !== null ? bars[sel] ?? "" : ""}
         suggestions={suggestions}
