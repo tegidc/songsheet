@@ -24,7 +24,9 @@ import { StandaloneOWWindow } from "../components/ow/StandaloneOWWindow";
 import { ConfirmDialog } from "../components/common/ConfirmDialog";
 import { FL } from "../components/common/FL";
 import { FullScreenEditor } from "../components/common/FullScreenEditor";
-import { ProjectsSidebar } from "../components/sidebar/ProjectsSidebar";
+import { ProjectsSidebar, SettingsOnlySidebar } from "../components/sidebar/ProjectsSidebar";
+import { PlayPaletteWhenOn, PlayToggle } from "../components/chords/PlayControls";
+import { PlayProvider } from "../lib/audio/PlayContext";
 import { WordCloudErrorBoundary } from "../components/wordcloud/WordCloudErrorBoundary";
 import { WordCloudView } from "../components/wordcloud/WordCloudView";
 import { PALETTES } from "../lib/wordcloud/palettes";
@@ -804,6 +806,7 @@ export default function App() {
   })();
 
   return (
+    <PlayProvider fretboardChords={song.fretboardChords}>
     <div className="min-h-screen bg-background" style={{ fontFamily: SANS }}>
       <span ref={charRef} aria-hidden
         style={{ visibility: "hidden", position: "fixed", top: 0, left: 0, fontFamily: MONO, fontSize: FS + "px", whiteSpace: "pre" }}>0</span>
@@ -831,6 +834,14 @@ export default function App() {
 
         {/* Sidebar toggle + OW button + sign-in */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Songs and settings — open signed out too, where it holds Settings alone */}
+          {!user && (
+            <button onClick={toggleSidebar}
+              className={`flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 border rounded-sm transition-colors ${showSidebar ? "border-foreground/30 text-foreground bg-muted/40" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"}`}
+              style={{ fontFamily: MONO }} title="Settings" aria-label="Songs and settings">
+              <FolderOpen size={11} />
+            </button>
+          )}
           {user ? (
             <>
               <button onClick={toggleSidebar}
@@ -904,6 +915,7 @@ export default function App() {
       {/* Body: projects sidebar (left) + main workspace */}
       <div className="flex items-start">
       {/* Desktop: inline pushing sidebar */}
+      {!user && showSidebar && !isMobile && <SettingsOnlySidebar />}
       {user && showSidebar && !isMobile && (
         <ProjectsSidebar
           onLoad={loadProject}
@@ -918,6 +930,14 @@ export default function App() {
           onDeleteCloudOW={deleteCloudOW} />
       )}
       {/* Mobile: overlay drawer with backdrop */}
+      {!user && showSidebar && isMobile && (
+        <div className="fixed inset-0 z-40 flex" style={{ top: headerH }}>
+          <div className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={toggleSidebar} />
+          <div className="relative z-10 h-full">
+            <SettingsOnlySidebar mobile onClose={toggleSidebar} />
+          </div>
+        </div>
+      )}
       {user && showSidebar && isMobile && (
         <div className="fixed inset-0 z-40 flex" style={{ top: headerH }}>
           <div className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={toggleSidebar} />
@@ -1144,6 +1164,7 @@ export default function App() {
         {tab === "chords" && (
           <div>
             <div className="flex flex-wrap items-center gap-3 mb-4">
+              <PlayToggle />
               <button onClick={() => setShowAnalysis(p => !p)}
                 className={`flex items-center gap-1.5 text-[12px] px-3 py-1.5 border rounded-sm transition-colors ${showAnalysis ? "border-foreground/30 text-foreground bg-muted/40" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"}`}
                 style={{ fontFamily: MONO }}>
@@ -1274,6 +1295,10 @@ export default function App() {
                   }} />
               ))}
             </div>
+            {/* Play mode's pills, wherever the selector isn't already showing */}
+            {(isMobile || !showChordSuggest) && (
+              <PlayPaletteWhenOn suggestions={pickerSuggestions} chordRow={chordRow} onCycleChordRow={cycleRow} />
+            )}
             <div className="flex flex-wrap gap-2">
               {SDEFS.map(t => (
                 <button key={t.v} onClick={() => addSection(t.v)} title={`Add ${t.l} (Alt+${t.k.toUpperCase()})`}
@@ -1467,5 +1492,6 @@ export default function App() {
       )}
 
     </div>
+    </PlayProvider>
   );
 }
