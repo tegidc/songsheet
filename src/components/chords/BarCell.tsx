@@ -32,7 +32,7 @@ export function BarCell({ value, onChange, onKD, onFocus, reff, isDiatonic, warn
   const wavy = warnWavy && has ? "underline decoration-destructive decoration-wavy underline-offset-4" : "";
 
   return (
-    <div className="relative w-1/2 md:w-[136px] shrink-0 flex items-center gap-1.5 min-h-[44px] pr-4">
+    <div className="relative w-1/2 md:w-auto md:min-w-[136px] shrink-0 flex items-center gap-1.5 min-h-[44px] pr-4">
       {playApi.on ? (
         has ? (
           // Play mode: sound it, nothing else. No input is rendered, so
@@ -59,8 +59,10 @@ export function BarCell({ value, onChange, onKD, onFocus, reff, isDiatonic, warn
             onChange={e => { const v = e.target.value; onChange(v ? v[0].toUpperCase() + v.slice(1) : v); }}
             onKeyDown={onKD} onFocus={onFocus}
             maxLength={12} placeholder="—" aria-label="Chord"
-            className={`min-w-0 flex-1 bg-transparent focus:outline-none caret-[var(--accent-fill)] placeholder:text-muted-foreground/40 border-b border-transparent focus:border-[var(--rule)] ${tone} ${wavy}`}
-            style={{ ...chordNameStyle(value || "—"), fontSize: chordSize(value), width: "100%" }} />
+            className={`min-w-0 bg-transparent focus:outline-none caret-[var(--accent-fill)] placeholder:text-muted-foreground/40 border-b border-transparent focus:border-[var(--rule)] ${tone} ${wavy}`}
+            // Sized to its text (ch of the display face, plus a little for
+            // wide capitals) so the numeral sits beside the name, not across the cell
+            style={{ ...chordNameStyle(value || "—"), fontSize: chordSize(value), width: `calc(${Math.max(2, value.length) + 0.6}ch + 2px)`, maxWidth: "11ch" }} />
           {has && <Numeral chord={value} activeKey={activeKey} />}
         </>
       )}

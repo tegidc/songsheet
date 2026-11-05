@@ -39,6 +39,7 @@ import { RhymePanel } from "../components/tools/RhymePanel";
 import { ThesaurusPanel } from "../components/tools/ThesaurusPanel";
 import { FS, MONO, SANS, SCOL, SDEFS, SERIF, SHEET, TIMER_OPTS, isEditorialBar } from "../data/constants";
 import { useUiPrefs } from "../lib/prefs";
+import { devDemo } from "../dev/demo";
 import { TSIGS } from "../data/music";
 import { newProjectPrefix, parseProjectPrefix, prefixFromDate, projectNameWithPrefix, uid } from "../format";
 import { applyCloudDeleteToEntries, deleteStandaloneOW, fetchOWRow, insertStandaloneOW, saveAsNew, updateOriginal } from "../lib/owCloud";
@@ -63,8 +64,8 @@ export default function App() {
   // translucent fill from the same live palette while the cloud is open.
   const wordCloudPrefs = useWordCloudPrefs();
   const wordCloudPalette = PALETTES[wordCloudPrefs.palette];
-  const [song, setSong]               = useState<Song>(EMPTY_SONG);
-  const [tab, setTab]                 = useState<Tab>("notes");
+  const [song, setSong]               = useState<Song>(() => devDemo()?.song ?? EMPTY_SONG);
+  const [tab, setTab]                 = useState<Tab>(() => devDemo()?.tab ?? "notes");
   const [metaExpanded, setMetaExpanded] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [nashville, setNashville]     = useState(false);
