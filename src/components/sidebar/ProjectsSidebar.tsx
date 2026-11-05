@@ -179,8 +179,8 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
 
   return (
     <aside className={mobile
-        ? "w-full max-w-[85vw] h-full border-r border-border flex flex-col bg-background shadow-2xl"
-        : "w-64 shrink-0 border-r border-border flex flex-col bg-foreground/[0.025]"}
+        ? "w-[300px] max-w-[85vw] h-full overflow-y-auto border-r border-[var(--rule)] flex flex-col bg-background"
+        : "w-64 shrink-0 border-r border-[var(--rule)] flex flex-col bg-background"}
       style={mobile ? undefined : { minHeight: "calc(100vh - 49px)" }}>
 
       {/* Header */}
@@ -358,8 +358,8 @@ export function ProjectsSidebar({ onLoad, onNew, onSignOut, currentProjectId, on
 export function SettingsOnlySidebar({ mobile = false, onClose }: { mobile?: boolean; onClose?: () => void }) {
   return (
     <aside className={mobile
-        ? "w-full max-w-[85vw] h-full border-r border-border flex flex-col bg-background shadow-2xl"
-        : "w-64 shrink-0 border-r border-border flex flex-col bg-foreground/[0.025]"}
+        ? "w-[300px] max-w-[85vw] h-full overflow-y-auto border-r border-[var(--rule)] flex flex-col bg-background"
+        : "w-64 shrink-0 border-r border-[var(--rule)] flex flex-col bg-background"}
       style={mobile ? undefined : { minHeight: "calc(100vh - 49px)" }}>
       <div className="px-3 py-2 border-b border-border/60 flex items-center justify-between">
         <FL className="text-muted-foreground/70">Songs</FL>

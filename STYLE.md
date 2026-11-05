@@ -1,196 +1,188 @@
-# STYLE.md — Songsheet visual conventions
+# STYLE.md — Songsheet visual system
 
-Derived entirely from existing code (`src/styles/theme.css`,
-`src/styles/fonts.css`, `src/data/constants.ts`, and usage patterns across
-`src/components/`). Nothing here is prescriptive/new — it documents what
-the app already does, for anyone extending it consistently.
+One layout, seven themes. The layout is a mid-century Swiss-poster grid; a
+**theme changes tokens only** — colours, fonts, weights, tracking, radius —
+never where anything sits. Everything here is implemented; nothing is
+aspirational.
 
-## Fonts
+## The grid
 
-Three font stacks, defined once in `src/data/constants.ts`:
+- **Two columns everywhere on the Chords screen and in the chrome:** a narrow
+  label column of **56px** and a content column (`grid-template-columns:
+  56px minmax(0, 1fr)`, `gap-x-3`). `Row` in `components/chords/swiss.tsx` is
+  the one implementation; the masthead, tabs and selector panel use the same
+  56px measure.
+- **Labels** in the left column are small (12px), lower-case, in the theme's
+  label face: `play`, `view`, `verse / 01`, `chorus / 01`, `key`, `add`,
+  `in key`, `used`.
+- **Sections are separated by 1px full-width rules in ink** (`--rule`).
+  No cards, no shadows, no tinted section boxes on the Chords screen.
+- Page margins: 20px phone, 32px desktop, content capped at `max-w-4xl`.
+- Touch targets: every tappable chord, tab and setting is **at least 44px tall**.
 
-```ts
-export const MONO  = "'DM Mono', monospace";
-export const SANS  = "'DM Sans', sans-serif";
-export const SERIF = "'Lora', serif";
-```
+### Masthead and chrome
 
-Loaded via `src/styles/fonts.css` (Google Fonts: Lora 400/500/600 + italic
-400, DM Sans 300/400/500, DM Mono 300/400).
+- **Header:** a 48px sticky bar of plain icons (songs & settings, object
+  writing ✦, word cloud) and the save state. No border, no wordmark on phones.
+- **Masthead:** the project's start date stacked small in the label column
+  (`26 / 07 / 18` — the YYMMDD prefix; today for an unsaved song), the title
+  large and tight beside it: theme title face, `--title-weight`,
+  `--title-tracking`, line-height 0.95, `clamp(34px, 9vw, 56px)`. Lower-case
+  while read, true case while typed. Song details sit behind one quiet line
+  under it.
+- **Rings:** three concentric 1px ink outlines and a filled `--accent-fill`
+  disc, partly off the top-right (`Masthead.tsx` `Rings`). Decorative,
+  `aria-hidden`, behind content (`main` is `isolate`, rings `-z-10`); the
+  root clips horizontal overflow so they never cause sideways scroll.
+- **Tabs:** `create / lyrics / chords / final`, lower-case, on the 56px grid
+  with `→` in the label column. Active: extra-bold, ink. Others: medium, muted.
+  A rule beneath.
 
-Usage pattern, consistent across every component:
-- **`MONO`** — UI chrome: field labels, buttons, small metadata (timers,
-  status text, section headers, hotkey hints), the small-uppercase label
-  pattern (see below). If it's a control or a piece of interface furniture
-  rather than the user's own words, it's mono.
-- **`SERIF`** — the user's actual written content: lyrics, notebook text,
-  object-writing bodies, story/big-idea text. Anywhere prose the songwriter
-  wrote is being displayed or edited.
-- **`SANS`** — structural/secondary text: input values that aren't lyrics
-  (song title, artist, key/tempo fields), descriptions, dialog copy,
-  subtitles under section headers.
+### Chords screen
 
-## Small-uppercase-mono label pattern
+Top to bottom: `play` (switch + instrument) · `view` (analyse, selector,
+nashville as text toggles, bold when on) · the Analyse panel when open · one
+row per section · `key` · `add` (section types as words) · the selector dock ·
+the fretboard identifier.
 
-The recurring field/section-header label style:
+- **Chord rows:** two per line on phones (`w-1/2`), flowing at ≥136px on
+  desktop. The songwriter's own row breaks still start new lines. Name in the
+  display face, **20px bold, 18px past seven characters** (a little smaller
+  still on a 320px phone), `--chord-tracking`; the **Roman numeral small and
+  muted beside it** (wraps under on narrow phones). Off-key chords are drawn in
+  `--accent-text`. Phrase markers are a 1px ink rule on the bar's right edge,
+  taking no width.
+- **Key:** the key in force as a 44px letter in the title face — it *is* the
+  freeform "set key as" field — with `detected Am · 61% · set ↻` small beside
+  it. Same behaviour as the Analyse panel's Detect/Set, which remain.
+- **Chord selector:** an inverted block (`--panel` / `--panel-ink`) at the
+  bottom — docked (sticky) on desktop when the selector is on, and in Play
+  mode; on phones it is the bar drawer, wearing the same skin. The rotating
+  heading is the control; the other sets are listed muted beside it; USED
+  stays on its own line. Pills are 46px, `--panel-rule` hairline,
+  `--radius-selector`. **Behaviour, rows, rotation, shortcuts and placement
+  are unchanged** — this is a skin.
 
-```
-text-[9px] uppercase tracking-[0.14em] text-muted-foreground
-```
+### Create, Lyrics, Final — tokens only (this pass)
 
-(font-family `MONO`). `tracking-[0.14em]` is the one tracking value this
-pattern uses — 49 occurrences, unified from five competing values (`0.12em`,
-`tracking-widest`, `0.1em`, `wide`, `wider`) that had drifted in from being
-hand-copied rather than shared. Two `0.1em` exceptions remain deliberately:
-the 7px/8px chord-quality hints in `ChordChip`/`ChordRowGrid`, below this
-pattern's own size floor, where the standard tracking reads as too loose to
-stay legible at that size. `tracking-widest`/`wide`/`wider` also survive on a
-few elements that only resemble this pattern at a glance — the "SongSheet"
-wordmark, a decorative `· · ·` separator, the primary tab bar, and one
-accent-coloured badge — none of which are actually the same convention.
+These screens keep their existing layout and take the theme through the
+token mapping below. What a later layout pass would change:
 
-`FL` (`src/components/common/FL.tsx`) is the shared implementation:
+- **Create:** drop the card boxes for ruled sections on the 56px grid, labels
+  (`story`, `notes`, `notebook`…) in the left column.
+- **Lyrics:** section headers into the label column (as the Chords rows),
+  lyric text in the content column; the add-section chips as the Chords
+  screen's `add` line; tool panels as ruled rows rather than boxes.
+- **Final:** section labels in the left column, sheet in the right; on phones,
+  chord-over-syllable units that wrap together (flex-wrap of
+  chord+syllable pairs) instead of fixed `ch` positions, with inline chords as
+  a fallback — the single biggest phone improvement left.
+- **Fretboard identifier:** lose its box; tuning controls as a `tuning` row.
+- Floating ✦ button: rises above the selector dock when the dock is showing.
 
-```tsx
-export function FL({ children, className = "block text-muted-foreground mb-0.5" }: { children: React.ReactNode; className?: string }) {
-  return <span className={`text-[9px] uppercase tracking-[0.14em] ${className}`} style={{ fontFamily: MONO }}>{children}</span>;
-}
-```
+## Tokens
 
-Only the size/case/tracking triple is fixed; colour (usually a
-`text-muted-foreground` opacity variant), spacing, and display (`block` for a
-stacked field label, nothing for an inline flex-row label) come from
-`className`. It's in active use — 25 call sites and counting — rather than
-the one-file/two-use component it had drifted into being; see the git log for
-the state before this consolidation.
+Defined per theme in `src/lib/theme/themes.ts` (the one source of truth),
+resolved to CSS custom properties on `:root` by `src/lib/theme/apply.ts`.
+`styles/theme.css` carries Swiss as the pre-script default.
 
-A slightly larger `text-[10px]` variant of the same pattern is used for
-section/collapsible headers (see `CollapsibleSection.tsx`), otherwise
-identical: uppercase, `tracking-[0.14em]`, `text-muted-foreground`, mono. It
-predates `FL` and stays a separate size, not a second prop on it.
+| Token | Use |
+|---|---|
+| `--bg` `--ink` `--muted-ink` | page, text, secondary text |
+| `--rule` / `--rule-soft` | section rules (ink) / hairlines (14% black or 18% white) |
+| `--accent-fill` | discs, dots, the Play knob, caret — never text |
+| `--accent-text` | accent as text: the accent, darkened/lightened until it reads 4.5:1 |
+| `--panel` `--panel-ink` `--panel-muted` `--panel-rule` | the inverted selector block |
+| `--font-display` `--font-body` `--font-label` `--font-title` | chord names / prose & structure / interface / title & key |
+| `--font-sheet` | **always monospace** — the Final tab aligns chords to lyric letters in `ch` |
+| `--title-weight` `--title-tracking` `--chord-tracking` | type character |
+| `--radius-selector` | the selector pills — each theme's one shape signature |
+| `--fn-home` `--fn-lift` `--fn-pull` (+ `-panel`) | chord-function marks, contrast-adjusted per surface |
+| `--sec-<type>` | section tints for Lyrics/Final headers: a hue mixed into `--bg` |
 
-## Colour tokens
+The shadcn/Tailwind variables the app was written against are **mapped from
+these** (`--background`=bg, `--foreground`=ink, `--muted-foreground`=muted,
+`--border`=rule-soft, `--accent`=accent-text, `--card`/`--muted`/`--secondary`
+= ink mixed into bg at 4/9/7%, `--radius` from the theme's base radius), which
+is why every existing `bg-background` / `text-foreground` / `border-border`
+class follows the theme untouched.
 
-Defined in `src/styles/theme.css` as CSS custom properties, consumed via
-Tailwind's `@theme inline` mapping (`bg-background`, `text-foreground`,
-`border-border`, etc.) — light theme is the only theme actually designed
-(`--background: #F5F1EB`, warm off-white paper; `--foreground: #1C1814`,
-near-black ink); a `.dark` block exists with oklch-based shadcn defaults
-but nothing in the app currently switches into it.
+Fonts are roles, not families: `MONO` = label, `SANS`/`SERIF` = body,
+`DISPLAY`, `TITLE`, `SHEET` in `data/constants.ts` are `var(--font-…)`
+strings. Never name a family in a component.
 
-- **`accent`** (`#C4A882`, warm tan/gold) — the one colour used for active/
-  interactive emphasis: focus rings (`focus:border-accent`), hover states
-  on otherwise-muted controls, the object-writing sparkle glyph (`✦`).
-  Used sparingly — most of the UI is deliberately monochrome (foreground/
-  muted-foreground/border), with `accent` reserved for "this is live/
-  selected/interactive right now."
-- **`muted-foreground` opacity ladder** — rather than a fixed set of grey
-  tokens, most secondary text uses `text-muted-foreground` with a Tailwind
-  opacity modifier, chosen per-context along a soft ladder:
-  `/70` → `/60` → `/50` → `/40` → `/30` (with occasional finer steps —
-  `/35`, `/45`, `/55`, `/65` — where a component needed something between).
-  Convention: **less important or more "chrome-like" text gets a lower
-  opacity**. Roughly: `/60`–`/70` for secondary-but-readable labels,
-  `/40`–`/50` for placeholder-adjacent or de-emphasized text, `/30` and
-  below for barely-there decorative text (e.g. dimmed word-cloud entries,
-  disabled-looking chrome).
-- Section-type background tints (`SCOL` in `src/data/constants.ts`) are
-  hard-coded hex values per `SectionType` (e.g. `bg-[#CDD4CE]` for verse),
-  not theme tokens — a separate, muted pastel palette used only for
-  section-block backgrounds in the chord grid and stress-analysis views.
+**Font loading:** one `<link id="theme-fonts">`, swapped on theme change, so
+only the active theme's families are ever requested. `index.html`'s boot
+script applies the cached theme (variables, `color-scheme`, `theme-color`,
+font link) before the app loads, so a dark theme never flashes light.
 
-## Borders & radius
+## Themes
 
-- **`border-border`** is the only border colour used throughout (itself
-  `rgba(28, 24, 20, 0.14)` — a low-opacity tint of the foreground ink, so
-  it reads correctly against the warm paper background without a separate
-  grey token).
-- **`rounded-sm`** is the default radius everywhere (buttons, panels,
-  dialogs, input underlines-as-boxes) — 87 occurrences vs. 17 `rounded-full`
-  (pills/badges/dots — sense badges, status dots, chord chips) and 5
-  `rounded-md` (a handful of larger containers). When in doubt, `rounded-sm`.
-  A fourth, undocumented token — bare `rounded` (Tailwind's default, a
-  different value from `rounded-sm`) — had crept into 14 places, mostly
-  `FinalSectionView`'s chord-editing toolbar; swept to `rounded-sm`, so
-  there are three radius tokens in the app, not four.
+| | bg | ink | accent → as text | panel | display / label / title | title | radius |
+|---|---|---|---|---|---|---|---|
+| **Swiss** (default) | #F5F4F0 | #111111 | #D3271C | #111111 | Inter Tight | 800, −0.035em | 0 |
+| **Hi-Fi** | #EDEAE3 | #2A2926 | #D9531E → **#B54519** | #2A2926 | Archivo / IBM Plex Mono / Archivo | 700 | 999px |
+| **Teak** | #F4EFE6 | #2E2B27 | #8A4F2A | #E7DCCB | Jost | 300 | 12px |
+| **Atomic** | #F3E6CC | #4A2E1B | #D9A22B → **#826017** | #4A2E1B | Josefin Sans / — / DM Serif Display | 400 | 999px |
+| **Sleeve** (dark) | #121212 | #F1EDE4 | #3C82D0 | #F1EDE4 | Oswald / Oswald / Oswald, body Work Sans | 700 | 0 |
+| **Radio** (dark) | #2B1D14 | #EFE3C8 | #F2B33D | #1A110B | Barlow / — / Poiret One | 400 | 4px |
+| **Lead Sheet** | #F4EEDF | #1E1C1A | #B3261E | #2A2724 | Courier Prime / — / Special Elite | 400 | 999px |
 
-## Type scale
+Sheet mono per theme: IBM Plex Mono (Swiss, Hi-Fi, Sleeve), DM Mono (Teak,
+Atomic, Radio), Courier Prime (Lead Sheet).
 
-The actual sizes in use, smallest to largest, almost all via Tailwind
-arbitrary values rather than the default `text-sm`/`text-base` scale:
+### Contrast (WCAG, checked by `apply.ts`'s own maths)
 
-`text-[7px]` (rare — chord-quality hints in `ChordRowGrid`, legible only
-because they're single-letter hints) · `text-[8px]` (tightest metadata) ·
-`text-[9px]` (the small-uppercase label pattern) · `text-[10px]` (section
-headers, secondary labels) · `text-[11px]` (small buttons/controls) ·
-`text-xs` (12px — the default body size for most UI text and form inputs) ·
-`text-[13px]`, `text-[14px]`, `text-sm` (a few emphasized spots) ·
-`text-[15px]`, `text-[16px]` · `text-base`, `text-xl` (two uses of Tailwind's
-default scale, both in `AuthModal` — the app's one deviation from the
-custom scale, not corrected here since it's a visual call) · `text-[19px]`,
-`text-[20px]`, `text-[22px]` · `text-[2.6rem]` (the desktop song title).
+All text pairs pass 4.5:1 in all seven themes: ink/bg 10.0–17.2, muted/bg
+5.3–7.1, panel-ink/panel 10.4–17.2, panel-muted/panel 5.1–8.1.
 
-Two clusters of the larger sizes exist on purpose and earn their place:
+What was adjusted (hue kept, lightness moved, by `ensureContrast`):
 
-- **19px/22px** — the fretboard's identified chord name and the analyser's
-  detected key. Both are *the answer the tool exists to give*, deliberately
-  the largest thing in their box. A tool's answer earns size the rest of the
-  interface doesn't reach for.
-- **13px/15px** — mostly mobile, not entirely. Most occurrences are: the
-  mobile-only song title field, the mobile chord picker's input and its
-  chips (`ChordPickerSheet`, `ChordChip`, `MobileChordSection`), and
-  `InspirationStrip`, the phone's entirely separate fragment display —
-  sized for thumbs and a narrower column rather than for the desktop's
-  text-dense default. But not every occurrence: `AnalyseChordsPanel`'s ↻
-  reroll control and `FretboardIdentifier`'s no-match placeholder (paired
-  with the 19px identified-name text above it) are 15px on desktop too, and
-  `InspirationPanel` — the desktop fragment display — uses both 13px and
-  16px for its second- and top-tier fragments. **16px is not the iOS
-  zoom-prevention floor** — that's a `!important` rule in `theme.css` (see
-  Mobile breakpoint, below) that applies to focused `input`/`textarea`
-  regardless of their own font-size class, not a `text-[16px]` utility
-  anywhere; the one literal `text-[16px]` in the codebase is the
-  `InspirationPanel` use just mentioned, unrelated to the floor.
+- **Accent as text** failed in Hi-Fi (3.36) and Atomic (1.86): `--accent-text`
+  is #B54519 (4.56) and #826017 (4.68). The fill colours are untouched.
+- **Chord-function marks** (graphics, 3:1): the ▲ pull yellow #E0AE16 is
+  ~1.8:1 on every light page, so on light pages it becomes an ochre
+  (#AD8611 Swiss, #A47F10 Hi-Fi/Atomic, #A88311 Teak/Lead); on Teak's light
+  panel #9A780F, on Sleeve's light panel #A88311. Atomic's dark-brown panel
+  lifts home/lift to #4F7ED6 / #DC4F45. Everything else keeps the specified
+  #3A6FD1 / #D7372B / #E0AE16.
+- **Text on accent fills:** the UI never puts text on an accent fill (discs,
+  dots and the Play knob carry none). For the record, the best text colour on
+  the accent reaches only 3.6:1 in Hi-Fi; if a later design needs text on the
+  accent there, use `--accent-text` as the fill.
+- **Rules** in Teak (#B98A66, 2.7:1) and Radio (#5A4331, 1.8:1) are
+  decorative separators, not component boundaries, and are left as designed.
 
-Otherwise the interface stays quiet: nothing goes larger than needed for a
-dialog heading or the title field, and every other size is chosen from the
-small custom set above rather than Tailwind's default scale.
+## Chord function marks
 
-## Mobile breakpoint
+`lib/theory/function.ts`, shown when *Show chord function* is on, before the
+name in song rows and selector pills: ● home (I iii vi) · ■ lift (ii IV) ·
+▲ pull (V vii°) · ◆ borrowed (ink). Read through the key in force, using the
+same degree maths as the Nashville numbers. A chord is diatonic when every
+note it sounds — suffix and slash bass included — is in the key's scale.
+Minor keys use the same degree rule (i ♭III ♭VI home, ii° iv lift, v ♭VII
+pull) and allow the raised leading tone on chords built on 5 and 7 (E7, G♯°
+in A minor). Marks are decorative; the numeral beside the name says the
+same thing as text.
 
-`src/app/components/ui/use-mobile.ts` exports `useIsMobile()`, backed by
-`MOBILE_BREAKPOINT = 768` (a `matchMedia` listener on `max-width: 767px`).
-`App.tsx` calls it once (`const isMobile = useIsMobile()`) and threads the
-boolean down as an explicit `isMobile?: boolean` prop through the
-component tree — there is no context/provider, every component that needs
-to branch on mobile layout receives it as a prop from its parent
-(`ChordRowGrid`, `MobileChordSection`, `FinalSectionView`,
-`CollapsibleSection`, `NotebookSection`, `ProductionSection`,
-`StoryAndBigIdea`, `ObjectWritingBox`, `ObjectWritingSection`, `LyricBlock`,
-`VoiceNotesSection`, etc. all take it). Some components (`MobileChordSection`,
-`InspirationStrip`, `FullScreenEditor`) are entirely separate mobile-only
-implementations rather than a single component branching internally — the
-split happens at the call site in `App.tsx`/parent components, not inside a
-shared component via conditional rendering everywhere.
+## Now playing
 
-Two mobile sizes are not free choices:
+In Play mode the sounding chord in a song row gets a 12px `--accent-fill`
+dot before its name and weight 800; the dot moves with the next tap.
+Selector pills and other chords flash instead (`flash()` in
+`lib/audio/PlayContext.tsx`).
 
-- **16px is the floor for anything a phone will focus**, and it is enforced
-  once rather than remembered per field. Below 16px iOS Safari zooms the
-  visual viewport on focus, which carries every `position: fixed` element off
-  screen, and nothing zooms back out. Phase 5 fixed it a field at a time; the
-  object-writing window then reintroduced it, so `src/styles/theme.css` now
-  carries a single `@media (max-width: 767px)` rule raising every focusable
-  `input`/`textarea` to exactly 16px. Three things about it are deliberate:
-  it is scoped to `:not([readonly])`, because `readOnly` is how this app says
-  "tapping me opens the full-screen editor, I never focus" and those boxes
-  are the main reading surfaces; it uses `!important`, because it has to beat
-  Tailwind arbitrary classes and inline `style={{ fontSize }}` and a floor
-  that loses on specificity is not a floor; and it excludes non-text input
-  types, whose font-size means nothing. **You do not need to size new mobile
-  fields by hand** — write the desktop size you want and the rule handles the
-  phone. The small type elsewhere survives precisely because those boxes are
-  `readOnly` on mobile.
-- **`100vh` is wrong on iOS** — it is the height as though no keyboard
-  existed. Anything that must sit above the keyboard is sized from
-  `window.visualViewport` instead (`FullScreenEditor`).
+## Rules that hold in every theme
+
+- **The 16px input floor** (`theme.css`): every focusable field under the
+  mobile breakpoint is forced to 16px so iOS never zooms. The only exemption
+  is `data-large-type`, for fields that set their own size *above* 16px
+  (masthead title, key letter, the picker's typed chord). Never put it on
+  anything that can render smaller.
+- The Final tab's lyric sheet is `--font-sheet` (mono) and the character
+  width is re-measured on theme change and font load.
+- Section rules use `--rule`; hairlines inside a section use `border-border`.
+- `rounded-sm` remains the default corner, now derived from each theme's base
+  radius (0 in Swiss and Sleeve). Pill radius is `--radius-selector` alone.
+- Colour never names a hex in a component. The only hexes left in `src`
+  outside `lib/theme/` are the Word Cloud's own palettes.

@@ -205,7 +205,7 @@ export function VoiceNotesSection({
               <div className="flex items-center gap-2 mb-4">
                 {recording ? (
                   <>
-                    <span className="text-[11px] tabular-nums text-red-500 animate-pulse" style={{ fontFamily: MONO }}>
+                    <span className="text-[11px] tabular-nums text-destructive animate-pulse" style={{ fontFamily: MONO }}>
                       ● {fmtDur(elapsed)} / {fmtDur(MAX_RECORD_SECONDS)}
                     </span>
                     <button onClick={stopRecording} className={btnBase} style={{ fontFamily: MONO }}>Stop</button>

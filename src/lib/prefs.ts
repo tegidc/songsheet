@@ -49,6 +49,7 @@ const listeners = new Set<() => void>();
 const subscribe = (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; };
 
 export function getUiPrefs(): UiPrefs { return prefs; }
+export const subscribeUiPrefs = subscribe;
 
 export function setUiPrefs(next: Partial<UiPrefs>) {
   prefs = { ...prefs, ...next };

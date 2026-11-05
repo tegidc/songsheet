@@ -8,7 +8,33 @@
       <title>Song Notation Worksheet</title>
       <meta name="description" content="Enables songwriters to easily notate lyrics and complete songs with a simple, focused text input interface designed for creative flow." />
       <meta name="robots" content="noindex, nofollow" />
+      <meta name="theme-color" content="#F5F4F0" />
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
       <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
+      <script>
+        // Paint the saved theme before the app loads — its variables, colour
+        // scheme, status-bar colour and fonts — so a dark theme never flashes
+        // light. The cache is written by src/lib/theme/apply.ts; with no cache
+        // the CSS defaults (Swiss) stand and only Swiss's fonts are fetched.
+        (function () {
+          var href = "https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap";
+          try {
+            var c = JSON.parse(localStorage.getItem("songsheet-theme-vars") || "null");
+            if (c && c.vars) {
+              var r = document.documentElement;
+              for (var k in c.vars) r.style.setProperty(k, c.vars[k]);
+              r.dataset.theme = c.id;
+              r.style.colorScheme = c.dark ? "dark" : "light";
+              document.querySelector('meta[name="theme-color"]').content = c.bg;
+              href = c.href || href;
+            }
+          } catch (e) {}
+          var l = document.createElement("link");
+          l.id = "theme-fonts"; l.rel = "stylesheet"; l.href = href;
+          document.head.appendChild(l);
+        })();
+      </script>
       
     </head>
 

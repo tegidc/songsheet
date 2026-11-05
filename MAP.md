@@ -682,6 +682,49 @@ Colour, `z x c v b n m` From Fretboard. The bottom letter row completes the
 geometric shape and costs only two note letters (c, b) where the home row
 would have cost four, leaving A D F G free to type.
 
+### Themes and the Swiss layout (`src/lib/theme/`, `components/chords/swiss.tsx`)
+See STYLE.md for the visual system itself; this is where it lives.
+
+- `lib/theme/themes.ts` — the seven `ThemeDef`s (Swiss default, Hi-Fi, Teak,
+  Atomic, Sleeve, Radio, Lead Sheet): colours, five font roles (display,
+  body, label, title, **sheet — always mono**), weights, tracking, radii, and
+  the Google Fonts families each needs. The single source of truth.
+- `lib/theme/apply.ts` — `themeVars(theme)` resolves a theme to CSS custom
+  properties: its own tokens (`--ink`, `--rule`, `--panel`…) *and* the
+  shadcn/Tailwind variables the app was already written against, which is
+  what makes every existing class follow the theme. `ensureContrast` derives
+  `--accent-text` (4.5:1) and the chord-function colours (3:1 per surface).
+  `applyTheme(id)` writes them to `:root`, sets `color-scheme` and the
+  `theme-color` meta, swaps the one font `<link>`, and caches the result for
+  `index.html`'s pre-paint boot script.
+- `main.tsx` applies the theme outside React and re-applies on change — a
+  theme switch restyles the document without re-rendering anything.
+- `data/constants.ts` — `MONO`/`SANS`/`SERIF`/`DISPLAY`/`TITLE`/`SHEET` are
+  now `var(--font-…)` role names; `SCOL` section tints are `var(--sec-…)`.
+- `lib/prefs.ts` — `theme`, `instrument` and `showFunction` per device
+  (`songsheet-ui-prefs`). Never song data; never saves.
+- `components/chords/swiss.tsx` — the layout's parts: `Row` (the 56px label
+  grid), `sectionLabel`, `FunctionMark`, `NowDot`, `Numeral`, chord-name
+  sizing, and `ChordSelectorPanel`, the inverted selector skin used by the
+  desktop dock and the phone drawer alike.
+- `components/common/Masthead.tsx` — dated masthead and the decorative rings.
+- `components/sidebar/SettingsSection.tsx` — theme swatches, play sound,
+  show chord function; at the foot of `ProjectsSidebar`, and alone in
+  `SettingsOnlySidebar` when signed out.
+- `lib/theory/function.ts` — `romanNumeral` and `chordFunction`, read through
+  the key in force with `nashvilleDegree`, so numerals, Nashville numbers and
+  function marks always agree and all move when the key changes. Uses the
+  playback voicing's `chordTones` (tonal) to hear suffixes and slash basses.
+  `parseChord`/`detectKey`/numbering untouched.
+- **The one selector panel.** Desktop sections no longer each draw their own
+  suggestion panel; `ChordRowGrid` reports its focused bar to `App`
+  (`onActivate` → `activeGridRef`), and the docked `SelectorDock` places into
+  it with the grid's own `applyChordAt` — same placement, same advance, same
+  shortcuts (still handled in the grid's `kd`), one panel.
+- `dev/demo.ts` — development only: `?demo=1` opens a sample song on the
+  Chords tab (refused when a session is stored), `?theme=<id>` previews a
+  theme. Used for the screenshots in `docs/screenshots/` (git-ignored).
+
 ### Play mode (`src/lib/audio/`)
 A **Play** switch on the Chords screen. While it is on, tapping a chord
 anywhere it is drawn sounds it and does nothing else; while it is off, every

@@ -10,15 +10,25 @@ export const SDEFS = [
   { v: "outro"      as SectionType, l: "Outro",      s: "Outro",  k: "o" },
   { v: "custom"     as SectionType, l: "Custom",     s: "§",      k: "x" },
 ];
+// Section-type tints — hues mixed into the theme's page colour (see
+// lib/theme/apply.ts), so they hold up on dark themes as well as light.
 export const SCOL: Record<SectionType, string> = {
-  intro: "bg-[#D8D2C8]", verse: "bg-[#CDD4CE]", "pre-chorus": "bg-[#D4CECD]",
-  chorus: "bg-[#D4C4A4]/60", bridge: "bg-[#CCCAD8]", hook: "bg-[#D4D2C4]",
-  outro: "bg-[#CACDD0]", custom: "bg-[#DDD7CE]",
+  intro: "bg-[var(--sec-intro)]", verse: "bg-[var(--sec-verse)]", "pre-chorus": "bg-[var(--sec-pre-chorus)]",
+  chorus: "bg-[var(--sec-chorus)]", bridge: "bg-[var(--sec-bridge)]", hook: "bg-[var(--sec-hook)]",
+  outro: "bg-[var(--sec-outro)]", custom: "bg-[var(--sec-custom)]",
 };
 export const CW = 64, CH = 40, FS = 12;
-export const MONO = "'DM Mono', monospace";
-export const SANS = "'DM Sans', sans-serif";
-export const SERIF = "'Lora', serif";
+// Font roles. Each is a CSS variable the active theme sets (lib/theme/), so a
+// component names the role and never a family. The names are historical:
+// MONO was always "interface furniture" and SERIF "the songwriter's prose" —
+// see STYLE.md — and they keep those jobs whatever face a theme gives them.
+export const MONO    = "var(--font-label)";    // labels, buttons, metadata
+export const SANS    = "var(--font-body)";     // structural text
+export const SERIF   = "var(--font-body)";     // the songwriter's own words
+export const DISPLAY = "var(--font-display)";  // chord names
+export const TITLE   = "var(--font-title)";    // song title, the key letter
+/** Always monospace: the Final tab aligns chords to lyric letters in `ch`. */
+export const SHEET   = "var(--font-sheet)";
 
 // Editorial-only bar sentinels — stripped before any chord/key analysis
 export const PHRASE_MARKER = "|";   // visible phrase-boundary glyph │

@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { ChevronUp } from "lucide-react";
 import { Drawer, DrawerContent, DrawerTitle, DrawerDescription } from "../../app/components/ui/drawer";
-import { ChordChip } from "./ChordChip";
-import { FL } from "../common/FL";
-import { MONO } from "../../data/constants";
-import type { ChordRow, ChordSuggestion, ChordSuggestionSets } from "../../lib/theory/chords";
-import { CHORD_ROW_HEADING } from "../../lib/theory/chords";
+import type { ChordRow, ChordSuggestionSets } from "../../lib/theory/chords";
+import { ChordSelectorPanel, type Key } from "./swiss";
 
-export function ChordPickerSheet({ open, title, value, suggestions, chordRow, onCycleChordRow, onClose, onSet, onClear, onDelete, onStep, canPrev, canNext, onRemoveFretboardChord }: {
+/**
+ * The phone's chord selector: a drawer opened by tapping a bar. Behaviour is
+ * unchanged — type a chord or tap one, Set advances to the next bar, ‹ › step,
+ * Clear / Delete bar / Done — and it now wears the selector's inverted panel.
+ */
+export function ChordPickerSheet({ open, title, value, suggestions, chordRow, onCycleChordRow, onClose, onSet, onClear, onDelete, onStep, canPrev, canNext, onRemoveFretboardChord, activeKey }: {
   open: boolean; title: string; value: string;
   suggestions: ChordSuggestionSets;
   chordRow: ChordRow; onCycleChordRow: () => void;
@@ -19,77 +21,46 @@ export function ChordPickerSheet({ open, title, value, suggestions, chordRow, on
   onDelete: () => void;
   onStep: (dir: -1 | 1) => void;
   canPrev: boolean; canNext: boolean;
+  activeKey: Key;
 }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => { setDraft(value); }, [value, open]);
 
-  const Chips = ({ items, onRemove }: { items: ChordSuggestion[]; onRemove?: (chord: string) => void }) => (
-    <div className="flex flex-wrap gap-2">
-      {items.map(s => (
-        <ChordChip key={s.chord + s.label} chord={s.chord} label={s.label}
-          onTap={() => onSet(s.chord, true)}
-          onRemove={onRemove ? () => onRemove(s.chord) : undefined} />
-      ))}
-    </div>
-  );
-  const HEADING = "text-[9px] uppercase tracking-[0.14em] text-muted-foreground mb-2";
+  const btn = "text-[13px] lowercase px-3 min-h-10 border border-[var(--panel-rule)] text-[var(--panel-ink)] active:bg-[color-mix(in_srgb,var(--panel-ink)_10%,transparent)] transition-colors";
+  const radius = { borderRadius: "var(--radius-selector)" };
 
   return (
     <Drawer open={open} onOpenChange={o => !o && onClose()}>
-      <DrawerContent className="max-h-[80vh]">
+      <DrawerContent className="max-h-[85vh] bg-[var(--panel)] text-[var(--panel-ink)] border-[var(--panel-rule)]">
         <DrawerTitle className="sr-only">{title}</DrawerTitle>
         <DrawerDescription className="sr-only">Choose a chord for this bar</DrawerDescription>
-        <div className="overflow-y-auto px-4 pb-6 pt-1">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground" style={{ fontFamily: MONO }}>{title}</span>
+        <div className="overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ fontFamily: "var(--font-label)" }}>
+          <div className="flex items-center gap-2 px-5 pt-1 pb-3">
+            <span className="text-[12px] lowercase text-[var(--panel-muted)]">{title}</span>
             <div className="ml-auto flex items-center gap-1">
-              <button onClick={() => onStep(-1)} disabled={!canPrev} title="Previous bar"
-                className="p-1.5 rounded-sm border border-border text-muted-foreground disabled:opacity-25 active:bg-muted transition-colors"><ChevronUp size={13} className="-rotate-90" /></button>
-              <button onClick={() => onStep(1)} disabled={!canNext} title="Next bar"
-                className="p-1.5 rounded-sm border border-border text-muted-foreground disabled:opacity-25 active:bg-muted transition-colors"><ChevronUp size={13} className="rotate-90" /></button>
+              <button onClick={() => onStep(-1)} disabled={!canPrev} title="Previous bar" aria-label="Previous bar"
+                className={`${btn} px-2 disabled:opacity-25`} style={radius}><ChevronUp size={14} className="-rotate-90" /></button>
+              <button onClick={() => onStep(1)} disabled={!canNext} title="Next bar" aria-label="Next bar"
+                className={`${btn} px-2 disabled:opacity-25`} style={radius}><ChevronUp size={14} className="rotate-90" /></button>
             </div>
           </div>
 
           {/* Keyboard input — free editing, always available */}
-          <div className="flex items-center gap-2 mb-4">
-            <input value={draft} onChange={e => setDraft(e.target.value)} autoFocus placeholder="Type a chord…"
+          <div className="flex items-center gap-2 px-5 pb-1">
+            <input value={draft} onChange={e => setDraft(e.target.value)} autoFocus data-large-type placeholder="Type a chord…"
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); onSet(draft.trim(), true); } }}
-              className="flex-1 min-w-0 bg-transparent border border-border rounded-md px-3 py-2 text-[15px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-foreground/40"
-              style={{ fontFamily: MONO }} />
-            <button onClick={() => onSet(draft.trim(), true)}
-              className="shrink-0 px-3 py-2 rounded-md border border-foreground/30 text-[13px] text-foreground bg-muted/40 active:bg-muted transition-colors"
-              style={{ fontFamily: MONO }}>Set</button>
+              className="flex-1 min-w-0 bg-transparent border-b border-[var(--panel-rule)] focus:border-[var(--panel-ink)] px-0 py-2 text-[var(--panel-ink)] placeholder:text-[var(--panel-muted)] focus:outline-none"
+              style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, letterSpacing: "var(--chord-tracking)" }} />
+            <button onClick={() => onSet(draft.trim(), true)} className={btn} style={radius}>set</button>
           </div>
 
-          {/* The rotating slot — the label is the control, same as on desktop */}
-          <div className="mb-4">
-            <button onClick={onCycleChordRow} className={`${HEADING} block active:text-foreground transition-colors`}
-              style={{ fontFamily: MONO }}>
-              {CHORD_ROW_HEADING[chordRow]} ›
-            </button>
-            {suggestions[chordRow].length
-              ? <Chips items={suggestions[chordRow]}
-                  onRemove={chordRow === "fretboard" ? onRemoveFretboardChord : undefined} />
-              : <span className="text-[11px] text-muted-foreground/45 italic" style={{ fontFamily: MONO }}>
-                  {chordRow === "fretboard" ? "Nothing added from the fretboard yet" : "Nothing here yet"}
-                </span>}
-          </div>
+          <ChordSelectorPanel suggestions={suggestions} chordRow={chordRow} onCycleChordRow={onCycleChordRow}
+            onPick={c => onSet(c, true)} activeKey={activeKey} onRemoveFretboardChord={onRemoveFretboardChord} />
 
-          {/* USED stays where it is */}
-          {suggestions.used.length > 0 && (
-            <div className="mb-4">
-              <FL className="block text-muted-foreground mb-2">Used so far</FL>
-              <Chips items={suggestions.used} />
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 pt-2 border-t border-border">
-            <button onClick={onClear}
-              className="text-[12px] px-3 py-1.5 rounded-sm border border-border text-muted-foreground active:bg-muted transition-colors" style={{ fontFamily: MONO }}>Clear</button>
-            <button onClick={onDelete}
-              className="text-[12px] px-3 py-1.5 rounded-sm border border-border text-destructive active:bg-muted transition-colors" style={{ fontFamily: MONO }}>Delete bar</button>
-            <button onClick={onClose}
-              className="ml-auto text-[12px] px-4 py-1.5 rounded-sm border border-foreground/30 text-foreground bg-muted/40 active:bg-muted transition-colors" style={{ fontFamily: MONO }}>Done</button>
+          <div className="flex items-center gap-2 px-5 pt-3 border-t border-[var(--panel-rule)]">
+            <button onClick={onClear} className={btn} style={radius}>clear</button>
+            <button onClick={onDelete} className={btn} style={radius}>delete bar</button>
+            <button onClick={onClose} className={`${btn} ml-auto font-bold`} style={radius}>done</button>
           </div>
         </div>
       </DrawerContent>

@@ -24,8 +24,11 @@ import { StandaloneOWWindow } from "../components/ow/StandaloneOWWindow";
 import { ConfirmDialog } from "../components/common/ConfirmDialog";
 import { FL } from "../components/common/FL";
 import { FullScreenEditor } from "../components/common/FullScreenEditor";
+import { Masthead, Rings } from "../components/common/Masthead";
 import { ProjectsSidebar, SettingsOnlySidebar } from "../components/sidebar/ProjectsSidebar";
-import { PlayPaletteWhenOn, PlayToggle } from "../components/chords/PlayControls";
+import { KeyRow, PlayRow, SelectorDock } from "../components/chords/PlayControls";
+import { Row } from "../components/chords/swiss";
+import type { ActiveGrid } from "../components/chords/ChordRowGrid";
 import { PlayProvider } from "../lib/audio/PlayContext";
 import { WordCloudErrorBoundary } from "../components/wordcloud/WordCloudErrorBoundary";
 import { WordCloudView } from "../components/wordcloud/WordCloudView";
@@ -34,7 +37,9 @@ import { useWordCloudPrefs } from "../lib/wordcloud/prefs";
 import { InspirationPanel } from "../components/tools/InspirationPanel";
 import { RhymePanel } from "../components/tools/RhymePanel";
 import { ThesaurusPanel } from "../components/tools/ThesaurusPanel";
-import { FS, MONO, SANS, SCOL, SDEFS, SERIF, TIMER_OPTS, isEditorialBar } from "../data/constants";
+import { FS, MONO, SANS, SCOL, SDEFS, SERIF, SHEET, TIMER_OPTS, isEditorialBar } from "../data/constants";
+import { useUiPrefs } from "../lib/prefs";
+import { devDemo } from "../dev/demo";
 import { TSIGS } from "../data/music";
 import { newProjectPrefix, parseProjectPrefix, prefixFromDate, projectNameWithPrefix, uid } from "../format";
 import { applyCloudDeleteToEntries, deleteStandaloneOW, fetchOWRow, insertStandaloneOW, saveAsNew, updateOriginal } from "../lib/owCloud";
@@ -59,8 +64,8 @@ export default function App() {
   // translucent fill from the same live palette while the cloud is open.
   const wordCloudPrefs = useWordCloudPrefs();
   const wordCloudPalette = PALETTES[wordCloudPrefs.palette];
-  const [song, setSong]               = useState<Song>(EMPTY_SONG);
-  const [tab, setTab]                 = useState<Tab>("notes");
+  const [song, setSong]               = useState<Song>(() => devDemo()?.song ?? EMPTY_SONG);
+  const [tab, setTab]                 = useState<Tab>(() => devDemo()?.tab ?? "notes");
   const [metaExpanded, setMetaExpanded] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [nashville, setNashville]     = useState(false);
@@ -152,9 +157,17 @@ export default function App() {
 
   const charRef = useRef<HTMLSpanElement>(null);
   const [charWidth, setCharWidth] = useState(8.4);
+  // The Final tab maps a click to a character column with this width, so it is
+  // re-measured whenever the sheet font can have changed: a theme switch, and
+  // each time a web font finishes loading (the fallback mono is a different width).
+  const { theme: themeId } = useUiPrefs();
   useEffect(() => {
-    if (charRef.current) setCharWidth(charRef.current.getBoundingClientRect().width);
-  }, []);
+    const measure = () => { if (charRef.current) setCharWidth(charRef.current.getBoundingClientRect().width); };
+    measure();
+    document.fonts?.ready.then(measure);
+    document.fonts?.addEventListener?.("loadingdone", measure);
+    return () => document.fonts?.removeEventListener?.("loadingdone", measure);
+  }, [themeId]);
 
   // Seed OW word pool from Datamuse on mount (fire-and-forget)
   useEffect(() => { loadOWPool(); }, []);
@@ -791,6 +804,8 @@ export default function App() {
   // set, so cycling from one row does not leave the others disagreeing.
   const [chordRow, setChordRow] = useState<ChordRow>("inKey");
   const cycleRow = useCallback(() => setChordRow(cycleChordRow), []);
+  // The one selector panel places into whichever section last had a bar focused
+  const activeGridRef = useRef<ActiveGrid | null>(null);
   const builtSuggestions = useMemo(() => buildChordSuggestions(activeKey, allChords),
     [activeKey?.key, activeKey?.mode, allChords.join("|")]);
   // The fretboard row is the song's own log, not anything derived from the key
@@ -807,9 +822,9 @@ export default function App() {
 
   return (
     <PlayProvider fretboardChords={song.fretboardChords}>
-    <div className="min-h-screen bg-background" style={{ fontFamily: SANS }}>
+    <div className="min-h-screen bg-background overflow-x-clip" style={{ fontFamily: SANS }}>
       <span ref={charRef} aria-hidden
-        style={{ visibility: "hidden", position: "fixed", top: 0, left: 0, fontFamily: MONO, fontSize: FS + "px", whiteSpace: "pre" }}>0</span>
+        style={{ visibility: "hidden", position: "fixed", top: 0, left: 0, fontFamily: SHEET, fontSize: FS + "px", whiteSpace: "pre" }}>0</span>
 
       {/* Header. Stays put — same wordmark, same icons, same position — even
           while the cloud is open behind it: the cloud passes *behind* the
@@ -818,87 +833,55 @@ export default function App() {
           palette (via CSS-variable overrides, so every existing text-foreground
           / text-muted-foreground / border-border class beneath it just follows
           along) rather than sitting as a bright cream bar over a dark field. */}
+      {/* Header: a thin sticky bar of plain icons — songs & settings, object
+          writing, the word cloud — and the save state. The song's own title
+          lives in the masthead below, not here. Over the word cloud the bar
+          goes translucent and its variables are re-pinned to the cloud's
+          palette, so every token-coloured thing in it follows along. */}
       <header ref={headerRef}
-        className={`sticky top-0 z-20 backdrop-blur-sm px-4 md:px-6 py-3 flex items-center gap-3 md:gap-4 transition-colors ${showWordCloud ? "bg-background/60" : "border-b border-border bg-background/95"}`}
+        className={`sticky top-0 z-20 backdrop-blur-sm px-3 md:px-6 h-12 flex items-center gap-1 transition-colors ${showWordCloud ? "bg-background/60" : "bg-background/95"}`}
         style={showWordCloud ? {
-          "--background": wordCloudPalette.bg,
-          "--foreground": wordCloudPalette.ink,
-          "--muted-foreground": wordCloudPalette.mist,
-          "--accent": wordCloudPalette.accent,
-          "--border": wordCloudPalette.line,
+          "--background": wordCloudPalette.bg, "--bg": wordCloudPalette.bg,
+          "--foreground": wordCloudPalette.ink, "--ink": wordCloudPalette.ink,
+          "--muted-foreground": wordCloudPalette.mist, "--muted-ink": wordCloudPalette.mist,
+          "--accent": wordCloudPalette.accent, "--accent-text": wordCloudPalette.accent, "--accent-fill": wordCloudPalette.accent,
+          "--border": wordCloudPalette.line, "--rule": wordCloudPalette.line, "--rule-soft": wordCloudPalette.line,
         } as CSSProperties : undefined}>
-        <Music size={15} className="text-accent shrink-0" />
-        {/* The wordmark yields to the song title on mobile — there is only room
-            for one of them, and the ♫ already says which app this is. */}
-        <span className={`text-[12px] tracking-widest uppercase text-muted-foreground shrink-0 ${isMobile ? "hidden" : ""}`} style={{ fontFamily: MONO }}>SongSheet</span>
-
-        {/* Sidebar toggle + OW button + sign-in */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Songs and settings — open signed out too, where it holds Settings alone */}
-          {!user && (
-            <button onClick={toggleSidebar}
-              className={`flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 border rounded-sm transition-colors ${showSidebar ? "border-foreground/30 text-foreground bg-muted/40" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"}`}
-              style={{ fontFamily: MONO }} title="Settings" aria-label="Songs and settings">
-              <FolderOpen size={11} />
-            </button>
-          )}
-          {user ? (
-            <>
-              <button onClick={toggleSidebar}
-                className={`flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 border rounded-sm transition-colors ${showSidebar ? "border-foreground/30 text-foreground bg-muted/40" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"}`}
-                style={{ fontFamily: MONO }} title="Projects">
-                <FolderOpen size={11} />
-              </button>
-              <button onClick={() => setShowGlobalOW(true)}
-                className="flex items-center justify-center text-[14px] px-2.5 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-accent hover:border-accent/40 transition-colors leading-none"
-                title="New Object Writing session">
-                ✦
-              </button>
-              {/* Unused thoughts from object writing and notes, as a drifting
-                  particle cloud. Outlined cloud with three filled dots reads
-                  as particles rather than weather or file storage. */}
-              <button onClick={() => setShowWordCloud(v => !v)}
-                className={`flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 border rounded-sm transition-colors ${showWordCloud ? "border-foreground/30 text-foreground bg-muted/40" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"}`}
-                title="Word cloud">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <button onClick={toggleSidebar} aria-label="Songs and settings" aria-pressed={showSidebar}
+          title={user ? "Songs" : "Settings"}
+          className={`w-11 h-11 -ml-1 flex items-center justify-center transition-colors ${showSidebar ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M3 6h7l2 2h9v11H3z" /></svg>
+        </button>
+        {user ? (
+          <>
+            <button onClick={() => setShowGlobalOW(true)} aria-label="New object writing session"
+              className="w-11 h-11 flex items-center justify-center text-[17px] leading-none text-muted-foreground hover:text-foreground transition-colors"
+              title="New Object Writing session">✦</button>
+            {/* Unused thoughts from object writing and notes, as a drifting particle cloud */}
+            <button onClick={() => setShowWordCloud(v => !v)} aria-label="Word cloud" aria-pressed={showWordCloud}
+              className={`w-11 h-11 flex items-center justify-center transition-colors ${showWordCloud ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              title="Word cloud">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M6.8 18.5a3.8 3.8 0 0 1-.5-7.57 5 5 0 0 1 9.63-1.6A3.9 3.9 0 0 1 17.6 18.5z" />
                   <circle cx="9.6" cy="14.6" r="0.9" fill="currentColor" stroke="none" />
                   <circle cx="13.4" cy="13.2" r="0.9" fill="currentColor" stroke="none" />
                   <circle cx="12.4" cy="16.4" r="0.9" fill="currentColor" stroke="none" />
                 </svg>
-              </button>
-            </>
-          ) : (
-            <button onClick={() => setAuthModal(true)}
-              className="flex items-center gap-1.5 text-[12px] px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
-              style={{ fontFamily: MONO }}>
-              <LogIn size={11} /> Sign in to save
             </button>
-          )}
-        </div>
-
-        {/* The song title, on mobile only — it lives here rather than at the top
-            of the sheet so the page starts on the work itself, and so it can
-            never be the thing the sticky header scrolls over and clips.
-            `leading-normal` and the header's own py-3 give the ascenders room. */}
-        {isMobile && (
-          <input value={song.title} onChange={e => updateSong({ title: e.target.value })} placeholder="Untitled Song"
-            aria-label="Song title"
-            className="flex-1 min-w-0 bg-transparent text-[15px] leading-normal text-foreground placeholder:text-muted-foreground/30 focus:outline-none border-b border-transparent focus:border-border transition-colors"
-            style={{ fontFamily: SERIF, fontWeight: 500 }} />
+          </>
+        ) : (
+          <button onClick={() => setAuthModal(true)}
+            className="flex items-center gap-1.5 text-[13px] px-2 min-h-11 text-muted-foreground hover:text-foreground transition-colors lowercase"
+            style={{ fontFamily: MONO }}>
+            <LogIn size={13} /> sign in to save
+          </button>
         )}
 
-        {/* Auto-save indicator — right side */}
-        <div className="ml-auto flex items-center gap-2 shrink-0">
-          {autoSaveState === "saving" && (
-            <span className="text-[10px] text-muted-foreground/60" style={{ fontFamily: MONO }}>Auto-saving…</span>
-          )}
-          {autoSaveState === "saved" && (
-            <span className="text-[10px] text-accent/80" style={{ fontFamily: MONO }}>Saved ✓</span>
-          )}
-          {autoSaveState === "error" && (
-            <span className="text-[10px] text-destructive" style={{ fontFamily: MONO }}>Save failed — check console</span>
-          )}
+        <div className="ml-auto flex items-center gap-3 shrink-0 text-[11px] lowercase" style={{ fontFamily: MONO }}>
+          {autoSaveState === "saving" && <span className="text-muted-foreground">saving…</span>}
+          {autoSaveState === "saved" && <span className="text-muted-foreground">saved ✓</span>}
+          {autoSaveState === "error" && <span className="text-destructive">save failed — check console</span>}
+          {!isMobile && <span className="text-muted-foreground tracking-[0.14em]">songsheet</span>}
         </div>
       </header>
 
@@ -961,35 +944,20 @@ export default function App() {
       )}
       {/* The mobile tools strip is fixed under the header, so the sheet starts
           below it rather than underneath it. */}
-      <main className="flex-1 min-w-0 max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-10"
-        style={isMobile && tab === "lyrics" ? { paddingTop: STRIP_H + 16 } : undefined}>
-        {/* Song meta */}
+      <main className="relative isolate flex-1 min-w-0 max-w-4xl mx-auto px-5 md:px-8 pt-5 pb-8 md:pt-8"
+        style={isMobile && tab === "lyrics" ? { paddingTop: STRIP_H + 20 } : undefined}>
+        <Rings />
+        {/* Song meta: the masthead, then the details behind one quiet line */}
         {(() => { return (
-        <section className="mb-4 md:mb-10">
-          <div className="flex items-center gap-2">
-            {/* On mobile the title is in the header; what is left here is the
-                way into the song's details. */}
-            {isMobile ? (
-              <span className="flex-1 min-w-0 truncate text-[11px] text-muted-foreground/60" style={{ fontFamily: MONO }}>
-                {[song.artist, song.key, song.tempo && `${song.tempo}bpm`, song.timeSignature].filter(Boolean).join(" · ") || "Song details"}
-              </span>
-            ) : (
-              <input value={song.title} onChange={e => updateSong({ title: e.target.value })} placeholder="Untitled Song"
-                className="flex-1 min-w-0 bg-transparent text-[2.6rem] leading-tight text-foreground placeholder:text-muted-foreground/25 focus:outline-none border-b border-transparent focus:border-border pb-1 mb-1 transition-colors"
-                style={{ fontFamily: SERIF, fontWeight: 500 }} />
-            )}
-            <button onClick={() => setMetaExpanded(v => !v)}
-              className="shrink-0 text-muted-foreground/50 hover:text-foreground transition-colors p-1.5"
-              title={metaExpanded ? "Hide song details" : "Show song details"}>
-              <ChevronDown size={16} className={`transition-transform ${metaExpanded ? "rotate-180" : ""}`} />
+        <section className="relative mb-2">
+          <Masthead title={song.title} onTitle={t => updateSong({ title: t })} prefix={currentProjectPrefixRef.current}>
+            <button onClick={() => setMetaExpanded(v => !v)} aria-expanded={metaExpanded}
+              className="mt-2 flex items-center gap-1 max-w-full text-[12px] text-muted-foreground hover:text-foreground transition-colors min-h-9 text-left"
+              style={{ fontFamily: MONO }} title={metaExpanded ? "Hide song details" : "Show song details"}>
+              <span className="truncate">{[song.artist, song.key, song.tempo && `${song.tempo}bpm`, song.timeSignature].filter(Boolean).join(" · ") || "song details"}</span>
+              <ChevronDown size={13} className={`shrink-0 transition-transform ${metaExpanded ? "rotate-180" : ""}`} />
             </button>
-          </div>
-          {/* Collapsed summary line — desktop only; on mobile it is the row above */}
-          {!isMobile && !metaExpanded && (song.artist || song.key || song.tempo) && (
-            <div className="text-[11px] text-muted-foreground/60 truncate" style={{ fontFamily: MONO }}>
-              {[song.artist, song.key, song.tempo && `${song.tempo}bpm`, song.timeSignature].filter(Boolean).join(" · ")}
-            </div>
-          )}
+          </Masthead>
 
           {metaExpanded && <>
           <input value={song.artist} onChange={e => updateSong({ artist: e.target.value })} placeholder="Artist / Writer"
@@ -1071,16 +1039,18 @@ export default function App() {
         </section>
         ); })()}
 
-        {/* Tabs */}
-        <div className="flex gap-6 border-b border-border mb-6 md:mb-8">
+        {/* Tabs: lower-case, the active one heavier and in ink, a rule beneath */}
+        <nav className="relative grid gap-x-3 border-b border-[var(--rule)] mt-4 mb-0" role="tablist"
+          style={{ gridTemplateColumns: "56px repeat(4, minmax(0, 1fr))", fontFamily: MONO }}>
+          <span aria-hidden className="text-[12px] py-3 text-foreground">→</span>
           {(["notes","lyrics","chords","final"] as Tab[]).map(t => (
-            <button key={t} onClick={() => switchTab(t)}
-              className={`pb-2 text-xs capitalize tracking-wide transition-colors ${tab === t ? "border-b-2 border-foreground text-foreground font-medium" : "text-muted-foreground hover:text-foreground"}`}
-              style={{ marginBottom: -1, fontFamily: SANS }}>
+            <button key={t} role="tab" aria-selected={tab === t} onClick={() => switchTab(t)}
+              className={`text-left py-3 min-h-11 text-[13px] lowercase transition-colors ${tab === t ? "font-extrabold text-foreground" : "font-medium text-muted-foreground hover:text-foreground"}`}>
               {t === "notes" ? "create" : t}
             </button>
           ))}
-        </div>
+        </nav>
+        {tab !== "chords" && <div className="mb-6 md:mb-8" />}
 
         {/* ── Lyrics ── */}
         {tab === "lyrics" && (
@@ -1163,31 +1133,27 @@ export default function App() {
         {/* ── Chords ── */}
         {tab === "chords" && (
           <div>
-            <div className="flex flex-wrap items-center gap-3 mb-4">
-              <PlayToggle />
-              <button onClick={() => setShowAnalysis(p => !p)}
-                className={`flex items-center gap-1.5 text-[12px] px-3 py-1.5 border rounded-sm transition-colors ${showAnalysis ? "border-foreground/30 text-foreground bg-muted/40" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"}`}
-                style={{ fontFamily: MONO }}>
-                Analyse chords
-              </button>
-              <div className="flex items-center gap-2 ml-auto">
-                <button onClick={() => setShowChordSuggest(v => !v)} title="Toggle chord selector"
-                  className={`flex items-center gap-1.5 text-[12px] px-3 py-1.5 border rounded-sm transition-colors ${showChordSuggest ? "border-foreground/30 text-foreground bg-muted/40" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"}`}
-                  style={{ fontFamily: MONO }}>
-                  <Music2 size={11} />Chord Selector
-                </button>
-                <button onClick={() => setNashville(n => !n)} title="Toggle Nashville Number System"
-                  className={`text-[12px] px-3 py-1.5 border rounded-sm transition-colors ${nashville ? "border-foreground/30 text-foreground bg-muted/40" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"}`}
-                  style={{ fontFamily: MONO }}>
-                  {nashville ? "Chords" : "# Nashville"}
-                </button>
+            <PlayRow />
+
+            {/* View tools: quiet text toggles, bold when on */}
+            <Row label="view" align="center" className="py-1">
+              <div className="flex flex-wrap items-center gap-x-4 text-[13px]" style={{ fontFamily: MONO }}>
+                {([
+                  ["analyse", showAnalysis, () => setShowAnalysis(p => !p), "Analyse chords"],
+                  ...(!isMobile ? [["selector", showChordSuggest, () => setShowChordSuggest(v => !v), "Toggle chord selector"]] as const : []),
+                  ...(!isMobile ? [["nashville", nashville, () => setNashville(n => !n), "Toggle Nashville Number System"]] as const : []),
+                ] as const).map(([label, on, toggle, title]) => (
+                  <button key={label} onClick={toggle} title={title} aria-pressed={on}
+                    className={`py-2.5 transition-colors ${on ? "font-bold text-foreground" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>
+                ))}
+                {sameFirst && <span className="flex items-center gap-1 text-[12px] text-destructive py-2.5">
+                  <AlertCircle size={11} /> verse & chorus share first chord
+                </span>}
               </div>
-              {sameFirst && <span className="flex items-center gap-1 text-[12px] text-red-500" style={{ fontFamily: MONO }}>
-                <AlertCircle size={11} /> verse & chorus share first chord
-              </span>}
-            </div>
+            </Row>
 
             {showAnalysis && (
+              <div className="py-4 border-b border-[var(--rule)]">
               <AnalyseChordsPanel
                 song={song}
                 activeKey={activeKey}
@@ -1230,26 +1196,15 @@ export default function App() {
                 onSetKey={key => updateSong({ key })}
                 onRedetect={() => setPinnedSuggestion(liveDetected)}
                 onClose={() => setShowAnalysis(false)} />
+              </div>
             )}
 
-            <div className="border border-border rounded-sm overflow-hidden mb-6">
-              {!isMobile && (
-                <div className="flex border-b border-border bg-muted/40">
-                  <div className="shrink-0 border-r border-border px-3 py-1.5" style={{ width: 136 }}>
-                    <FL className="text-muted-foreground">Section</FL>
-                  </div>
-                  <div className="flex-1 px-3 py-1.5">
-                    <FL className="text-muted-foreground">
-                      Bars · Tab adds · ← → navigate · Backspace on empty removes
-                    </FL>
-                  </div>
-                </div>
-              )}
-              {song.sections.length === 0 && (
-                <div className="px-6 py-8 text-center text-xs text-muted-foreground" style={{ fontFamily: SERIF, fontStyle: "italic" }}>
-                  Add a section below.
-                </div>
-              )}
+
+            {song.sections.length === 0 && (
+              <Row label="" className="py-6">
+                <p className="text-[13px] text-muted-foreground italic" style={{ fontFamily: SERIF }}>Add a section below.</p>
+              </Row>
+            )}
               {isMobile && song.sections.map((s, i) => (
                 <MobileChordSection key={s.id} section={s} idx={i} total={song.sections.length}
                   onBarsChange={bars => updateSection(s.id, { chordBars: bars })}
@@ -1285,8 +1240,7 @@ export default function App() {
                   warnFirst={!!sameFirst && (s.type === "verse" || s.type === "chorus")}
                   nashville={nashville} songKey={activeKeyName}
                   suggestions={pickerSuggestions} showSuggest={showChordSuggest}
-                  chordRow={chordRow} onCycleChordRow={cycleRow}
-                  onRemoveFretboardChord={removeFretboardChord}
+                  onActivate={g => { activeGridRef.current = g; }}
                   onCopyBars={() => setChordsClipboard([...s.chordBars])}
                   onPasteBars={chordsClipboard ? () => updateSection(s.id, { chordBars: [...chordsClipboard] }) : null}
                   onRepeatBars={() => {
@@ -1294,29 +1248,38 @@ export default function App() {
                     if (ne.length) updateSection(s.id, { chordBars: [...s.chordBars, ...ne] });
                   }} />
               ))}
-            </div>
-            {/* Play mode's pills, wherever the selector isn't already showing */}
-            {(isMobile || !showChordSuggest) && (
-              <PlayPaletteWhenOn suggestions={pickerSuggestions} chordRow={chordRow} onCycleChordRow={cycleRow} />
-            )}
-            <div className="flex flex-wrap gap-2">
-              {SDEFS.map(t => (
-                <button key={t.v} onClick={() => addSection(t.v)} title={`Add ${t.l} (Alt+${t.k.toUpperCase()})`}
-                  className={`${SCOL[t.v]} flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-sm border border-border text-foreground/70 hover:text-foreground hover:border-foreground/30 transition-colors`}
-                  style={{ fontFamily: MONO }}>
-                  <Plus size={10} />{t.l}
-                  <kbd className="ml-0.5 text-[8px] text-muted-foreground/50 border border-border/50 rounded-sm px-0.5 leading-none" style={{ fontFamily: MONO }}>⌥{t.k}</kbd>
-                </button>
-              ))}
-            </div>
 
-            {/* Underneath the chords box: build a shape, and be told what it is */}
+            <KeyRow songKey={song.key} activeKey={activeKey} suggestion={suggestion}
+              onSetKey={key => updateSong({ key })} onRedetect={() => setPinnedSuggestion(liveDetected)} />
+
+            {/* Add a section: one quiet line of words */}
+            <Row label="add" align="center" className="py-1 border-t border-[var(--rule)]">
+              <div className="flex flex-wrap gap-x-4 text-[13px]" style={{ fontFamily: MONO }}>
+                {SDEFS.map(t => (
+                  <button key={t.v} onClick={() => addSection(t.v)} title={`Add ${t.l} (Alt+${t.k.toUpperCase()})`}
+                    className="py-2.5 lowercase text-muted-foreground hover:text-foreground transition-colors">
+                    {t.l}{!isMobile && <span className="ml-1 text-[9px] text-muted-foreground/70">⌥{t.k}</span>}
+                  </button>
+                ))}
+              </div>
+            </Row>
+
+            <SelectorDock visible={!isMobile && showChordSuggest}
+              suggestions={pickerSuggestions} chordRow={chordRow} onCycleChordRow={cycleRow}
+              activeKey={activeKey} onRemoveFretboardChord={removeFretboardChord}
+              showKeys={!isMobile}
+              hint={!isMobile ? "click a bar, then a chord or its key · tab adds a bar · ← → move · backspace on empty removes" : undefined}
+              onPick={chord => activeGridRef.current?.apply(chord)} />
+
+            <div className="mt-8">
+              {/* Underneath the chords box: build a shape, and be told what it is */}
             <FretboardIdentifier
               initialTuning={song.fretboardTuning}
               onSaveTuning={t => updateSong({ fretboardTuning: t })}
               onAddChord={addFretboardChord}
               canSave={!!user}
               isMobile={isMobile} />
+            </div>
           </div>
         )}
 

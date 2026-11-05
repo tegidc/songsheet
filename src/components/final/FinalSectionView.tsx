@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { Drawer, DrawerContent, DrawerTitle, DrawerDescription } from "../../app/components/ui/drawer";
-import { FS, MONO, SCOL } from "../../data/constants";
+import { FS, MONO, SCOL, SHEET } from "../../data/constants";
 import { uid } from "../../format";
 import { resolveOverlaps, sortCP } from "../../lib/theory/layout";
 import type { CP, Section } from "../../types";
@@ -187,7 +187,7 @@ export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
         </div>
       )}
 
-      <div style={{ fontFamily: MONO, fontSize: FS }}>
+      <div style={{ fontFamily: SHEET, fontSize: FS }}>
         {lines.map((line, li) => {
           // Mobile forces the lyric-line input to 16px (theme.css's zoom-prevention
           // floor) while this chord row still positions with `ch` units at the
@@ -204,7 +204,7 @@ export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
               onTouchEnd={isMobile ? e => handleRowTap(e, li) : undefined}>
               {lineChords(li).map(cp => (
                 <span key={cp.id}
-                  style={{ position: "absolute", left: `${cp.charIdx}ch`, fontFamily: MONO, fontSize: chordFS, top: -2, whiteSpace: "nowrap" }}
+                  style={{ position: "absolute", left: `${cp.charIdx}ch`, fontFamily: SHEET, fontSize: chordFS, top: -2, whiteSpace: "nowrap" }}
                   className={`cursor-pointer transition-colors px-1 py-1 rounded-sm ${selId === cp.id ? "text-foreground bg-accent/20" : "text-accent hover:bg-accent/10"}`}
                   onClick={e => {
                     e.stopPropagation();
@@ -218,7 +218,7 @@ export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
                       onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setEditId(null); }}
                       autoFocus
                       className="bg-transparent focus:outline-none border-b border-accent text-foreground"
-                      style={{ width: `${Math.max(cp.chord.length + 1, 3)}ch`, fontFamily: MONO, fontSize: chordFS }} />
+                      style={{ width: `${Math.max(cp.chord.length + 1, 3)}ch`, fontFamily: SHEET, fontSize: chordFS }} />
                   ) : cp.chord}
                 </span>
               ))}
@@ -227,17 +227,17 @@ export function FinalSectionView({ section, charWidth, onUpdate, isMobile }: {
                   onBlur={commitAdd} onKeyDown={e => { if (e.key === "Enter") commitAdd(); if (e.key === "Escape") setAddAt(null); }}
                   autoFocus placeholder="chord"
                   className="absolute bg-background border border-accent/60 rounded-sm px-1 focus:outline-none text-foreground placeholder:text-muted-foreground/40"
-                  style={{ left: `${addAt.ci}ch`, top: 0, width: "5ch", fontFamily: MONO, fontSize: FS, height: 20 }} />
+                  style={{ left: `${addAt.ci}ch`, top: 0, width: "5ch", fontFamily: SHEET, fontSize: FS, height: 20 }} />
               )}
             </div>
             {editLine === li ? (
               <input value={line} onChange={e => updateLine(li, e.target.value)}
                 onBlur={() => setEditLine(null)} onKeyDown={e => { if (e.key === "Escape") setEditLine(null); }}
                 autoFocus className="bg-transparent focus:outline-none border-b border-border text-foreground w-full"
-                style={{ fontFamily: MONO, fontSize: FS, lineHeight: 1.6 }} />
+                style={{ fontFamily: SHEET, fontSize: FS, lineHeight: 1.6 }} />
             ) : (
               <div onClick={() => setEditLine(li)} className="cursor-text text-foreground"
-                style={{ fontFamily: MONO, fontSize: FS, lineHeight: 1.6, whiteSpace: "pre", minHeight: "1.6em" }}>
+                style={{ fontFamily: SHEET, fontSize: FS, lineHeight: 1.6, whiteSpace: "pre", minHeight: "1.6em" }}>
                 {line || " "}
               </div>
             )}

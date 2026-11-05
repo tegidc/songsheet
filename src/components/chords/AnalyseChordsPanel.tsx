@@ -80,7 +80,7 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
   );
 
   return (
-    <div className="mb-5 border border-border rounded-sm overflow-hidden bg-card">
+    <div className="border border-border rounded-sm overflow-hidden bg-card">
       {/* Segment header */}
       <div className="px-4 py-2.5 border-b border-border bg-muted/30 flex items-center gap-2">
         <FL className="text-muted-foreground">
@@ -266,7 +266,7 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
                 {/* Bar grid — respects ROW_BREAK rows to match section formatting */}
                 <div className="rounded-sm border border-border/40 overflow-hidden"
                   style={{
-                    backgroundImage: `radial-gradient(circle, rgba(28,24,20,0.11) 1px, transparent 1px)`,
+                    backgroundImage: `radial-gradient(circle, var(--rule-soft) 1px, transparent 1px)`,
                     backgroundSize: `${CW}px ${CH}px`,
                   }}>
                   {(() => {
@@ -348,7 +348,7 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
                 {/* Bar grid */}
                 <div className="flex overflow-x-auto rounded-sm border border-border/40"
                   style={{
-                    backgroundImage: `radial-gradient(circle, rgba(28,24,20,0.11) 1px, transparent 1px)`,
+                    backgroundImage: `radial-gradient(circle, var(--rule-soft) 1px, transparent 1px)`,
                     backgroundSize: `${CW}px ${CH}px`,
                     scrollbarWidth: "none",
                   }}>

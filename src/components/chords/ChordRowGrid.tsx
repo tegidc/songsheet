@@ -1,16 +1,19 @@
 import { useState, useRef } from "react";
-import { Plus, Trash2, Copy, ChevronDown, ChevronUp, Repeat2, ClipboardPaste, X } from "lucide-react";
+
+/** What the one chord selector panel needs from whichever section has the focused bar. */
+export interface ActiveGrid { sectionId: string; apply: (chord: string) => void }
+import { Trash2, Copy, ChevronDown, ChevronUp, Repeat2, ClipboardPaste } from "lucide-react";
 import { BarCell } from "./BarCell";
-import { CH, CW, MONO, PHRASE_MARKER, ROW_BREAK, SCOL, isEditorialBar } from "../../data/constants";
-import type { ChordRow, ChordSuggestion, ChordSuggestionSets } from "../../lib/theory/chords";
-import { CHORD_ROW_HEADING, CHORD_ROW_KEYS, inKey } from "../../lib/theory/chords";
+import { MONO, PHRASE_MARKER, ROW_BREAK, isEditorialBar } from "../../data/constants";
+import type { ChordSuggestionSets } from "../../lib/theory/chords";
+import { CHORD_ROW_KEYS, inKey } from "../../lib/theory/chords";
+import { Row, sectionLabel } from "./swiss";
 import type { Section } from "../../types";
 import { flash, usePlay } from "../../lib/audio/PlayContext";
 
 export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelChange,
   onDuplicate, onDelete, onMove, onToggleNaming, namingStyle, activeKey, warnFirst, nashville, songKey,
-  onCopyBars, onPasteBars, onRepeatBars, suggestions, showSuggest, chordRow, onCycleChordRow,
-  onRemoveFretboardChord }: {
+  onCopyBars, onPasteBars, onRepeatBars, suggestions, showSuggest, onActivate }: {
   section: Section; idx: number; total: number;
   onBarsChange: (b: string[]) => void; onShortLabelChange: (v: string) => void;
   onDuplicate: () => void; onDelete: () => void; onMove: (dir: -1|1) => void;
@@ -19,10 +22,10 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
   nashville?: boolean; songKey?: string;
   onCopyBars: () => void; onPasteBars: (() => void) | null; onRepeatBars: () => void;
   suggestions?: ChordSuggestionSets;
+  /** The selector is open, so its keyboard shortcuts are live. */
   showSuggest?: boolean;
-  chordRow: ChordRow; onCycleChordRow: () => void;
-  /** Prune the song's fretboard log. Only the From Fretboard row offers it. */
-  onRemoveFretboardChord?: (name: string) => void;
+  /** Told when one of this section's bars takes focus — the selector panel then places here. */
+  onActivate?: (g: ActiveGrid) => void;
 }) {
   const playApi = usePlay();
   const refs = useRef<(HTMLInputElement | null)[]>([]);
@@ -50,9 +53,15 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
     }
   };
 
+  // The selector panel lives once, at the bottom of the screen, and places
+  // into the bar that last had focus — the same rule the per-section panel
+  // followed. A ref so the panel always calls this render's closures.
   const onSuggestChord = (chord: string) => {
     if (focusedBarIdx !== null) applyChordAt(focusedBarIdx, chord);
   };
+  const api = useRef<ActiveGrid>({ sectionId: section.id, apply: onSuggestChord });
+  api.current.sectionId = section.id;
+  api.current.apply = onSuggestChord;
 
   const kd = (i: number) => (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Chord shortcuts, while the selector is open. Every row stays bound
@@ -138,71 +147,51 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
     else visualRows[visualRows.length - 1].push({ bar, idx: barIdx });
   });
 
-  const dotBg = {
-    backgroundImage: `radial-gradient(circle, rgba(28,24,20,0.18) 1px, transparent 1px)`,
-    backgroundSize: `${CW}px ${CH}px`,
-    scrollbarWidth: "none" as const,
-  };
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const act = "text-[12px] text-muted-foreground hover:text-foreground transition-colors lowercase disabled:opacity-30";
 
   return (
-    <div className="group flex items-stretch border-b border-border/60 last:border-b-0">
-      {/* Section label column */}
-      <div className={`${SCOL[section.type]} shrink-0 flex flex-col justify-center px-2 border-r border-border`}
-        style={{ width: 136, minHeight: CH }}>
-        {/* Row 1: label + dup / copy / paste */}
-        <div className="flex items-center gap-1">
-          <input value={section.shortLabel} onChange={e => onShortLabelChange(e.target.value)}
-            className="bg-transparent text-[10px] uppercase tracking-[0.14em] text-muted-foreground focus:outline-none flex-1 min-w-0 truncate hover:text-foreground transition-colors"
-            style={{ fontFamily: MONO }} />
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            <button onClick={onDuplicate} title="Duplicate section" className="text-muted-foreground hover:text-foreground transition-colors"><Copy size={10} /></button>
-            <button onClick={onCopyBars} title="Copy chords"
-              className="text-muted-foreground hover:text-foreground transition-colors text-[9px] leading-none"
-              style={{ fontFamily: MONO }}>cc</button>
-            {onPasteBars ? (
-              <button onClick={onPasteBars} title="Paste chords"
-                className="text-accent hover:text-foreground transition-colors">
-                <ClipboardPaste size={10} />
-              </button>
-            ) : (
-              <span className="text-muted-foreground/20 cursor-default"><ClipboardPaste size={10} /></span>
-            )}
-          </div>
-        </div>
-        {/* Row 2: up / down */}
-        <div className="flex items-center gap-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={() => onMove(-1)} disabled={idx === 0} title="Move up"
-            className="text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors"><ChevronUp size={10} /></button>
-          <button onClick={() => onMove(1)} disabled={idx === total - 1} title="Move down"
-            className="text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors"><ChevronDown size={10} /></button>
-        </div>
-        {/* Row 3: repeat / delete / naming */}
-        <div className="flex items-center gap-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={onRepeatBars} title="Repeat progression"
-            className="text-muted-foreground hover:text-foreground transition-colors">
-            <Repeat2 size={10} />
-          </button>
-          <button onClick={onDelete} title="Delete section" className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 size={10} /></button>
-          <button onClick={onToggleNaming} title={namingStyle === "number" ? "Switch to A/B" : "Switch to 1/2"}
-            className="text-muted-foreground hover:text-foreground transition-colors text-[9px] leading-none"
-            style={{ fontFamily: MONO }}>{namingStyle === "number" ? "#" : "A"}</button>
-        </div>
+    <Row className="py-3" label={
+      <div className="flex flex-col items-start gap-1 pt-2.5">
+        <span>{sectionLabel(section)}</span>
+        <button onClick={() => setActionsOpen(v => !v)} title="Section actions" aria-expanded={actionsOpen}
+          className="text-muted-foreground hover:text-foreground leading-none py-1 -my-1">⋯</button>
       </div>
-
-      {/* Multi-row bar grid */}
-      <div className="flex-1 overflow-x-auto flex flex-col" style={dotBg}>
+    }>
+      {actionsOpen && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pb-2 mb-1 border-b border-border" style={{ fontFamily: MONO }}>
+          <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground lowercase">
+            label
+            <input value={section.shortLabel} onChange={e => onShortLabelChange(e.target.value)}
+              className="w-20 bg-transparent text-foreground border-b border-border focus:border-[var(--rule)] focus:outline-none text-[12px]" />
+          </label>
+          <button onClick={() => onMove(-1)} disabled={idx === 0} className={act}><ChevronUp size={11} className="inline -mt-0.5" /> up</button>
+          <button onClick={() => onMove(1)} disabled={idx === total - 1} className={act}><ChevronDown size={11} className="inline -mt-0.5" /> down</button>
+          <button onClick={onDuplicate} className={act}><Copy size={10} className="inline -mt-0.5" /> duplicate</button>
+          <button onClick={onCopyBars} className={act}>copy chords</button>
+          <button onClick={onPasteBars ?? undefined} disabled={!onPasteBars} className={act}><ClipboardPaste size={10} className="inline -mt-0.5" /> paste</button>
+          <button onClick={onRepeatBars} className={act}><Repeat2 size={11} className="inline -mt-0.5" /> repeat</button>
+          <button onClick={onToggleNaming} className={act}>{namingStyle === "number" ? "1/2 → a/b" : "a/b → 1/2"}</button>
+          <button onClick={onDelete} className={`${act} hover:text-destructive`}><Trash2 size={10} className="inline -mt-0.5" /> delete</button>
+        </div>
+      )}
+      <div className="flex flex-col">
         {visualRows.map((row, ri) => (
-          <div key={ri} className={`flex items-stretch${ri > 0 ? " border-t border-border/[0.07]" : ""}`}>
-            {row.map(({ bar, idx: barIdx }) =>
-              bar === PHRASE_MARKER ? (
-                /* Phrase-boundary marker — click to remove */
-                <button key={barIdx} onClick={() => { if (!playApi.on) setBar(barIdx, ""); }}
-                  title={playApi.on ? "Phrase marker" : "Phrase marker — click to remove"}
-                  className="shrink-0 flex items-center justify-center text-muted-foreground/25 hover:text-muted-foreground/55 transition-colors"
-                  style={{ width: 26, height: CH }}>
-                  <span style={{ fontFamily: MONO, fontSize: 15, lineHeight: 1 }}>│</span>
-                </button>
-              ) : (
+          <div key={ri} className="flex flex-wrap items-center">
+            {row.map(({ bar, idx: barIdx }, pos) => {
+              if (bar === PHRASE_MARKER) {
+                // Drawn by the bar before it, as a rule on its edge. Only a
+                // marker with no bar before it in this row draws itself.
+                const prev = row[pos - 1];
+                if (prev && prev.bar !== PHRASE_MARKER) return null;
+                return (
+                  <button key={barIdx} onClick={() => { if (!playApi.on) setBar(barIdx, ""); }}
+                    title={playApi.on ? "Phrase marker" : "Phrase marker — click to remove"}
+                    className="w-4 self-stretch flex justify-center py-1.5"><span className="block w-px h-full bg-[var(--ink)]" /></button>
+                );
+              }
+              const next = row[pos + 1];
+              return (
                 <BarCell key={barIdx} value={bar}
                   onChange={v => {
                     // Intercept single-char marker triggers before they reach the bar
@@ -210,112 +199,25 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
                     else setBar(barIdx, v);
                   }}
                   onKD={kd(barIdx)}
-                  onFocus={() => setFocusedBarIdx(barIdx)}
+                  onFocus={() => { setFocusedBarIdx(barIdx); onActivate?.(api.current); }}
                   reff={el => { refs.current[barIdx] = el; }}
                   isDiatonic={!activeKey || !bar.trim() || isEditorialBar(bar) || inKey(bar, activeKey.key, activeKey.mode)}
                   warnWavy={warnFirst && barIdx === 0 && !isEditorialBar(bar)}
-                  nashville={nashville} songKey={songKey} playId={`${section.id}:${barIdx}`} />
-              )
-            )}
-            {/* Add-bar button only on the last visual row */}
+                  nashville={nashville} songKey={songKey} playId={`${section.id}:${barIdx}`}
+                  activeKey={activeKey}
+                  phraseAfter={next?.bar === PHRASE_MARKER ? { onRemove: () => setBar(next.idx, "") } : null} />
+              );
+            })}
+            {/* Add-bar on the last visual row only; not in Play mode */}
             {ri === visualRows.length - 1 && !playApi.on && (
-              <div className="shrink-0 flex items-center justify-center" style={{ width: CW, height: CH }}>
-                <button onClick={addBar}
-                  className="w-5 h-5 rounded-full border border-dashed border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors flex items-center justify-center">
-                  <Plus size={10} />
-                </button>
-              </div>
+              <button onClick={addBar} title="Add bar" aria-label="Add bar"
+                className="min-h-[44px] w-10 text-left text-muted-foreground hover:text-foreground transition-colors"
+                style={{ fontFamily: "var(--font-display)", fontSize: 20 }}>+</button>
             )}
           </div>
         ))}
-
-        {/* Desktop chord suggestion panel */}
-        {showSuggest && suggestions && (
-          <div className="border-t border-border/40 px-3 py-2.5 bg-muted/20">
-            {focusedBarIdx === null && !playApi.on && (
-              <p className="text-[10px] text-muted-foreground/60 italic" style={{ fontFamily: MONO }}>
-                Click a bar above, then use shortcuts or click a chord
-              </p>
-            )}
-            {(() => {
-              // `onRemove` is only ever given for the From Fretboard row — the
-              // one set that is a log the songwriter keeps rather than
-              // something derived from the key. The × is a sibling of the
-              // chord button, never inside it: nesting interactive elements
-              // was a real bug in this codebase once.
-              const Chords = ({ items, keyRow, onRemove }: {
-                items: ChordSuggestion[]; keyRow?: string[]; onRemove?: (chord: string) => void;
-              }) => (
-                <div className="flex flex-wrap gap-1">
-                  {items.map((s, si) => {
-                    const chip = (
-                      <button onClick={e => {
-                          // Play mode: sound it, place nothing
-                          if (playApi.on) { flash(e.currentTarget); playApi.play(s.chord); return; }
-                          onSuggestChord(s.chord);
-                        }}
-                        className="relative flex flex-col items-center justify-center min-w-[42px] px-2 pt-3 pb-1 rounded-sm border border-border bg-background hover:bg-muted hover:border-foreground/30 transition-colors"
-                        style={{ fontFamily: MONO }}>
-                        {keyRow?.[si] && (
-                          <span className="absolute top-0.5 right-1 text-[7px] text-muted-foreground/50 leading-none" style={{ fontFamily: MONO }}>{keyRow[si]}</span>
-                        )}
-                        <span className="text-[11px] text-foreground leading-tight">{s.chord}</span>
-                        {s.label && <span className="text-[7px] uppercase tracking-[0.1em] text-muted-foreground mt-0.5">{s.label}</span>}
-                      </button>
-                    );
-                    if (!onRemove) return <div key={s.chord + s.label}>{chip}</div>;
-                    return (
-                      <div key={s.chord + s.label} className="relative group/chip">
-                        {chip}
-                        {/* Top-left: the shortcut letter already has the right */}
-                        <button onClick={() => onRemove(s.chord)}
-                          title={`Remove ${s.chord} from this song's fretboard chords`}
-                          className="absolute top-0 left-0 p-0.5 leading-none text-muted-foreground/30 hover:text-destructive transition-colors opacity-0 group-hover/chip:opacity-100 focus-visible:opacity-100">
-                          <X size={8} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-              const HEADING = "text-[8px] uppercase tracking-[0.14em] text-muted-foreground shrink-0 mt-2 w-14 text-right leading-tight";
-
-              return (
-                <div>
-                  <div className="flex flex-wrap">
-                    {/* The rotating slot. Its label is the control: tapping it
-                        moves to the next set, and it is drawn whether or not
-                        the set has anything in it — a label that vanished when
-                        its row was empty would be a cycle you could fall out
-                        of and not get back into. */}
-                    <div className="flex items-start gap-2 mr-5 mb-1">
-                      <button onClick={onCycleChordRow} title="Show the next set of chords"
-                        className={`${HEADING} hover:text-foreground transition-colors`} style={{ fontFamily: MONO }}>
-                        {CHORD_ROW_HEADING[chordRow]}
-                      </button>
-                      {suggestions[chordRow].length
-                        ? <Chords items={suggestions[chordRow]} keyRow={CHORD_ROW_KEYS[chordRow]}
-                            onRemove={chordRow === "fretboard" ? onRemoveFretboardChord : undefined} />
-                        : <span className="text-[10px] text-muted-foreground/45 italic mt-1.5" style={{ fontFamily: MONO }}>
-                            {chordRow === "fretboard" ? "Nothing added from the fretboard yet" : "Nothing here yet"}
-                          </span>}
-                    </div>
-
-                    {/* USED does not join the rotation — it stays where it is */}
-                    {suggestions.used.length > 0 && (
-                      <div className="flex items-start gap-2 mr-5 mb-1">
-                        <span className={HEADING} style={{ fontFamily: MONO }}>Used</span>
-                        <Chords items={suggestions.used} />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        )}
       </div>
-    </div>
+    </Row>
   );
 }
 

@@ -60,7 +60,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
                   className="w-full bg-transparent border-b border-border pb-0.5 text-xs text-foreground focus:outline-none focus:border-accent transition-colors placeholder:text-muted-foreground/40"
                   style={{ fontFamily: SANS }} placeholder="••••••••" />
               </div>
-              {error && <p className="text-xs text-red-500" style={{ fontFamily: MONO }}>{error}</p>}
+              {error && <p className="text-xs text-destructive" style={{ fontFamily: MONO }}>{error}</p>}
             </div>
             <button onClick={submit} disabled={loading}
               className="w-full py-2 bg-foreground text-background text-xs rounded-sm hover:opacity-90 transition-opacity disabled:opacity-50"
