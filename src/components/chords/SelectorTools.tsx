@@ -2,7 +2,8 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { formatDetectedKey } from "../../lib/theory/key";
 import type { IdeaResult } from "../../lib/theory/ideas";
 import type { Song } from "../../types";
-import { BridgeBlock, IdeasBlock } from "./AnalyseChordsPanel";
+import { BridgeBlock, IdeasBlock, JoinsBlock } from "./IdeaBlocks";
+import type { JoinIdea } from "../../lib/theory/joins";
 import type { Key } from "./swiss";
 
 /**
@@ -44,6 +45,13 @@ export interface AnalysisProps {
   onBridgeGenerate: () => void;
   onBridgeApply: (sectionId: string, bars: string[]) => void;
   onBridgeUndo: () => void;
+  join: JoinIdea | null;
+  joinUndo: { sectionId: string; bars: string[] } | null;
+  onJoinGenerate: (seam?: string, avoid?: string) => void;
+  onJoinApply: (sectionId: string, bars: string[]) => void;
+  onJoinUndo: () => void;
+  /** The key's name when Nashville is on (chords read as numbers), else null. */
+  nashKey?: string | null;
   onSetKey: (key: string) => void;
   onRedetect: () => void;
 }
@@ -51,23 +59,24 @@ export interface AnalysisProps {
 /**
  * Under In key, one small line: the key in force (the freeform "set key as"
  * field — nothing validated), what detection makes of the chords, and the two
- * generators. Ideas and Bridge open beneath it, one at a time.
+ * generators. Ideas, Joins and Bridge open beneath it, one at a time.
  */
 export function KeyTools(a: AnalysisProps) {
   const { song, activeKey, suggestion } = a;
   const [draft, setDraft] = useState(song.key);
   useEffect(() => { setDraft(song.key); }, [song.key]);
   const commit = () => { if (draft !== song.key) a.onSetKey(draft); };
-  const [open, setOpen] = useState<"ideas" | "bridge" | null>(null);
+  const [open, setOpen] = useState<"ideas" | "joins" | "bridge" | null>(null);
   const sections = song.sections.filter(s => s.chordBars.some(b => b.trim()));
   const [sectionId, setSectionId] = useState("");
   const effectiveSection = sections.find(s => s.id === sectionId)?.id ?? sections[0]?.id ?? "";
 
   const shown = activeKey ? formatDetectedKey(activeKey.key, activeKey.mode) : "";
   const detected = suggestion ? formatDetectedKey(suggestion.key, suggestion.mode) : "";
-  const toggle = (which: "ideas" | "bridge") => {
+  const toggle = (which: "ideas" | "joins" | "bridge") => {
     if (open !== which) {
       if (which === "ideas" && !a.idea) a.onReroll(effectiveSection);
+      if (which === "joins" && !a.join) a.onJoinGenerate();
       if (which === "bridge" && !a.bridge) a.onBridgeGenerate();
     }
     setOpen(o => (o === which ? null : which));
@@ -100,19 +109,27 @@ export function KeyTools(a: AnalysisProps) {
         <span aria-hidden>·</span>
         <button onClick={() => toggle("ideas")} aria-expanded={open === "ideas"} className={btn(open === "ideas")}
           title="A wildcard variation of a section">ideas</button>
+        <button onClick={() => toggle("joins")} aria-expanded={open === "joins"} className={btn(open === "joins")}
+          title="Ways across the seams between sections — how to get back into the chorus, out of somewhere strange">joins</button>
         <button onClick={() => toggle("bridge")} aria-expanded={open === "bridge"} className={btn(open === "bridge")}
           title="A bridge built from the song's chords">bridge</button>
       </div>
       {open === "ideas" && (
         <div className="mt-2 border border-[var(--panel-rule)]">
           <IdeasBlock song={song} idea={a.idea} ideaUndo={a.ideaUndo} onReroll={a.onReroll} onApply={a.onApply} onUndo={a.onUndo}
-            sectionId={effectiveSection} onSectionChange={setSectionId} />
+            sectionId={effectiveSection} onSectionChange={setSectionId} nashKey={a.nashKey ?? null} />
+        </div>
+      )}
+      {open === "joins" && (
+        <div className="mt-2 border border-[var(--panel-rule)]">
+          <JoinsBlock song={song} join={a.join} joinUndo={a.joinUndo} onJoinGenerate={a.onJoinGenerate}
+            onJoinApply={a.onJoinApply} onJoinUndo={a.onJoinUndo} nashKey={a.nashKey ?? null} />
         </div>
       )}
       {open === "bridge" && (
         <div className="mt-2 border border-[var(--panel-rule)]">
           <BridgeBlock song={song} bridge={a.bridge} bridgeUndo={a.bridgeUndo}
-            onBridgeGenerate={a.onBridgeGenerate} onBridgeApply={a.onBridgeApply} onBridgeUndo={a.onBridgeUndo} />
+            onBridgeGenerate={a.onBridgeGenerate} onBridgeApply={a.onBridgeApply} onBridgeUndo={a.onBridgeUndo} nashKey={a.nashKey ?? null} />
         </div>
       )}
     </PanelTools>

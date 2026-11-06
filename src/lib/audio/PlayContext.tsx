@@ -25,12 +25,22 @@ export interface PlayApi {
   playShape: (shape: Pick<FretboardChord, "frets" | "tuning">, id?: string) => void;
   /** The on-screen chord sounding most recently, or null. */
   nowPlaying: string | null;
+  /**
+   * Hear chords that aren't in the song — an idea, a join — whether or not
+   * Play is on: one chord, or a run of them a bar apart. Call from inside a
+   * tap (it may start audio). Returns the run's length in ms; a new call
+   * stops the last.
+   */
+  hear: (names: string[], secondsPerBar?: number) => number;
+  /** Stop a run that `hear` started. */
+  stopHearing: () => void;
 }
 
 const noop = () => {};
 const IS_DEV = !!(import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV;
 const PlayCtx = createContext<PlayApi>({
   on: false, setOn: noop, status: "off", note: "", play: noop, playShape: noop, nowPlaying: null,
+  hear: () => 0, stopHearing: noop,
 });
 export const usePlay = () => useContext(PlayCtx);
 
@@ -108,9 +118,26 @@ export function PlayProvider({ fretboardChords, capsLock = false, children }: {
     if (v) setNowPlaying(id ?? null);
   }, []);
 
+  const timers = useRef<number[]>([]);
+  const stopHearing = useCallback(() => { timers.current.forEach(clearTimeout); timers.current = []; }, []);
+  const hear = useCallback((names: string[], secondsPerBar = 1.8) => {
+    stopHearing();
+    const run = names.map(n => n.trim()).filter(Boolean);
+    if (!run.length || !engine.unlock()) return 0;
+    const inst = getUiPrefs().instrument;
+    engine.setInstrument(inst);
+    const ms = secondsPerBar * 1000;
+    void engine.prepare(inst).then(() => {
+      run.forEach((n, i) => timers.current.push(window.setTimeout(() => engine.playVoicing(voice(n)), i * ms)));
+      // Play off: let the context go again once the run has rung out
+      timers.current.push(window.setTimeout(() => { if (!onRef.current) engine.sleep(); }, run.length * ms + 3500));
+    });
+    return run.length * ms;
+  }, [voice, stopHearing]);
+
   const value = useMemo<PlayApi>(() => ({
-    on, setOn, status: st.status, note: st.note, play, playShape, nowPlaying,
-  }), [on, setOn, st.status, st.note, play, playShape, nowPlaying]);
+    on, setOn, status: st.status, note: st.note, play, playShape, nowPlaying, hear, stopHearing,
+  }), [on, setOn, st.status, st.note, play, playShape, nowPlaying, hear, stopHearing]);
 
   return <PlayCtx.Provider value={value}>{children}</PlayCtx.Provider>;
 }
