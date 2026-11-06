@@ -731,7 +731,10 @@ See STYLE.md for the visual system itself; this is where it lives.
   theme (`&dark=1` its dark face). Used for the screenshots in `docs/screenshots/` (git-ignored).
 
 ### Play mode (`src/lib/audio/`)
-A **Play chords** switch in the sidebar's Settings. While it is on, tapping a chord
+A **play** switch in the Chords screen's view line — and, on desktop,
+**Caps Lock** (`PlayProvider capsLock`: keydown and keyup of the CapsLock
+key both read `getModifierState`, so the lock state decides on macOS and
+Windows alike). The instrument is in Settings. While it is on, tapping a chord
 anywhere it is drawn sounds it and does nothing else; while it is off, every
 tap does exactly what it did before. Session state, off on every load.
 
@@ -774,10 +777,16 @@ tap does exactly what it did before. Session state, off on every load.
   `fretboardChords` plays that exact shape in its saved tuning** on every
   instrument (muted strings skipped, rolled low → high), most recent entry
   first. Unreadable names voice to `null`: nothing plays, nothing throws.
-- `PlayControls.tsx` (in `components/chords/`) — `PlayBadge`, the
-  `● playing · piano · stop` note in the Chords screen's view line while Play
-  is on (it can switch Play off, never on); `KeyRow`; and `SelectorDock`, the
-  docked selector, shown while Play is on wherever the selector isn't.
+- `PlayControls.tsx` (in `components/chords/`) — `PlayToggle` (the view-line
+  switch with its loading / fallback status), `KeyRow` (phones only now), and
+  `SelectorDock`, the docked selector, shown while the selector or Play is on.
+- `SelectorTools.tsx` — what lives inside the desktop selector: `KeyTools`
+  under In key (key field, detection, Ideas / Bridge via `IdeasBlock` /
+  `BridgeBlock`, which `AnalyseChordsPanel` also uses on phones) and
+  `PanelTools`, the panel-colour re-pinning that lets `FretboardIdentifier
+  embedded` sit under From fretboard. `App` builds one `analysisProps` object
+  for both the panel and the tools. `ChordSelectorPanel`'s `rowTools` prop
+  places them.
 - **Fretboard sound** — `engine.audition(midi, strum?)`, always the guitar and
   independent of Play: each note placed on the neck sounds, the nut strums the
   open strings, re-tuning a string plays its new pitch, and the chord name

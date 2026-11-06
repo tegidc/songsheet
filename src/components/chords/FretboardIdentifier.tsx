@@ -37,12 +37,14 @@ const INLAYS = [3, 5, 7, 9, 12];
 /** 1 is thickest, 6 thinnest. The cue is the taper, not the numbers. */
 const stringWeight = (stringIdx: number) => 1.1 + (STRING_COUNT - 1 - stringIdx) * 0.32;
 
-export function FretboardIdentifier({ initialTuning, onSaveTuning, onAddChord, canSave, isMobile }: {
+export function FretboardIdentifier({ initialTuning, onSaveTuning, onAddChord, canSave, isMobile, embedded }: {
   initialTuning?: Tuning;
   onSaveTuning: (t: Tuning) => void;
   onAddChord: (name: string, frets: (number | null)[], tuning: Tuning) => void;
   canSave: boolean;
   isMobile?: boolean;
+  /** Inside the chord selector: no box of its own, the selector's rules frame it. */
+  embedded?: boolean;
 }) {
   const [tuning, setTuning] = useState<Tuning>(() => cloneTuning(initialTuning ?? TUNING_PRESETS[0]));
   // Per string, low first: a fret number, 0 for open, null for not played.
@@ -105,7 +107,7 @@ export function FretboardIdentifier({ initialTuning, onSaveTuning, onAddChord, c
   const btnOn  = "border-foreground/30 text-foreground bg-muted/40";
 
   return (
-    <div className="border border-border rounded-sm mt-6">
+    <div className={embedded ? "border-t border-border" : "border border-border rounded-sm mt-6"}>
       {/* ── Tuning ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 border-b border-border bg-muted/20">
         <FL className="text-muted-foreground">Tuning</FL>

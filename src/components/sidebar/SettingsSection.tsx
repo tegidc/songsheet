@@ -1,5 +1,4 @@
 import { setUiPrefs, useUiPrefs, type Instrument } from "../../lib/prefs";
-import { usePlay } from "../../lib/audio/PlayContext";
 import { THEMES, darkFace, themeById } from "../../lib/theme/themes";
 
 const INSTRUMENTS: Instrument[] = ["piano", "guitar", "ambient"];
@@ -7,14 +6,12 @@ const LABEL = { fontFamily: "var(--font-label)" } as const;
 
 /**
  * The sidebar's Settings block, under everything else and folded with one
- * tap on its heading: theme and its dark face, Play (the switch, the
- * instrument), and the view toggles. Per-device preferences only — none of
- * this is song data, so none of it can save. Play itself is session state
- * (it always starts off); the rest persists in localStorage.
+ * tap on its heading: theme and its dark face, Play's sound, and the view
+ * toggles. Per-device preferences only — none of this is song data, so none
+ * of it can save. (Play itself is switched on the Chords screen.)
  */
 export function SettingsSection() {
   const prefs = useUiPrefs();
-  const { on, setOn, status, note } = usePlay();
   const current = themeById(prefs.theme);
   const open = prefs.settingsOpen;
 
@@ -54,11 +51,9 @@ export function SettingsSection() {
 
         <div className="h-px bg-[var(--rule-soft)] my-1" />
 
-        {/* Play */}
-        <Toggle label="Play chords" on={on} onClick={() => setOn(!on)} accent
-          hint={on ? "tapping a chord plays it — no editing" : "tap chords to hear them"} />
+        {/* Play's sound — Play itself is switched in the Chords screen's view line */}
         <div className="flex items-center justify-between gap-2 min-h-11">
-          <span className="text-[13px] text-foreground">Sound</span>
+          <span className="flex flex-col gap-0.5"><span className="text-[13px] text-foreground">Play sound</span></span>
           <div className="flex items-center gap-3" role="radiogroup" aria-label="Play instrument">
             {INSTRUMENTS.map(i => (
               <button key={i} role="radio" aria-checked={prefs.instrument === i}
@@ -69,12 +64,6 @@ export function SettingsSection() {
             ))}
           </div>
         </div>
-        {on && (status === "loading" || status === "fallback") && (
-          <p className="text-[11px] text-muted-foreground -mt-1" aria-live="polite">
-            {status === "loading" ? `loading ${prefs.instrument}…` : note}
-          </p>
-        )}
-
         <div className="h-px bg-[var(--rule-soft)] my-1" />
 
         {/* View */}
@@ -94,10 +83,8 @@ export function SettingsSection() {
   );
 }
 
-function Toggle({ label, hint, on, onClick, accent }: {
+function Toggle({ label, hint, on, onClick }: {
   label: string; hint?: React.ReactNode; on: boolean; onClick: () => void;
-  /** The knob takes the accent when on — kept for Play, the one switch that changes what a tap does. */
-  accent?: boolean;
 }) {
   return (
     <button role="switch" aria-checked={on} onClick={onClick}
@@ -109,7 +96,7 @@ function Toggle({ label, hint, on, onClick, accent }: {
       <span className="relative shrink-0 w-11 h-[26px] rounded-full transition-colors"
         style={{ background: on ? "var(--ink)" : "var(--rule-soft)" }}>
         <span className="absolute top-1 w-[18px] h-[18px] rounded-full transition-all"
-          style={{ left: on ? 22 : 4, background: on && accent ? "var(--accent-fill)" : "var(--bg)" }} />
+          style={{ left: on ? 22 : 4, background: "var(--bg)" }} />
       </span>
     </button>
   );

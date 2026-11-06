@@ -100,13 +100,15 @@ export function useChordFunction(chord: string, activeKey: Key): ChordFunction |
  *
  * `onPick` places; in Play mode the pills play instead and place nothing.
  */
-export function ChordSelectorPanel({ suggestions, chordRow, onCycleChordRow, onPick, activeKey, onRemoveFretboardChord, showKeys, hint, className = "" }: {
+export function ChordSelectorPanel({ suggestions, chordRow, onCycleChordRow, onPick, activeKey, onRemoveFretboardChord, showKeys, hint, rowTools, className = "" }: {
   suggestions: ChordSuggestionSets; chordRow: ChordRow; onCycleChordRow: () => void;
   onPick?: (chord: string) => void; activeKey: Key;
   onRemoveFretboardChord?: (name: string) => void;
   /** Draw the keyboard shortcut on each pill (desktop). */
   showKeys?: boolean;
   hint?: string;
+  /** What lives under a row while it is showing (desktop): key and analysis under In key, the neck under From fretboard. */
+  rowTools?: Partial<Record<ChordRow, React.ReactNode>>;
   className?: string;
 }) {
   const playApi = usePlay();
@@ -145,9 +147,10 @@ export function ChordSelectorPanel({ suggestions, chordRow, onCycleChordRow, onP
             onRemove={chordRow === "fretboard" ? onRemoveFretboardChord : undefined} />
         ) : (
           <span className="text-[12px] text-[var(--panel-muted)] italic py-2">
-            {chordRow === "fretboard" ? "Nothing added from the fretboard yet" : "Nothing here yet"}
+            {chordRow === "fretboard" ? (rowTools?.fretboard ? "Build a shape below and + adds it here" : "Nothing added from the fretboard yet") : "Nothing here yet"}
           </span>
         )}
+        {rowTools?.[chordRow]}
 
         {suggestions.used.length > 0 && <>
           <span className="text-[12px] lowercase pt-3">used</span>

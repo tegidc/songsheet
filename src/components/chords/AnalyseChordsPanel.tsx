@@ -40,7 +40,7 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
   useEffect(() => { setKeyDraft(song.key); }, [song.key]);
   const commitKey = () => { if (keyDraft !== song.key) onSetKey(keyDraft); };
 
-  const sectionsWithChords = song.sections.filter(s => (s.chordBars ?? []).some(b => b.trim() && !isEditorialBar(b)));
+  const sectionsWithChords = sectionsWithChordsOf(song);
   const [selectedSectionId, setSelectedSectionId] = useState<string>(() => sectionsWithChords[0]?.id ?? "");
   const effectiveSectionId = sectionsWithChords.find(s => s.id === selectedSectionId)?.id ?? sectionsWithChords[0]?.id ?? "";
 
@@ -61,7 +61,6 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
         `${d.root}${d.q === "maj" ? "" : d.q === "min" ? "m" : "°"}`)
     : [];
   const parallelChords = activeKey ? getParallelChords(activeKey.key, activeKey.mode) : [];
-  const noChords = !song.sections.some(s => (s.chordBars ?? []).some(b => b.trim()));
 
   const playApi = usePlay();
   // Plain labels normally; in Play mode they sound when tapped.
@@ -199,8 +198,34 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
         </div>
       </div>
 
-      {/* Ideas — inline expansion */}
-      {ideasOpen && (
+      {ideasOpen && <IdeasBlock song={song} idea={idea} ideaUndo={ideaUndo} onReroll={onReroll} onApply={onApply} onUndo={onUndo}
+        sectionId={effectiveSectionId} onSectionChange={setSelectedSectionId} />}
+      {bridgeOpen && <BridgeBlock song={song} bridge={bridge} bridgeUndo={bridgeUndo}
+        onBridgeGenerate={onBridgeGenerate} onBridgeApply={onBridgeApply} onBridgeUndo={onBridgeUndo} />}
+    </div>
+  );
+}
+
+
+
+const sectionsWithChordsOf = (song: Song) =>
+  song.sections.filter(s => (s.chordBars ?? []).some(b => b.trim() && !isEditorialBar(b)));
+const hasNoChords = (song: Song) => !song.sections.some(s => (s.chordBars ?? []).some(b => b.trim()));
+
+/**
+ * Wildcard ideas: a rerolled variation of one section, added as a new section.
+ * Shared by the Analyse panel (phones) and the selector's In key tools (desktop).
+ */
+export function IdeasBlock({ song, idea, ideaUndo, onReroll, onApply, onUndo, sectionId, onSectionChange }: {
+  song: Song; idea: IdeaResult | null; ideaUndo: { newSectionId: string } | null;
+  onReroll: (sectionId?: string) => void; onApply: (sectionId: string, bars: string[]) => void; onUndo: () => void;
+  sectionId: string; onSectionChange: (id: string) => void;
+}) {
+  const sectionsWithChords = sectionsWithChordsOf(song);
+  const effectiveSectionId = sectionId;
+  const setSelectedSectionId = onSectionChange;
+  const noChords = hasNoChords(song);
+  return (
         <div className="border-t border-border/50">
           {/* Ideas sub-header */}
           <div className="px-4 py-2 bg-muted/15 flex items-center gap-2 flex-wrap">
@@ -293,10 +318,16 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
             )}
           </div>
         </div>
-      )}
+  );
+}
 
-      {/* Bridge — inline expansion */}
-      {bridgeOpen && (
+/** Bridge ideas: a generated bridge applied over a section. Shared like IdeasBlock. */
+export function BridgeBlock({ song, bridge, bridgeUndo, onBridgeGenerate, onBridgeApply, onBridgeUndo }: {
+  song: Song; bridge: IdeaResult | null; bridgeUndo: { sectionId: string; bars: string[] } | null;
+  onBridgeGenerate: () => void; onBridgeApply: (sectionId: string, bars: string[]) => void; onBridgeUndo: () => void;
+}) {
+  const noChords = hasNoChords(song);
+  return (
         <div className="border-t border-border/50">
           {/* Bridge sub-header */}
           <div className="px-4 py-2 bg-muted/15 flex items-center gap-2">
@@ -364,8 +395,5 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
             )}
           </div>
         </div>
-      )}
-    </div>
   );
 }
-

@@ -34,9 +34,11 @@ const PlayCtx = createContext<PlayApi>({
 });
 export const usePlay = () => useContext(PlayCtx);
 
-export function PlayProvider({ fretboardChords, children }: {
+export function PlayProvider({ fretboardChords, capsLock = false, children }: {
   /** The open song's fretboard log — a chord with one of these names plays its exact shape. */
   fretboardChords: FretboardChord[] | undefined;
+  /** Caps Lock follows Play while this is true (the desktop Chords screen). */
+  capsLock?: boolean;
   children: React.ReactNode;
 }) {
   const [on, setOnState] = useState(false);
@@ -61,6 +63,25 @@ export function PlayProvider({ fretboardChords, children }: {
     }
     setOnState(next);
   }, []);
+
+  // Caps Lock is Play: on is play, off is edit. Read from the key's own
+  // events — macOS sends keydown when it locks and keyup when it unlocks,
+  // Windows both on every press — so both are heard and the lock *state*
+  // decides, never the press count. The keydown is a user gesture, so audio
+  // may start from it.
+  const onRef = useRef(on);
+  useEffect(() => { onRef.current = on; }, [on]);
+  useEffect(() => {
+    if (!capsLock) return;
+    const sync = (e: KeyboardEvent) => {
+      if (e.key !== "CapsLock" || typeof e.getModifierState !== "function") return;
+      const locked = e.getModifierState("CapsLock");
+      if (locked !== onRef.current) setOn(locked);
+    };
+    window.addEventListener("keydown", sync);
+    window.addEventListener("keyup", sync);
+    return () => { window.removeEventListener("keydown", sync); window.removeEventListener("keyup", sync); };
+  }, [capsLock, setOn]);
 
   // Instrument changes while on: load just that one
   useEffect(() => { if (on) engine.setInstrument(instrument); }, [instrument, on]);
