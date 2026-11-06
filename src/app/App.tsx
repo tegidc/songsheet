@@ -26,10 +26,11 @@ import { FL } from "../components/common/FL";
 import { FullScreenEditor } from "../components/common/FullScreenEditor";
 import { Masthead, Rings } from "../components/common/Masthead";
 import { ProjectsSidebar, SettingsOnlySidebar } from "../components/sidebar/ProjectsSidebar";
-import { KeyRow, PlayBadge, SelectorDock } from "../components/chords/PlayControls";
+import { KeyRow, PlayToggle, SelectorDock } from "../components/chords/PlayControls";
 import { Row } from "../components/chords/swiss";
 import type { ActiveGrid } from "../components/chords/ChordRowGrid";
 import { PlayProvider } from "../lib/audio/PlayContext";
+import { KeyTools, PanelTools, type AnalysisProps } from "../components/chords/SelectorTools";
 import { WordCloudErrorBoundary } from "../components/wordcloud/WordCloudErrorBoundary";
 import { WordCloudView } from "../components/wordcloud/WordCloudView";
 import { PALETTES } from "../lib/wordcloud/palettes";
@@ -826,8 +827,48 @@ export default function App() {
     return vp && cp && vp.root === cp.root && vp.q === cp.q;
   })();
 
+  // Everything the chord analysis needs — the Analyse panel on phones, the
+  // selector's In key tools on desktop. One object so the two can't drift.
+  const analysisProps: AnalysisProps = {
+    song, activeKey, suggestion, idea, ideaUndo,
+    onReroll: (sectionId) => setIdea(generateIdea(song, activeKey, sectionId)),
+    onApply: (sectionId, bars) => {
+      const newId = uid();
+      setIdeaUndo({ newSectionId: newId });
+      setSong(p => {
+        const idx = p.sections.findIndex(s => s.id === sectionId);
+        if (idx === -1) return p;
+        const orig = p.sections[idx];
+        const newSec: Section = { ...orig, id: newId, chordBars: bars, chordPositions: [] };
+        const next = [...p.sections];
+        next.splice(idx + 1, 0, newSec);
+        return { ...p, sections: renumberSections(next, p.sectionNaming) };
+      });
+    },
+    onUndo: () => {
+      if (!ideaUndo) return;
+      setSong(p => {
+        const filtered = p.sections.filter(s => s.id !== ideaUndo.newSectionId);
+        return { ...p, sections: renumberSections(filtered, p.sectionNaming) };
+      });
+      setIdeaUndo(null);
+    },
+    bridge, bridgeUndo,
+    onBridgeGenerate: () => setBridge(generateBridgeIdea(song, activeKey)),
+    onBridgeApply: (sectionId, bars) => {
+      const orig = song.sections.find(s => s.id === sectionId)?.chordBars;
+      if (orig) setBridgeUndo({ sectionId, bars: [...orig] });
+      updateSection(sectionId, { chordBars: bars });
+    },
+    onBridgeUndo: () => {
+      if (bridgeUndo) { updateSection(bridgeUndo.sectionId, { chordBars: bridgeUndo.bars }); setBridgeUndo(null); }
+    },
+    onSetKey: key => updateSong({ key }),
+    onRedetect: () => setPinnedSuggestion(liveDetected),
+  };
+
   return (
-    <PlayProvider fretboardChords={song.fretboardChords}>
+    <PlayProvider fretboardChords={song.fretboardChords} capsLock={tab === "chords" && !isMobile}>
     <div className="min-h-screen bg-background overflow-x-clip" style={{ fontFamily: SANS }}>
       <span ref={charRef} aria-hidden
         style={{ visibility: "hidden", position: "fixed", top: 0, left: 0, fontFamily: SHEET, fontSize: FS + "px", whiteSpace: "pre" }}>0</span>
@@ -1152,63 +1193,24 @@ export default function App() {
             <Row label="view" align="center" className="py-1">
               <div className="flex flex-wrap items-center gap-x-4 text-[13px]" style={{ fontFamily: MONO }}>
                 {([
-                  ["analyse", showAnalysis, () => setShowAnalysis(p => !p), "Analyse chords"],
-                  ...(!isMobile ? [["selector", showChordSuggest, () => setShowChordSuggest(v => !v), "Toggle chord selector"]] as const : []),
+                  // On desktop, analysis lives inside the selector (under In key)
+                  ...(isMobile ? [["analyse", showAnalysis, () => setShowAnalysis(p => !p), "Analyse chords"]] as const : []),
+                  ...(!isMobile ? [["selector", showChordSuggest, () => setShowChordSuggest(v => !v), "The chord selector — chords in key, colour, the fretboard, and the key's analysis"]] as const : []),
                   ...(!isMobile ? [["nashville", nashville, () => setNashville(n => !n), "Toggle Nashville Number System"]] as const : []),
                 ] as const).map(([label, on, toggle, title]) => (
                   <button key={label} onClick={toggle} title={title} aria-pressed={on}
                     className={`py-2.5 transition-colors ${on ? "font-bold text-foreground" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>
                 ))}
-                <PlayBadge />
+                <PlayToggle capsHint={!isMobile} />
                 {sameFirst && <span className="flex items-center gap-1 text-[12px] text-destructive py-2.5">
                   <AlertCircle size={11} /> verse & chorus share first chord
                 </span>}
               </div>
             </Row>
 
-            {showAnalysis && (
+            {isMobile && showAnalysis && (
               <div className="py-4 border-b border-[var(--rule)]">
-              <AnalyseChordsPanel
-                song={song}
-                activeKey={activeKey}
-                suggestion={suggestion}
-                idea={idea}
-                ideaUndo={ideaUndo}
-                onReroll={(sectionId) => setIdea(generateIdea(song, activeKey, sectionId))}
-                onApply={(sectionId, bars) => {
-                  const newId = uid();
-                  setIdeaUndo({ newSectionId: newId });
-                  setSong(p => {
-                    const idx = p.sections.findIndex(s => s.id === sectionId);
-                    if (idx === -1) return p;
-                    const orig = p.sections[idx];
-                    const newSec: Section = { ...orig, id: newId, chordBars: bars, chordPositions: [] };
-                    const next = [...p.sections];
-                    next.splice(idx + 1, 0, newSec);
-                    return { ...p, sections: renumberSections(next, p.sectionNaming) };
-                  });
-                }}
-                onUndo={() => {
-                  if (!ideaUndo) return;
-                  setSong(p => {
-                    const filtered = p.sections.filter(s => s.id !== ideaUndo.newSectionId);
-                    return { ...p, sections: renumberSections(filtered, p.sectionNaming) };
-                  });
-                  setIdeaUndo(null);
-                }}
-                bridge={bridge}
-                bridgeUndo={bridgeUndo}
-                onBridgeGenerate={() => setBridge(generateBridgeIdea(song, activeKey))}
-                onBridgeApply={(sectionId, bars) => {
-                  const orig = song.sections.find(s => s.id === sectionId)?.chordBars;
-                  if (orig) setBridgeUndo({ sectionId, bars: [...orig] });
-                  updateSection(sectionId, { chordBars: bars });
-                }}
-                onBridgeUndo={() => {
-                  if (bridgeUndo) { updateSection(bridgeUndo.sectionId, { chordBars: bridgeUndo.bars }); setBridgeUndo(null); }
-                }}
-                onSetKey={key => updateSong({ key })}
-                onRedetect={() => setPinnedSuggestion(liveDetected)}
+              <AnalyseChordsPanel {...analysisProps}
                 onClose={() => setShowAnalysis(false)} />
               </div>
             )}
@@ -1263,8 +1265,8 @@ export default function App() {
                   }} />
               ))}
 
-            <KeyRow songKey={song.key} activeKey={activeKey} suggestion={suggestion}
-              onSetKey={key => updateSong({ key })} onRedetect={() => setPinnedSuggestion(liveDetected)} />
+            {isMobile && <KeyRow songKey={song.key} activeKey={activeKey} suggestion={suggestion}
+              onSetKey={key => updateSong({ key })} onRedetect={() => setPinnedSuggestion(liveDetected)} />}
 
             {/* Add a section: one quiet line of words */}
             <Row label="add" align="center" className="py-1 border-t border-[var(--rule)]">
@@ -1283,17 +1285,30 @@ export default function App() {
               activeKey={activeKey} onRemoveFretboardChord={removeFretboardChord}
               showKeys={!isMobile}
               hint={!isMobile ? "click a bar, then a chord or its key · tab adds a bar · ← → move · backspace on empty removes" : undefined}
+              rowTools={isMobile ? undefined : {
+                inKey: <KeyTools {...analysisProps} />,
+                fretboard: (
+                  <PanelTools className="col-span-2 -mx-5 mt-1">
+                    <FretboardIdentifier embedded
+                      initialTuning={song.fretboardTuning}
+                      onSaveTuning={t => updateSong({ fretboardTuning: t })}
+                      onAddChord={addFretboardChord}
+                      canSave={!!user} />
+                  </PanelTools>
+                ),
+              }}
               onPick={chord => activeGridRef.current?.apply(chord)} />
 
-            <div className="mt-8">
-              {/* Underneath the chords box: build a shape, and be told what it is */}
+            {/* Phones: build a shape under the chords box (on desktop the neck
+                lives in the selector's From fretboard row) */}
+            {isMobile && <div className="mt-8">
             <FretboardIdentifier
               initialTuning={song.fretboardTuning}
               onSaveTuning={t => updateSong({ fretboardTuning: t })}
               onAddChord={addFretboardChord}
               canSave={!!user}
               isMobile={isMobile} />
-            </div>
+            </div>}
           </div>
         )}
 
