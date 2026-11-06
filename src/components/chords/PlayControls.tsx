@@ -6,23 +6,31 @@ import { formatDetectedKey } from "../../lib/theory/key";
 import { ChordSelectorPanel, Row, type Key } from "./swiss";
 
 /**
- * Play is switched on in Settings. While it is on, the Chords screen says so
- * in its view line — taps play instead of edit, and nothing else on the screen
- * would tell you why a chord won't take a keystroke. Tapping it switches Play
- * off; there is no way to switch it *on* from here, by design.
+ * The Play switch, in the Chords screen's view line: `play`, bold with the
+ * accent dot when on, and while loading or fallen back the status beside it.
+ * Switching on is the user gesture that starts audio — see lib/audio/engine.ts.
+ * The instrument is chosen in Settings. On desktop Caps Lock does the same
+ * (PlayProvider), and the ⇪ hint says so.
  */
-export function PlayBadge() {
+export function PlayToggle({ capsHint }: { capsHint?: boolean }) {
   const { on, setOn, status, note } = usePlay();
   const { instrument } = useUiPrefs();
-  if (!on) return null;
-  const text = status === "loading" ? `loading ${instrument}…` : status === "fallback" ? note : `playing · ${instrument}`;
   return (
-    <button onClick={() => setOn(false)} title="Play is on — tap chords to hear them. Click to stop playing and edit again."
-      aria-label="Play mode on — switch off"
-      className="py-2.5 flex items-center gap-1.5 text-foreground font-bold" aria-live="polite">
-      <span aria-hidden className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: "var(--accent-fill)" }} />
-      {text} <span className="font-normal text-muted-foreground">· stop</span>
-    </button>
+    <span className="flex items-center gap-2">
+      <button onClick={() => setOn(!on)} role="switch" aria-checked={on} aria-label="Play mode"
+        title={on ? `Playing (${instrument}) — tapping a chord plays it. Click${capsHint ? " or Caps Lock" : ""} to edit again.` : `Play — tap chords to hear them${capsHint ? " (or Caps Lock)" : ""}`}
+        className={`py-2.5 flex items-center gap-1.5 transition-colors ${on ? "font-bold text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+        <span aria-hidden className="inline-block w-2 h-2 rounded-full transition-colors"
+          style={{ background: on ? "var(--accent-fill)" : "transparent", boxShadow: on ? "none" : "inset 0 0 0 1px currentColor" }} />
+        play
+        {capsHint && <span className="text-[9px] font-normal text-muted-foreground/70">⇪</span>}
+      </button>
+      {on && (status === "loading" || status === "fallback") && (
+        <span className="text-[11px] text-muted-foreground" aria-live="polite">
+          {status === "loading" ? `loading ${instrument}…` : note}
+        </span>
+      )}
+    </span>
   );
 }
 
