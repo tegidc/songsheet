@@ -780,6 +780,21 @@ tap does exactly what it did before. Session state, off on every load.
 - `PlayControls.tsx` (in `components/chords/`) — `PlayToggle` (the view-line
   switch with its loading / fallback status), `KeyRow` (phones only now), and
   `SelectorDock`, the docked selector, shown while the selector or Play is on.
+- `IdeaBlocks.tsx` — `IdeasBlock`, `JoinsBlock`, `BridgeBlock` and the shared
+  `IdeaBars`, used by the desktop selector and the phone Analyse panel alike.
+  Idea chords play through `usePlay().hear(names, secondsPerBar)` — one chord
+  or a run, Play on or off; the run is timed from `song.tempo` and metre.
+- `lib/theory/joins.ts` — **Joins**: `songSeams(song)` lists each seam in order
+  (plus back to the top unless the song ends on an outro);
+  `generateJoinIdea(song, key, seam, avoid)` reads the seam (where the last
+  chord sits in the key, where the next section starts) and rewrites the last
+  one or two bars of the earlier section to lead in: dominant lead-in, ii–V,
+  slide down a semitone, diminished step up, backdoor, ♭VI–♭VII climb,
+  common-tone pivot, walk up/down, suspended dominant, fake arrival. The next
+  section is never touched; apply has undo.
+- Nashville: `nashvilleParts` / `toNashville` / `fromNashville` in
+  `lib/theory/chords.ts` (extensions and slash basses kept; flats spelled for
+  flat degrees and flat keys), drawn by `NashName` in `swiss.tsx`.
 - `SelectorTools.tsx` — what lives inside the desktop selector: `KeyTools`
   under In key (key field, detection, Ideas / Bridge via `IdeasBlock` /
   `BridgeBlock`, which `AnalyseChordsPanel` also uses on phones) and
@@ -800,6 +815,11 @@ tap does exactly what it did before. Session state, off on every load.
   `SettingsOnlySidebar`, which holds Settings alone.
 - **Zero writes:** none of this touches `song`, so the autosave effect never
   sees it. Instrument and Play live outside `projects.data` entirely.
+- **Chord hotkeys only place into an empty bar** (or one whose chord is
+  wholly selected, as Tab leaves it); with a caret inside a chord every key
+  types, so a placed G can become G7. Arrow keys between bars are consumed and
+  land the caret at the end (←) or start (→) of the next chord, and every
+  programmatic jump lands it at the end, so Backspace always deletes.
 - **Keyboard shortcuts** are unchanged and do not play. In Play mode there is
   no focused bar for them to place into (bars are buttons), so they are
   simply idle.

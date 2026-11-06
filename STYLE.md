@@ -25,8 +25,10 @@ aspirational.
 - **Header:** a 48px sticky bar of plain icons — songs & settings (folder),
   writing (notepad: back to the song sheet), object writing ✦, word cloud —
   and the save state; the view you are in is drawn in ink, the rest muted.
-  Signed in, the app **opens on a fresh object writing** (untimed until you
-  start it); closing it is the song sheet. No border, no wordmark on phones.
+  Signed in, **the day starts with an object writing**: until you've written
+  one today (any `standalone_ow` row since local midnight), the app opens on a
+  fresh one, untimed until you start it. Once you have, it opens straight on
+  the latest song. Escape or Done puts the window away. No border, no wordmark on phones.
 - **Masthead:** the project's start date stacked small in the label column
   (`26 / 07 / 18` — the YYMMDD prefix; today for an unsaved song), the title
   large and tight beside it: theme title face, `--title-weight`,
@@ -68,6 +70,19 @@ the fretboard identifier.
   stays on its own line. Pills are 46px, `--panel-rule` hairline,
   `--radius-selector`. **Behaviour, rows, rotation, shortcuts and placement
   are unchanged** — this is a skin.
+- **Nashville is a mode, not a label.** With `nashville` on, every chord on
+  the Chords screen is its number and nothing else — song rows, selector
+  pills (their degree captions drop away), the used row, and the chords in
+  Ideas / Joins / Bridge. Degree and quality full size, the extension raised
+  (`6-⁹/5` is Am9/G in C). Bars are written in numbers too: the field shows
+  the plain number while typing and converts it to a chord name on the way
+  in, so the song's data never changes. The name survives only as a tooltip.
+- **Ideas, Joins, Bridge** share one look (`IdeaBlocks.tsx`): a 12px label
+  line (technique, which section or seam, ↻), the description at 13px in the
+  body face capped at 62ch, then the chords at 17px in the display face,
+  wrapping. Chords the idea changed are full ink, kept ones muted; every chord
+  taps to hear, and `▸ hear it` plays the run at the song's tempo, Play mode
+  or not.
 - **The selector is the one chord tool (desktop).** Analyse and the
   fretboard are no longer boxes on the page. Under **In key**, one small
   panel-muted line: `key C · detected Am 61% set ↻ · ideas bridge` — the key
