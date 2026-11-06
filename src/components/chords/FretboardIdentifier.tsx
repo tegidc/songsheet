@@ -4,6 +4,9 @@ import { FL } from "../common/FL";
 import { MONO } from "../../data/constants";
 import { identifyChord } from "../../lib/theory/identify";
 import { flash, usePlay } from "../../lib/audio/PlayContext";
+import { audition } from "../../lib/audio/engine";
+import { shapeVoicing } from "../../lib/audio/voicing";
+import { setUiPrefs, useUiPrefs } from "../../lib/prefs";
 import { fetchSongTunings } from "../../lib/tunings";
 import {
   STRING_COUNT, TUNING_PRESETS, cloneTuning, noteName, soundingMidi,
@@ -64,19 +67,31 @@ export function FretboardIdentifier({ initialTuning, onSaveTuning, onAddChord, c
     frets.map((f, i) => f === null ? null : open[i] + f).filter((m): m is number => m !== null),
   ), [frets.join(","), open.join(",")]);
 
+  const { fretSound } = useUiPrefs();
+
+  // Putting a finger down sounds that string; taking it off is silent.
   const toggleFret = (stringIdx: number, fret: number) => {
+    if (fretSound && frets[stringIdx] !== fret) void audition([open[stringIdx] + fret]);
     setFrets(p => p.map((f, i) => i !== stringIdx ? f : (f === fret ? null : fret)));
+  };
+
+  // The whole shape, low string first, as a strum
+  const strum = () => {
+    const v = shapeVoicing({ frets, tuning });
+    if (v) void audition(v.midi, true);
   };
 
   // The only way to clear, and it does the two things you want in the order
   // you want them: everything open, then everything off.
   const nutClick = () => {
+    if (fretSound && !frets.every(f => f === 0)) void audition([...open], true);
     setFrets(p => p.every(f => f === 0) ? Array(STRING_COUNT).fill(null) : Array(STRING_COUNT).fill(0));
   };
 
   // Editing one string edits one string. The preset stays selected — the note
   // letters below are what say where the tuning actually is.
   const tuneString = (stringIdx: number, delta: number) => {
+    if (fretSound) void audition([open[stringIdx] + delta]);
     setTuning(t => ({ ...t, midi: t.midi.map((m, i) => i === stringIdx ? m + delta : m) }));
   };
 
@@ -122,8 +137,15 @@ export function FretboardIdentifier({ initialTuning, onSaveTuning, onAddChord, c
           <Plus size={10} />
         </button>
 
+        {/* Sound: each note as it goes down. Remembered on this device. */}
+        <button onClick={() => setUiPrefs({ fretSound: !fretSound })} role="switch" aria-checked={fretSound}
+          title={fretSound ? "Notes sound as you place them — click to mute" : "Muted — click to hear notes as you place them"}
+          className={`${btn} ${fretSound ? btnOn : btnOff} ml-auto`} style={{ fontFamily: MONO }}>
+          {fretSound ? "sound on" : "sound off"}
+        </button>
+
         {/* Detune, applied on top of whichever tuning is selected */}
-        <div className="flex items-center gap-1 ml-auto">
+        <div className="flex items-center gap-1">
           <FL className="text-muted-foreground/70 mr-1">Detune</FL>
           <button onClick={() => setTuning(t => ({ ...t, detune: t.detune - 1 }))}
             aria-label="Detune down a semitone"
@@ -210,9 +232,10 @@ export function FretboardIdentifier({ initialTuning, onSaveTuning, onAddChord, c
           about the naming would be the app talking about itself. */}
       <div className="px-3 py-2.5 border-t border-border">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          {id.primary && playApi.on ? (
-            // Play mode: the name sounds the shape on the neck, exactly
-            <button type="button" onClick={e => { flash(e.currentTarget); playApi.playShape({ frets, tuning }); }}
+          {id.primary && (playApi.on || fretSound) ? (
+            // The name sounds the shape on the neck, exactly — through Play's
+            // instrument in Play mode, as a guitar strum otherwise
+            <button type="button" onClick={e => { flash(e.currentTarget); if (playApi.on) playApi.playShape({ frets, tuning }); else strum(); }}
               title={`Play ${id.primary.name}`}
               className="text-[19px] text-foreground leading-tight px-1 -mx-1 rounded-sm" style={{ fontFamily: MONO }}>
               {id.primary.name}
