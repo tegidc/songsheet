@@ -685,32 +685,37 @@ would have cost four, leaving A D F G free to type.
 ### Themes and the Swiss layout (`src/lib/theme/`, `components/chords/swiss.tsx`)
 See STYLE.md for the visual system itself; this is where it lives.
 
-- `lib/theme/themes.ts` — the seven `ThemeDef`s (Swiss default, Hi-Fi, Teak,
-  Atomic, Sleeve, Radio, Lead Sheet): colours, five font roles (display,
-  body, label, title, **sheet — always mono**), weights, tracking, radii, and
-  the Google Fonts families each needs. The single source of truth.
+- `lib/theme/themes.ts` — three themes (Swiss default, Lead Sheet, Teak), each
+  a light and a hand-set dark `Palette` plus five font roles (display, body,
+  label, title, **sheet — always mono**), weights, tracking, radii, and the
+  Google Fonts families each needs. `themeById(id, dark)` resolves one face;
+  retired ids (Hi-Fi, Atomic, Sleeve, Radio) fall back to Swiss. The single
+  source of truth.
 - `lib/theme/apply.ts` — `themeVars(theme)` resolves a theme to CSS custom
   properties: its own tokens (`--ink`, `--rule`, `--panel`…) *and* the
   shadcn/Tailwind variables the app was already written against, which is
   what makes every existing class follow the theme. `ensureContrast` derives
   `--accent-text` (4.5:1) and the chord-function colours (3:1 per surface).
-  `applyTheme(id)` writes them to `:root`, sets `color-scheme` and the
+  `applyTheme(id, dark)` writes them to `:root`, sets `color-scheme` and the
   `theme-color` meta, swaps the one font `<link>`, and caches the result for
   `index.html`'s pre-paint boot script.
 - `main.tsx` applies the theme outside React and re-applies on change — a
   theme switch restyles the document without re-rendering anything.
 - `data/constants.ts` — `MONO`/`SANS`/`SERIF`/`DISPLAY`/`TITLE`/`SHEET` are
   now `var(--font-…)` role names; `SCOL` section tints are `var(--sec-…)`.
-- `lib/prefs.ts` — `theme`, `instrument` and `showFunction` per device
-  (`songsheet-ui-prefs`). Never song data; never saves.
+- `lib/prefs.ts` — `theme`, `dark`, `instrument`, `showFunction`,
+  `showNumerals` (off by default), `fretSound` (on by default) and
+  `settingsOpen` per device (`songsheet-ui-prefs`). Never song data; never
+  saves.
 - `components/chords/swiss.tsx` — the layout's parts: `Row` (the 56px label
   grid), `sectionLabel`, `FunctionMark`, `NowDot`, `Numeral`, chord-name
   sizing, and `ChordSelectorPanel`, the inverted selector skin used by the
   desktop dock and the phone drawer alike.
 - `components/common/Masthead.tsx` — dated masthead and the decorative rings.
-- `components/sidebar/SettingsSection.tsx` — theme swatches, play sound,
-  show chord function; at the foot of `ProjectsSidebar`, and alone in
-  `SettingsOnlySidebar` when signed out.
+- `components/sidebar/SettingsSection.tsx` — folds on its heading. Theme
+  swatches and Dark; Play chords (the Play switch itself) and its sound; show
+  chord function, show numerals. At the foot of `ProjectsSidebar`, and alone
+  in `SettingsOnlySidebar` when signed out.
 - `lib/theory/function.ts` — `romanNumeral` and `chordFunction`, read through
   the key in force with `nashvilleDegree`, so numerals, Nashville numbers and
   function marks always agree and all move when the key changes. Uses the
@@ -723,10 +728,10 @@ See STYLE.md for the visual system itself; this is where it lives.
   shortcuts (still handled in the grid's `kd`), one panel.
 - `dev/demo.ts` — development only: `?demo=1` opens a sample song on the
   Chords tab (refused when a session is stored), `?theme=<id>` previews a
-  theme. Used for the screenshots in `docs/screenshots/` (git-ignored).
+  theme (`&dark=1` its dark face). Used for the screenshots in `docs/screenshots/` (git-ignored).
 
 ### Play mode (`src/lib/audio/`)
-A **Play** switch on the Chords screen. While it is on, tapping a chord
+A **Play chords** switch in the sidebar's Settings. While it is on, tapping a chord
 anywhere it is drawn sounds it and does nothing else; while it is off, every
 tap does exactly what it did before. Session state, off on every load.
 
@@ -769,11 +774,16 @@ tap does exactly what it did before. Session state, off on every load.
   `fretboardChords` plays that exact shape in its saved tuning** on every
   instrument (muted strings skipped, rolled low → high), most recent entry
   first. Unreadable names voice to `null`: nothing plays, nothing throws.
-- `PlayControls.tsx` (in `components/chords/`) — `PlayToggle` (the switch plus
-  a quiet `loading piano…` / fallback line; never blocks) and `PlayPalette`:
-  the selector's own rows (rotating In Key / Colour / From Fretboard + Used)
-  as play-only pills, shown while Play is on wherever the selector isn't —
-  always on mobile, where the selector lives only in a bar's drawer.
+- `PlayControls.tsx` (in `components/chords/`) — `PlayBadge`, the
+  `● playing · piano · stop` note in the Chords screen's view line while Play
+  is on (it can switch Play off, never on); `KeyRow`; and `SelectorDock`, the
+  docked selector, shown while Play is on wherever the selector isn't.
+- **Fretboard sound** — `engine.audition(midi, strum?)`, always the guitar and
+  independent of Play: each note placed on the neck sounds, the nut strums the
+  open strings, re-tuning a string plays its new pitch, and the chord name
+  strums the shape. Its own `sound on/off` switch on the neck (`fretSound`).
+  The first note waits once for the guitar samples; one later than 2.5 s is
+  dropped.
 - **Instrument** is a per-device preference in `src/lib/prefs.ts`
   (`songsheet-ui-prefs` in localStorage, beside — not merged with — the Word
   Cloud's own store), chosen in the sidebar's Settings section
