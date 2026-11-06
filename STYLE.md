@@ -43,9 +43,9 @@ aspirational.
 
 ### Chords screen
 
-Top to bottom: `view` (analyse, selector, nashville as text toggles, bold
-when on; `● playing · piano · stop` while Play is on — Play is switched on in
-Settings) · the Analyse panel when open · one
+Top to bottom: `view` (`selector`, `nashville`, `○ play ⇪` as text
+toggles, bold when on; Play's dot fills with the accent; on desktop **Caps
+Lock is Play** — locked plays, unlocked edits; phones also have `analyse`) · the Analyse panel when open · one
 row per section · `key` · `add` (section types as words) · the selector dock ·
 the fretboard identifier.
 
@@ -68,6 +68,15 @@ the fretboard identifier.
   stays on its own line. Pills are 46px, `--panel-rule` hairline,
   `--radius-selector`. **Behaviour, rows, rotation, shortcuts and placement
   are unchanged** — this is a skin.
+- **The selector is the one chord tool (desktop).** Analyse and the
+  fretboard are no longer boxes on the page. Under **In key**, one small
+  panel-muted line: `key C · detected Am 61% set ↻ · ideas bridge` — the key
+  field, detection, and the two generators, which open beneath it. Under
+  **From fretboard**, the neck itself, full panel width, framed by a rule
+  instead of a box; `+` adds the shape to that row's pills. Page-token
+  components embedded in the panel are re-pinned to panel colours
+  (`PANEL_TOKENS` in `SelectorTools.tsx`). Phones keep the Analyse toggle,
+  the key row and the neck at the foot of the screen until the phone pass.
 
 ### Create, Lyrics, Final — tokens only (this pass)
 
