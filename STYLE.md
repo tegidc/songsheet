@@ -1,6 +1,6 @@
 # STYLE.md — Songsheet visual system
 
-One layout, seven themes. The layout is a mid-century Swiss-poster grid; a
+One layout, three themes, each with a dark face. The layout is a mid-century Swiss-poster grid; a
 **theme changes tokens only** — colours, fonts, weights, tracking, radius —
 never where anything sits. Everything here is implemented; nothing is
 aspirational.
@@ -22,8 +22,11 @@ aspirational.
 
 ### Masthead and chrome
 
-- **Header:** a 48px sticky bar of plain icons (songs & settings, object
-  writing ✦, word cloud) and the save state. No border, no wordmark on phones.
+- **Header:** a 48px sticky bar of plain icons — songs & settings (folder),
+  writing (notepad: back to the song sheet), object writing ✦, word cloud —
+  and the save state; the view you are in is drawn in ink, the rest muted.
+  Signed in, the app **opens on a fresh object writing** (untimed until you
+  start it); closing it is the song sheet. No border, no wordmark on phones.
 - **Masthead:** the project's start date stacked small in the label column
   (`26 / 07 / 18` — the YYMMDD prefix; today for an unsaved song), the title
   large and tight beside it: theme title face, `--title-weight`,
@@ -40,16 +43,19 @@ aspirational.
 
 ### Chords screen
 
-Top to bottom: `play` (switch + instrument) · `view` (analyse, selector,
-nashville as text toggles, bold when on) · the Analyse panel when open · one
+Top to bottom: `view` (analyse, selector, nashville as text toggles, bold
+when on; `● playing · piano · stop` while Play is on — Play is switched on in
+Settings) · the Analyse panel when open · one
 row per section · `key` · `add` (section types as words) · the selector dock ·
 the fretboard identifier.
 
 - **Chord rows:** two per line on phones (`w-1/2`), flowing at ≥136px on
   desktop. The songwriter's own row breaks still start new lines. Name in the
   display face, **20px bold, 18px past seven characters** (a little smaller
-  still on a 320px phone), `--chord-tracking`; the **Roman numeral small and
-  muted beside it** (wraps under on narrow phones). Off-key chords are drawn in
+  still on a 320px phone), `--chord-tracking`. The name stands alone by default; with *Show numerals*
+  on, the **Roman numeral sits small and muted beside it** (wraps under on
+  narrow phones), and the selector pills carry their degree labels
+  (`borrowed` and the off-key `•` always show). Off-key chords are drawn in
   `--accent-text`. Phrase markers are a 1px ink rule on the bar's right edge,
   taking no width.
 - **Key:** the key in force as a 44px letter in the title face — it *is* the
@@ -118,40 +124,32 @@ font link) before the app loads, so a dark theme never flashes light.
 
 ## Themes
 
-| | bg | ink | accent → as text | panel | display / label / title | title | radius |
-|---|---|---|---|---|---|---|---|
-| **Swiss** (default) | #F5F4F0 | #111111 | #D3271C | #111111 | Inter Tight | 800, −0.035em | 0 |
-| **Hi-Fi** | #EDEAE3 | #2A2926 | #D9531E → **#B54519** | #2A2926 | Archivo / IBM Plex Mono / Archivo | 700 | 999px |
-| **Teak** | #F4EFE6 | #2E2B27 | #8A4F2A | #E7DCCB | Jost | 300 | 12px |
-| **Atomic** | #F3E6CC | #4A2E1B | #D9A22B → **#826017** | #4A2E1B | Josefin Sans / — / DM Serif Display | 400 | 999px |
-| **Sleeve** (dark) | #121212 | #F1EDE4 | #3C82D0 | #F1EDE4 | Oswald / Oswald / Oswald, body Work Sans | 700 | 0 |
-| **Radio** (dark) | #2B1D14 | #EFE3C8 | #F2B33D | #1A110B | Barlow / — / Poiret One | 400 | 4px |
-| **Lead Sheet** | #F4EEDF | #1E1C1A | #B3261E | #2A2724 | Courier Prime / — / Special Elite | 400 | 999px |
+Three themes, and a **Dark** switch that gives any of them its dark face.
+The dark faces are drawn by hand, not computed — an inverted cream reads
+muddy — and share each theme's fonts, weights and radii exactly.
 
-Sheet mono per theme: IBM Plex Mono (Swiss, Hi-Fi, Sleeve), DM Mono (Teak,
-Atomic, Radio), Courier Prime (Lead Sheet).
+| | light bg / ink / accent | dark bg / ink / accent | panel (light → dark) | display / title | radius |
+|---|---|---|---|---|---|
+| **Swiss** (default) | #F5F4F0 / #111111 / #D3271C | #121212 / #F2F1EC / #E5483C | ink block → paper block | Inter Tight, 800 −0.035em | 0 |
+| **Lead Sheet** | #FAF8F3 / #1E1C1A / #B3261E | #171615 / #F3F1EC / #E0574E | ink block → paper block | Courier Prime / Special Elite | 999px |
+| **Teak** | #F4EFE6 / #2E2B27 / #8A4F2A | #221D18 / #EFE6D8 / #D08A5A | light oak → dark oak | Jost, 300 | 12px |
+
+Lead Sheet's page moved from cream (#F4EEDF) to near-white. Sheet mono: IBM
+Plex Mono (Swiss), Courier Prime (Lead Sheet), DM Mono (Teak).
 
 ### Contrast (WCAG, checked by `apply.ts`'s own maths)
 
-All text pairs pass 4.5:1 in all seven themes: ink/bg 10.0–17.2, muted/bg
-5.3–7.1, panel-ink/panel 10.4–17.2, panel-muted/panel 5.1–8.1.
+All six faces pass 4.5:1 for every text pair: ink/bg 12.3–17.2, muted/bg
+5.4–7.3, accent-as-text 4.7–6.2, panel-ink/panel 10.4–17.2,
+panel-muted/panel 5.1–7.9. No accent needed darkening.
 
-What was adjusted (hue kept, lightness moved, by `ensureContrast`):
-
-- **Accent as text** failed in Hi-Fi (3.36) and Atomic (1.86): `--accent-text`
-  is #B54519 (4.56) and #826017 (4.68). The fill colours are untouched.
-- **Chord-function marks** (graphics, 3:1): the ▲ pull yellow #E0AE16 is
-  ~1.8:1 on every light page, so on light pages it becomes an ochre
-  (#AD8611 Swiss, #A47F10 Hi-Fi/Atomic, #A88311 Teak/Lead); on Teak's light
-  panel #9A780F, on Sleeve's light panel #A88311. Atomic's dark-brown panel
-  lifts home/lift to #4F7ED6 / #DC4F45. Everything else keeps the specified
-  #3A6FD1 / #D7372B / #E0AE16.
-- **Text on accent fills:** the UI never puts text on an accent fill (discs,
-  dots and the Play knob carry none). For the record, the best text colour on
-  the accent reaches only 3.6:1 in Hi-Fi; if a later design needs text on the
-  accent there, use `--accent-text` as the fill.
-- **Rules** in Teak (#B98A66, 2.7:1) and Radio (#5A4331, 1.8:1) are
-  decorative separators, not component boundaries, and are left as designed.
+Chord-function marks (graphics, 3:1): the ▲ pull yellow #E0AE16 becomes an
+ochre on light surfaces (#AD8611 Swiss, #B28A11 Lead Sheet, #A88311 Teak;
+#9A780F on Teak's oak panel; #A88311 / #AD8611 on the paper panels of
+dark Swiss / dark Lead Sheet).
+Home/lift keep #3A6FD1 / #D7372B everywhere. Teak's rules (#B98A66 light,
+#8C6A50 dark) are decorative separators, left as designed. The UI never puts
+text on an accent fill.
 
 ## Chord function marks
 
@@ -162,8 +160,8 @@ same degree maths as the Nashville numbers. A chord is diatonic when every
 note it sounds — suffix and slash bass included — is in the key's scale.
 Minor keys use the same degree rule (i ♭III ♭VI home, ii° iv lift, v ♭VII
 pull) and allow the raised leading tone on chords built on 5 and 7 (E7, G♯°
-in A minor). Marks are decorative; the numeral beside the name says the
-same thing as text.
+in A minor). Marks are decorative; *Show numerals* says the same thing as
+text.
 
 ## Now playing
 

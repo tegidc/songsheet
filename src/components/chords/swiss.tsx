@@ -78,9 +78,10 @@ export const chordNameStyle = (name: string, heavy = false): React.CSSProperties
   fontWeight: heavy ? 800 : 700, letterSpacing: "var(--chord-tracking)", lineHeight: 1.1,
 });
 
-/** The small muted Roman numeral beside a chord. */
+/** The small muted Roman numeral beside a chord — only with Settings › Show numerals on. */
 export function Numeral({ chord, activeKey }: { chord: string; activeKey: Key }) {
-  const r = romanNumeral(chord, activeKey);
+  const { showNumerals } = useUiPrefs();
+  const r = showNumerals ? romanNumeral(chord, activeKey) : null;
   if (!r) return null;
   return <span className="text-[12px] text-muted-foreground shrink-0" style={{ fontFamily: "var(--font-label)" }}>{r}</span>;
 }
@@ -157,6 +158,9 @@ export function ChordSelectorPanel({ suggestions, chordRow, onCycleChordRow, onP
   );
 }
 
+/** Degree labels (I, vi, V/ii…) follow Show numerals; "borrowed" and the off-key dot always show. */
+const isNumeralLabel = (l: string) => l !== "borrowed" && l !== "•";
+
 function Pills({ items, keys, activeKey, onTap, onRemove }: {
   items: ChordSuggestion[]; keys?: string[]; activeKey: Key;
   onTap: (e: React.MouseEvent<HTMLElement>, chord: string) => void;
@@ -174,6 +178,7 @@ function Pill({ s, k, activeKey, onTap, onRemove }: {
   onTap: (e: React.MouseEvent<HTMLElement>, chord: string) => void; onRemove?: (chord: string) => void;
 }) {
   const fn = useChordFunction(s.chord, activeKey);
+  const { showNumerals } = useUiPrefs();
   return (
     <div className="relative group/pill">
       <button onClick={e => onTap(e, s.chord)}
@@ -184,7 +189,7 @@ function Pill({ s, k, activeKey, onTap, onRemove }: {
           <FunctionMark fn={fn} surface="panel" size={8} />
           <span style={{ fontFamily: "var(--font-display)", fontSize: s.chord.length > 6 ? 13 : 16, fontWeight: 700, letterSpacing: "var(--chord-tracking)", lineHeight: 1 }}>{s.chord}</span>
         </span>
-        {s.label && <span className="text-[9px] text-[var(--panel-muted)] leading-none">{s.label}</span>}
+        {s.label && (showNumerals || !isNumeralLabel(s.label)) && <span className="text-[9px] text-[var(--panel-muted)] leading-none">{s.label}</span>}
       </button>
       {onRemove && (
         <button onClick={() => onRemove(s.chord)} aria-label={`Remove ${s.chord} from this song's fretboard chords`}

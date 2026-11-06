@@ -3,7 +3,7 @@ import type { Song, Tab } from "../types";
 
 /**
  * Development only — `?demo=1` opens a sample song on the Chords tab, and
- * `?theme=<id>` previews a theme without saving it. For screenshots and
+ * `?theme=<id>` (and `?dark=1`) previews a theme without saving it. For screenshots and
  * checking by eye; `import.meta.env.DEV` keeps it out of the production build,
  * and the demo song never saves (nothing autosaves signed out, and a signed-in
  * session ignores these parameters entirely — see App.tsx).
@@ -12,6 +12,8 @@ const params = typeof window !== "undefined" ? new URLSearchParams(window.locati
 const DEV = !!(import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV;
 
 export const devThemeOverride: string | null = DEV ? params.get("theme") : null;
+/** `?dark=1` / `?dark=0` previews the dark face. */
+export const devDarkOverride: boolean | null = DEV && params.has("dark") ? params.get("dark") === "1" : null;
 
 export function devDemo(): { song: Song; tab: Tab } | null {
   if (!DEV || params.get("demo") !== "1") return null;

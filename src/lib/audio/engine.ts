@@ -169,8 +169,35 @@ export function playVoicing(v: Voicing | null) {
   }
 }
 
+/**
+ * The fretboard's own voice: always the guitar, whatever Play's instrument
+ * is, and independent of Play mode. Called from inside the click that placed
+ * the note, so it can unlock audio itself. The first note waits for the
+ * guitar samples (a second or so, once); if they never come, the pad stands in.
+ */
+const auditioned: string[] = [];
+export async function audition(midi: number[], strum = false) {
+  const c = unlock();
+  if (!c || !master || !midi.length) return;
+  const asked = c.currentTime;
+  const ok = samplers.guitar ? true : await loadSampler("guitar");
+  // A note that arrives long after its click is worse than none
+  if (c.currentTime - asked > 2.5) return;
+  // Play going off may have suspended the context while the samples loaded
+  if (c.state !== "running") { try { await c.resume(); } catch { return; } }
+  const now = c.currentTime + 0.01;
+  const gap = strum ? 0.035 : 0;
+  auditioned.push(midi.join(" ")); if (auditioned.length > 8) auditioned.shift();
+  if (ok && samplers.guitar) {
+    const vel = Math.round(Math.max(60, 95 - midi.length * 5));
+    midi.forEach((note, i) => samplers.guitar!.start({ note, velocity: vel, time: now + i * gap, duration: 3 }));
+  } else {
+    ensurePad()?.play(midi, now, gap);
+  }
+}
+
 /** Test/inspection hook: the engine's live state. */
-export const engineDebug = () => ({ ctxState: ctx?.state ?? "none", status, current, loaded: Object.keys(samplers) });
+export const engineDebug = () => ({ ctxState: ctx?.state ?? "none", status, current, loaded: Object.keys(samplers), auditioned: auditioned.slice(-8) });
 
 const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {

@@ -1,46 +1,28 @@
 import { useEffect, useState } from "react";
 import type { ChordRow, ChordSuggestionSets } from "../../lib/theory/chords";
 import { usePlay } from "../../lib/audio/PlayContext";
-import { setUiPrefs, useUiPrefs, type Instrument } from "../../lib/prefs";
+import { useUiPrefs } from "../../lib/prefs";
 import { formatDetectedKey } from "../../lib/theory/key";
 import { ChordSelectorPanel, Row, type Key } from "./swiss";
 
-const INSTRUMENTS: Instrument[] = ["piano", "guitar", "ambient"];
-
 /**
- * The "play" row: the Play switch (ink track, accent knob) and the instrument,
- * with a quiet loading / fallback line under it. Switching on is the user
- * gesture that starts audio — see lib/audio/engine.ts.
+ * Play is switched on in Settings. While it is on, the Chords screen says so
+ * in its view line — taps play instead of edit, and nothing else on the screen
+ * would tell you why a chord won't take a keystroke. Tapping it switches Play
+ * off; there is no way to switch it *on* from here, by design.
  */
-export function PlayRow() {
+export function PlayBadge() {
   const { on, setOn, status, note } = usePlay();
   const { instrument } = useUiPrefs();
+  if (!on) return null;
+  const text = status === "loading" ? `loading ${instrument}…` : status === "fallback" ? note : `playing · ${instrument}`;
   return (
-    <Row label="play" align="center" className="py-2">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <button role="switch" aria-checked={on} aria-label="Play mode"
-          title={on ? "Play mode on — tapping a chord plays it" : "Play mode — tap chords to hear them"}
-          onClick={() => setOn(!on)}
-          className="relative shrink-0 w-[52px] h-7 rounded-full transition-colors my-2"
-          style={{ background: on ? "var(--ink)" : "var(--rule-soft)" }}>
-          <span className="absolute top-1 w-5 h-5 rounded-full transition-all"
-            style={{ left: on ? 28 : 4, background: on ? "var(--accent-fill)" : "var(--bg)" }} />
-        </button>
-        <div className="flex items-center gap-3.5 text-[13px]" role="radiogroup" aria-label="Play instrument" style={{ fontFamily: "var(--font-label)" }}>
-          {INSTRUMENTS.map(i => (
-            <button key={i} role="radio" aria-checked={instrument === i} onClick={() => setUiPrefs({ instrument: i })}
-              className={`py-2.5 transition-colors ${instrument === i ? "font-bold text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-              {i}
-            </button>
-          ))}
-        </div>
-      </div>
-      {on && (status === "loading" || status === "fallback") && (
-        <p className="text-[11px] text-muted-foreground pb-1" style={{ fontFamily: "var(--font-label)" }} aria-live="polite">
-          {status === "loading" ? `loading ${instrument}…` : note}
-        </p>
-      )}
-    </Row>
+    <button onClick={() => setOn(false)} title="Play is on — tap chords to hear them. Click to stop playing and edit again."
+      aria-label="Play mode on — switch off"
+      className="py-2.5 flex items-center gap-1.5 text-foreground font-bold" aria-live="polite">
+      <span aria-hidden className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: "var(--accent-fill)" }} />
+      {text} <span className="font-normal text-muted-foreground">· stop</span>
+    </button>
   );
 }
 
