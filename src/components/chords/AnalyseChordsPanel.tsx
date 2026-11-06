@@ -7,10 +7,13 @@ import type { IdeaResult } from "../../lib/theory/ideas";
 import { formatDetectedKey } from "../../lib/theory/key";
 import { getParallelChords } from "../../lib/theory/substitutions";
 import type { Song } from "../../types";
+import type { JoinIdea } from "../../lib/theory/joins";
+import { BridgeBlock, IdeasBlock, JoinsBlock } from "./IdeaBlocks";
 import { flash, usePlay } from "../../lib/audio/PlayContext";
 
 export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo, onReroll, onApply, onUndo,
-  bridge, bridgeUndo, onBridgeGenerate, onBridgeApply, onBridgeUndo, onClose, onSetKey, onRedetect }: {
+  bridge, bridgeUndo, onBridgeGenerate, onBridgeApply, onBridgeUndo, join, joinUndo, onJoinGenerate, onJoinApply, onJoinUndo,
+  onClose, onSetKey, onRedetect }: {
   song: Song;
   // The key everything here is read through — the declared one, whenever the
   // songwriter has declared one. `suggestion` is only ever a proposal.
@@ -26,12 +29,18 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
   onBridgeGenerate: () => void;
   onBridgeApply: (sectionId: string, bars: string[]) => void;
   onBridgeUndo: () => void;
+  join: JoinIdea | null;
+  joinUndo: { sectionId: string; bars: string[] } | null;
+  onJoinGenerate: (seam?: string, avoid?: string) => void;
+  onJoinApply: (sectionId: string, bars: string[]) => void;
+  onJoinUndo: () => void;
   onClose: () => void;
   onSetKey: (key: string) => void;
   onRedetect: () => void;
 }) {
   const [ideasOpen, setIdeasOpen] = useState(false);
   const [bridgeOpen, setBridgeOpen] = useState(false);
+  const [joinsOpen, setJoinsOpen] = useState(false);
 
   // Freeform: whatever is typed is declared verbatim on Enter or on leaving the
   // field. Nothing is validated or rejected. Reseeded when the key changes from
@@ -46,14 +55,17 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
 
   const handleIdeasToggle = () => {
     if (!ideasOpen && !idea) onReroll(effectiveSectionId);
-    setIdeasOpen(o => !o);
-    if (bridgeOpen) setBridgeOpen(false);
+    setIdeasOpen(o => !o); setBridgeOpen(false); setJoinsOpen(false);
   };
 
   const handleBridgeToggle = () => {
     if (!bridgeOpen && !bridge) onBridgeGenerate();
-    setBridgeOpen(o => !o);
-    if (ideasOpen) setIdeasOpen(false);
+    setBridgeOpen(o => !o); setIdeasOpen(false); setJoinsOpen(false);
+  };
+
+  const handleJoinsToggle = () => {
+    if (!joinsOpen && !join) onJoinGenerate();
+    setJoinsOpen(o => !o); setIdeasOpen(false); setBridgeOpen(false);
   };
 
   const diatonicChords = activeKey
@@ -185,6 +197,16 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
               Bridge {bridgeOpen ? "▴" : "▾"}
             </button>
             <button
+              onClick={handleJoinsToggle}
+              className={`text-[10px] px-3 py-1 border rounded-sm transition-colors ${
+                joinsOpen
+                  ? "border-foreground/30 text-foreground bg-muted/40"
+                  : "border-border/50 text-muted-foreground/70 hover:text-foreground hover:border-foreground/20"
+              }`}
+              style={{ fontFamily: MONO }}>
+              Joins {joinsOpen ? "▴" : "▾"}
+            </button>
+            <button
               onClick={handleIdeasToggle}
               className={`text-[10px] px-3 py-1 border rounded-sm transition-colors ${
                 ideasOpen
@@ -198,10 +220,12 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
         </div>
       </div>
 
-      {ideasOpen && <IdeasBlock song={song} idea={idea} ideaUndo={ideaUndo} onReroll={onReroll} onApply={onApply} onUndo={onUndo}
-        sectionId={effectiveSectionId} onSectionChange={setSelectedSectionId} />}
-      {bridgeOpen && <BridgeBlock song={song} bridge={bridge} bridgeUndo={bridgeUndo}
-        onBridgeGenerate={onBridgeGenerate} onBridgeApply={onBridgeApply} onBridgeUndo={onBridgeUndo} />}
+      {ideasOpen && <div className="border-t border-border/50"><IdeasBlock song={song} idea={idea} ideaUndo={ideaUndo} onReroll={onReroll} onApply={onApply} onUndo={onUndo}
+        sectionId={effectiveSectionId} onSectionChange={setSelectedSectionId} nashKey={null} /></div>}
+      {joinsOpen && <div className="border-t border-border/50"><JoinsBlock song={song} join={join} joinUndo={joinUndo}
+        onJoinGenerate={onJoinGenerate} onJoinApply={onJoinApply} onJoinUndo={onJoinUndo} nashKey={null} /></div>}
+      {bridgeOpen && <div className="border-t border-border/50"><BridgeBlock song={song} bridge={bridge} bridgeUndo={bridgeUndo}
+        onBridgeGenerate={onBridgeGenerate} onBridgeApply={onBridgeApply} onBridgeUndo={onBridgeUndo} nashKey={null} /></div>}
     </div>
   );
 }
@@ -210,190 +234,3 @@ export function AnalyseChordsPanel({ song, activeKey, suggestion, idea, ideaUndo
 
 const sectionsWithChordsOf = (song: Song) =>
   song.sections.filter(s => (s.chordBars ?? []).some(b => b.trim() && !isEditorialBar(b)));
-const hasNoChords = (song: Song) => !song.sections.some(s => (s.chordBars ?? []).some(b => b.trim()));
-
-/**
- * Wildcard ideas: a rerolled variation of one section, added as a new section.
- * Shared by the Analyse panel (phones) and the selector's In key tools (desktop).
- */
-export function IdeasBlock({ song, idea, ideaUndo, onReroll, onApply, onUndo, sectionId, onSectionChange }: {
-  song: Song; idea: IdeaResult | null; ideaUndo: { newSectionId: string } | null;
-  onReroll: (sectionId?: string) => void; onApply: (sectionId: string, bars: string[]) => void; onUndo: () => void;
-  sectionId: string; onSectionChange: (id: string) => void;
-}) {
-  const sectionsWithChords = sectionsWithChordsOf(song);
-  const effectiveSectionId = sectionId;
-  const setSelectedSectionId = onSectionChange;
-  const noChords = hasNoChords(song);
-  return (
-        <div className="border-t border-border/50">
-          {/* Ideas sub-header */}
-          <div className="px-4 py-2 bg-muted/15 flex items-center gap-2 flex-wrap">
-            <FL className="text-muted-foreground/60">
-              Wildcard
-            </FL>
-            {/* Section selector — only when there are multiple sections */}
-            {sectionsWithChords.length > 1 && (
-              <select
-                value={effectiveSectionId}
-                onChange={e => { setSelectedSectionId(e.target.value); onReroll(e.target.value); }}
-                className="text-[9px] bg-transparent border border-border/40 rounded-sm px-1.5 py-0.5 text-muted-foreground/70 focus:outline-none cursor-pointer hover:border-foreground/30 transition-colors"
-                style={{ fontFamily: MONO }}>
-                {sectionsWithChords.map(s => (
-                  <option key={s.id} value={s.id}>{s.shortLabel || s.label}</option>
-                ))}
-              </select>
-            )}
-            {idea && (
-              <span className="text-[9px] px-1.5 py-0.5 border border-border/40 rounded-sm text-muted-foreground/50 bg-background"
-                style={{ fontFamily: MONO }}>{idea.technique}</span>
-            )}
-            <button onClick={() => onReroll(effectiveSectionId)}
-              className="ml-auto text-[15px] text-foreground/55 hover:text-foreground transition-colors leading-none px-1.5 py-0.5 border border-border/40 rounded-sm hover:border-foreground/30"
-              style={{ fontFamily: MONO }} title="Roll another idea">↻</button>
-          </div>
-
-          <div className="px-4 py-3">
-            {noChords ? (
-              <p className="text-[12px] text-muted-foreground/40 italic" style={{ fontFamily: SERIF }}>
-                Add chords to a section first.
-              </p>
-            ) : !idea ? (
-              <p className="text-[12px] text-muted-foreground/40 italic" style={{ fontFamily: SERIF }}>
-                Press ↻ to roll a wildcard idea.
-              </p>
-            ) : (
-              <>
-                <p className="text-[12px] text-muted-foreground/60 italic mb-3 leading-relaxed" style={{ fontFamily: SERIF }}>
-                  {idea.description}
-                </p>
-
-                <div className="flex items-center justify-between mb-1.5">
-                  <FL className="text-muted-foreground/40">
-                    {idea.sectionLabel}
-                  </FL>
-                  <div className="flex items-center gap-3">
-                    {ideaUndo && (
-                      <button onClick={onUndo}
-                        className="text-[10px] text-muted-foreground/50 hover:text-foreground transition-colors"
-                        style={{ fontFamily: MONO }}>
-                        ← Undo
-                      </button>
-                    )}
-                    <button onClick={() => onApply(idea.sectionId, idea.bars)}
-                      className="text-[10px] text-accent hover:text-foreground transition-colors"
-                      style={{ fontFamily: MONO }}>
-                      Add section →
-                    </button>
-                  </div>
-                </div>
-
-                {/* Bar grid — respects ROW_BREAK rows to match section formatting */}
-                <div className="rounded-sm border border-border/40 overflow-hidden"
-                  style={{
-                    backgroundImage: `radial-gradient(circle, var(--rule-soft) 1px, transparent 1px)`,
-                    backgroundSize: `${CW}px ${CH}px`,
-                  }}>
-                  {(() => {
-                    const rows: string[][] = [[]];
-                    idea.bars.forEach(b => {
-                      if (b === ROW_BREAK) rows.push([]);
-                      else rows[rows.length - 1].push(b);
-                    });
-                    return rows.map((row, ri) => (
-                      <div key={ri} className={`flex overflow-x-auto${ri > 0 ? " border-t border-border/[0.07]" : ""}`}
-                        style={{ scrollbarWidth: "none" }}>
-                        {row.map((bar, bi) => (
-                          <div key={bi}
-                            className={`shrink-0 flex items-center justify-center text-[12px] border-r border-border/20 last:border-r-0 ${bar === PHRASE_MARKER ? "text-muted-foreground/30" : "text-foreground/70"}`}
-                            style={{ width: bar === PHRASE_MARKER ? 22 : CW, height: CH, fontFamily: MONO }}>
-                            {bar === PHRASE_MARKER ? "│" : bar.trim()}
-                          </div>
-                        ))}
-                      </div>
-                    ));
-                  })()}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-  );
-}
-
-/** Bridge ideas: a generated bridge applied over a section. Shared like IdeasBlock. */
-export function BridgeBlock({ song, bridge, bridgeUndo, onBridgeGenerate, onBridgeApply, onBridgeUndo }: {
-  song: Song; bridge: IdeaResult | null; bridgeUndo: { sectionId: string; bars: string[] } | null;
-  onBridgeGenerate: () => void; onBridgeApply: (sectionId: string, bars: string[]) => void; onBridgeUndo: () => void;
-}) {
-  const noChords = hasNoChords(song);
-  return (
-        <div className="border-t border-border/50">
-          {/* Bridge sub-header */}
-          <div className="px-4 py-2 bg-muted/15 flex items-center gap-2">
-            <FL className="text-muted-foreground/60">
-              Bridge
-            </FL>
-            {bridge && (
-              <span className="text-[9px] px-1.5 py-0.5 border border-border/40 rounded-sm text-muted-foreground/50 bg-background"
-                style={{ fontFamily: MONO }}>{bridge.technique}</span>
-            )}
-            <button onClick={onBridgeGenerate}
-              className="ml-auto text-[12px] text-muted-foreground/40 hover:text-foreground transition-colors leading-none"
-              style={{ fontFamily: MONO }} title="Regenerate bridge idea">↻</button>
-          </div>
-
-          <div className="px-4 py-3">
-            {noChords ? (
-              <p className="text-[12px] text-muted-foreground/40 italic" style={{ fontFamily: SERIF }}>
-                Add chords to other sections first.
-              </p>
-            ) : !bridge ? (
-              <p className="text-[12px] text-muted-foreground/40 italic" style={{ fontFamily: SERIF }}>…</p>
-            ) : (
-              <>
-                <p className="text-[12px] text-muted-foreground/60 italic mb-3 leading-relaxed" style={{ fontFamily: SERIF }}>
-                  {bridge.description}
-                </p>
-
-                <div className="flex items-center justify-between mb-1.5">
-                  <FL className="text-muted-foreground/40">
-                    → {bridge.sectionLabel}
-                  </FL>
-                  <div className="flex items-center gap-3">
-                    {bridgeUndo && (
-                      <button onClick={onBridgeUndo}
-                        className="text-[10px] text-muted-foreground/50 hover:text-foreground transition-colors"
-                        style={{ fontFamily: MONO }}>
-                        ← Undo
-                      </button>
-                    )}
-                    <button onClick={() => onBridgeApply(bridge.sectionId, bridge.bars)}
-                      className="text-[10px] text-accent hover:text-foreground transition-colors"
-                      style={{ fontFamily: MONO }}>
-                      Apply →
-                    </button>
-                  </div>
-                </div>
-
-                {/* Bar grid */}
-                <div className="flex overflow-x-auto rounded-sm border border-border/40"
-                  style={{
-                    backgroundImage: `radial-gradient(circle, var(--rule-soft) 1px, transparent 1px)`,
-                    backgroundSize: `${CW}px ${CH}px`,
-                    scrollbarWidth: "none",
-                  }}>
-                  {bridge.bars.filter(b => b !== ROW_BREAK).map((bar, i) => (
-                    <div key={i}
-                      className={`shrink-0 flex items-center justify-center text-[12px] border-r border-border/20 last:border-r-0 ${bar === PHRASE_MARKER ? "text-muted-foreground/30" : "text-foreground/70"}`}
-                      style={{ width: bar === PHRASE_MARKER ? 22 : CW, height: CH, fontFamily: MONO }}>
-                      {bar === PHRASE_MARKER ? "│" : bar.trim()}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-  );
-}

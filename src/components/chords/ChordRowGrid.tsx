@@ -32,10 +32,19 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
   const [focusedBarIdx, setFocusedBarIdx] = useState<number | null>(null);
   const bars = section.chordBars;
   const setBar = (i: number, v: string) => { const n = [...bars]; n[i] = v; onBarsChange(n); };
+  // Focus a bar with the caret after its chord — never in front of it, where
+  // Backspace would do nothing (browsers differ on where focus() leaves it).
+  const focusEnd = (idx: number) => {
+    const el = refs.current[idx];
+    if (!el) return;
+    el.focus();
+    const n = el.value.length;
+    try { el.setSelectionRange(n, n); } catch { /* not a text input */ }
+  };
 
   const addBar = () => {
     onBarsChange([...bars, ""]);
-    setTimeout(() => refs.current[bars.length]?.focus(), 20);
+    setTimeout(() => focusEnd(bars.length), 20);
   };
 
   // Index of the last real (non-editorial) bar, for Tab-to-add-bar
@@ -46,10 +55,10 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
     let next = barIdx + 1;
     while (next < bars.length && isEditorialBar(bars[next])) next++;
     if (next < bars.length) {
-      setTimeout(() => refs.current[next]?.focus(), 10);
+      setTimeout(() => focusEnd(next), 10);
     } else {
       const extended = [...bars, ""]; extended[barIdx] = chord; onBarsChange(extended);
-      setTimeout(() => refs.current[bars.length]?.focus(), 20);
+      setTimeout(() => focusEnd(bars.length), 20);
     }
   };
 
@@ -67,7 +76,12 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
     // Chord shortcuts, while the selector is open. Every row stays bound
     // whether or not it is the one on screen — which row is showing is a
     // question about the screen, and the hands should not have to ask it.
-    if (showSuggest && suggestions && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    // Only into an empty bar, or one whose whole chord is selected (as Tab
+    // leaves it) — once there's a caret inside a chord, every key types, so a
+    // placed G can become G7 or Gm without the 7 or the m placing a chord.
+    const el = e.currentTarget;
+    const replacing = !el.value || (el.selectionStart === 0 && el.selectionEnd === el.value.length);
+    if (showSuggest && suggestions && replacing && !e.metaKey && !e.ctrlKey && !e.altKey) {
       for (const row of ["inKey", "colour", "fretboard"] as const) {
         const idx = CHORD_ROW_KEYS[row].indexOf(e.key.toLowerCase());
         if (idx !== -1 && suggestions[row][idx]) {
@@ -82,17 +96,23 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
     if (e.key === "Tab" && !e.shiftKey && i === lastRealIdx) { e.preventDefault(); addBar(); }
 
     // Arrow navigation — skip editorial bars
+    // The arrow is consumed here: left to run, the browser would carry it out
+    // again inside the bar it lands in, leaving the caret one place in — in
+    // front of a one-letter chord, where Backspace has nothing to delete.
+    // ← arrives at the end of the previous chord, → at the start of the next.
     if (e.key === "ArrowRight" && e.currentTarget.selectionStart === e.currentTarget.value.length) {
       let next = i + 1;
       while (next < bars.length && isEditorialBar(bars[next])) next++;
-      refs.current[next]?.focus();
+      const el = refs.current[next];
+      if (el) { e.preventDefault(); el.focus(); el.setSelectionRange(0, 0); }
     }
-    if (e.key === "ArrowLeft" && e.currentTarget.selectionStart === 0) {
+    if (e.key === "ArrowLeft" && e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0) {
       // If the bar directly behind is a ROW_BREAK, Backspace at position 0
       // is handled below; ArrowLeft should still jump over it
       let prev = i - 1;
       while (prev >= 0 && isEditorialBar(bars[prev])) prev--;
-      refs.current[prev]?.focus();
+      const el = refs.current[prev];
+      if (el) { e.preventDefault(); el.focus(); const n = el.value.length; el.setSelectionRange(n, n); }
     }
 
     // Backspace at col 0 with a ROW_BREAK directly behind → remove the row break (merge rows)
@@ -105,7 +125,7 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
       n.splice(i - 1, 1);
       onBarsChange(n);
       // The current bar is now at i-1; wait for rerender then focus it
-      setTimeout(() => refs.current[i - 1]?.focus(), 20);
+      setTimeout(() => { const el = refs.current[i - 1]; if (el) { el.focus(); el.setSelectionRange(0, 0); } }, 20);
       return;
     }
 
@@ -116,7 +136,7 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
       while (n.length > 0 && n[n.length - 1] === ROW_BREAK) n = n.slice(0, -1);
       onBarsChange(n.length > 0 ? n : [""]);
       const prevReal = n.reduce((last, b, j) => !isEditorialBar(b) ? j : last, -1);
-      setTimeout(() => { if (prevReal >= 0) refs.current[prevReal]?.focus(); }, 20);
+      setTimeout(() => { if (prevReal >= 0) focusEnd(prevReal); }, 20);
       return;
     }
 
@@ -135,7 +155,7 @@ export function ChordRowGrid({ section, idx, total, onBarsChange, onShortLabelCh
       setTimeout(() => {
         let next = i + 2;
         while (next < n.length && isEditorialBar(n[next])) next++;
-        refs.current[next]?.focus();
+        focusEnd(next);
       }, 20);
     }
   };

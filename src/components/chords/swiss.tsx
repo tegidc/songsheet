@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 import type { ChordFunction } from "../../lib/theory/function";
 import { chordFunction, romanNumeral } from "../../lib/theory/function";
-import { CHORD_ROW_HEADING, CHORD_ROW_KEYS, CHORD_ROW_ORDER, type ChordRow, type ChordSuggestion, type ChordSuggestionSets } from "../../lib/theory/chords";
+import { CHORD_ROW_HEADING, CHORD_ROW_KEYS, CHORD_ROW_ORDER, nashvilleParts, toNashville, type ChordRow, type ChordSuggestion, type ChordSuggestionSets } from "../../lib/theory/chords";
 import { abbreviateSectionLabel } from "../../sections";
 import { SDEFS } from "../../data/constants";
 import { useUiPrefs } from "../../lib/prefs";
@@ -64,6 +64,26 @@ export function FunctionMark({ fn, surface = "page", size = 11 }: { fn: ChordFun
   return <span aria-hidden className="inline-block shrink-0" style={{ width: size, height: size, background: color, ...shape }} />;
 }
 
+/**
+ * A chord drawn as its Nashville number: degree and quality full size, the
+ * extension raised and smaller, a slash bass as its own degree — `6-⁹/5`.
+ * Falls back to the name when the chord or key can't be read.
+ */
+export function NashName({ chord, keyName }: { chord: string; keyName: string }) {
+  const n = nashvilleParts(chord, keyName);
+  if (!n) return <>{chord}</>;
+  return (
+    <span className="whitespace-nowrap">
+      {n.deg}{n.qual}
+      {n.ext && <sup className="text-[0.62em] font-semibold ml-px" style={{ top: "-0.55em" }}>{n.ext}</sup>}
+      {n.bass && <>/{n.bass}</>}
+    </span>
+  );
+}
+/** How long a chord reads in whichever system is showing — for sizing. */
+export const shownLength = (chord: string, keyName: string | null) =>
+  keyName ? toNashville(chord, keyName).length - 1 : chord.length;
+
 /** The now-playing dot (B3). */
 export function NowDot({ size = 12 }: { size?: number }) {
   return <span aria-hidden className="inline-block shrink-0 rounded-full" style={{ width: size, height: size, background: "var(--accent-fill)" }} />;
@@ -100,7 +120,7 @@ export function useChordFunction(chord: string, activeKey: Key): ChordFunction |
  *
  * `onPick` places; in Play mode the pills play instead and place nothing.
  */
-export function ChordSelectorPanel({ suggestions, chordRow, onCycleChordRow, onPick, activeKey, onRemoveFretboardChord, showKeys, hint, rowTools, className = "" }: {
+export function ChordSelectorPanel({ suggestions, chordRow, onCycleChordRow, onPick, activeKey, onRemoveFretboardChord, showKeys, hint, rowTools, nashville, className = "" }: {
   suggestions: ChordSuggestionSets; chordRow: ChordRow; onCycleChordRow: () => void;
   onPick?: (chord: string) => void; activeKey: Key;
   onRemoveFretboardChord?: (name: string) => void;
@@ -109,6 +129,8 @@ export function ChordSelectorPanel({ suggestions, chordRow, onCycleChordRow, onP
   hint?: string;
   /** What lives under a row while it is showing (desktop): key and analysis under In key, the neck under From fretboard. */
   rowTools?: Partial<Record<ChordRow, React.ReactNode>>;
+  /** Nashville mode: every pill reads as its number (it still places the chord). */
+  nashville?: boolean;
   className?: string;
 }) {
   const playApi = usePlay();
@@ -143,7 +165,7 @@ export function ChordSelectorPanel({ suggestions, chordRow, onCycleChordRow, onP
 
         <span />
         {items.length ? (
-          <Pills items={items} keys={showKeys ? CHORD_ROW_KEYS[chordRow] : undefined} activeKey={activeKey} onTap={tap}
+          <Pills items={items} keys={showKeys ? CHORD_ROW_KEYS[chordRow] : undefined} activeKey={activeKey} onTap={tap} nashville={nashville}
             onRemove={chordRow === "fretboard" ? onRemoveFretboardChord : undefined} />
         ) : (
           <span className="text-[12px] text-[var(--panel-muted)] italic py-2">
@@ -154,7 +176,7 @@ export function ChordSelectorPanel({ suggestions, chordRow, onCycleChordRow, onP
 
         {suggestions.used.length > 0 && <>
           <span className="text-[12px] lowercase pt-3">used</span>
-          <Pills items={suggestions.used} activeKey={activeKey} onTap={tap} />
+          <Pills items={suggestions.used} activeKey={activeKey} onTap={tap} nashville={nashville} />
         </>}
       </div>
     </div>
@@ -164,24 +186,26 @@ export function ChordSelectorPanel({ suggestions, chordRow, onCycleChordRow, onP
 /** Degree labels (I, vi, V/ii…) follow Show numerals; "borrowed" and the off-key dot always show. */
 const isNumeralLabel = (l: string) => l !== "borrowed" && l !== "•";
 
-function Pills({ items, keys, activeKey, onTap, onRemove }: {
-  items: ChordSuggestion[]; keys?: string[]; activeKey: Key;
+function Pills({ items, keys, activeKey, onTap, onRemove, nashville }: {
+  items: ChordSuggestion[]; keys?: string[]; activeKey: Key; nashville?: boolean;
   onTap: (e: React.MouseEvent<HTMLElement>, chord: string) => void;
   onRemove?: (chord: string) => void;
 }) {
   return (
     <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(64px, 1fr))" }}>
-      {items.map((s, i) => <Pill key={s.chord + s.label} s={s} k={keys?.[i]} activeKey={activeKey} onTap={onTap} onRemove={onRemove} />)}
+      {items.map((s, i) => <Pill key={s.chord + s.label} s={s} k={keys?.[i]} activeKey={activeKey} onTap={onTap} onRemove={onRemove} nashville={nashville} />)}
     </div>
   );
 }
 
-function Pill({ s, k, activeKey, onTap, onRemove }: {
-  s: ChordSuggestion; k?: string; activeKey: Key;
+function Pill({ s, k, activeKey, onTap, onRemove, nashville }: {
+  s: ChordSuggestion; k?: string; activeKey: Key; nashville?: boolean;
   onTap: (e: React.MouseEvent<HTMLElement>, chord: string) => void; onRemove?: (chord: string) => void;
 }) {
   const fn = useChordFunction(s.chord, activeKey);
   const { showNumerals } = useUiPrefs();
+  // The key's name in Nashville mode (null otherwise): every pill is its number
+  const nash = nashville && activeKey ? (activeKey.mode === "minor" ? `${activeKey.key}m` : activeKey.key) : null;
   return (
     <div className="relative group/pill">
       <button onClick={e => onTap(e, s.chord)}
@@ -190,9 +214,12 @@ function Pill({ s, k, activeKey, onTap, onRemove }: {
         {k && <span className="absolute top-0.5 right-1.5 text-[8px] leading-none text-[var(--panel-muted)]">{k}</span>}
         <span className="flex items-center gap-1.5">
           <FunctionMark fn={fn} surface="panel" size={8} />
-          <span style={{ fontFamily: "var(--font-display)", fontSize: s.chord.length > 6 ? 13 : 16, fontWeight: 700, letterSpacing: "var(--chord-tracking)", lineHeight: 1 }}>{s.chord}</span>
+          <span style={{ fontFamily: "var(--font-display)", fontSize: shownLength(s.chord, nash) > 6 ? 13 : 16, fontWeight: 700, letterSpacing: "var(--chord-tracking)", lineHeight: 1 }}
+            title={nash ? s.chord : undefined}>
+            {nash ? <NashName chord={s.chord} keyName={nash} /> : s.chord}
+          </span>
         </span>
-        {s.label && (showNumerals || !isNumeralLabel(s.label)) && <span className="text-[9px] text-[var(--panel-muted)] leading-none">{s.label}</span>}
+        {s.label && !nash && (showNumerals || !isNumeralLabel(s.label)) && <span className="text-[9px] text-[var(--panel-muted)] leading-none">{s.label}</span>}
       </button>
       {onRemove && (
         <button onClick={() => onRemove(s.chord)} aria-label={`Remove ${s.chord} from this song's fretboard chords`}

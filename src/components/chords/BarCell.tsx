@@ -1,6 +1,6 @@
-import { toNashville } from "../../lib/theory/chords";
 import { usePlay } from "../../lib/audio/PlayContext";
-import { chordNameStyle, chordSize, FunctionMark, NowDot, Numeral, useChordFunction, type Key } from "./swiss";
+import { fromNashville, toNashville } from "../../lib/theory/chords";
+import { chordNameStyle, chordSize, FunctionMark, NashName, NowDot, Numeral, useChordFunction, type Key } from "./swiss";
 
 /**
  * One bar of a section, on desktop: chord name large, Roman numeral small and
@@ -9,8 +9,8 @@ import { chordNameStyle, chordSize, FunctionMark, NowDot, Numeral, useChordFunct
  * Editing is unchanged — it is an input, typed into directly, with the
  * section's keyboard flow (Tab, arrows, Backspace, Enter, the selector's
  * shortcuts) handled by `ChordRowGrid` through `onKD`. In Nashville mode it is
- * read-only and shows the number, as before; in Play mode it is a button that
- * sounds the chord and does nothing else.
+ * written and read in numbers (the data stays chord names); in Play mode it is
+ * a button that sounds the chord and does nothing else.
  */
 export function BarCell({ value, onChange, onKD, onFocus, reff, isDiatonic, warnWavy, nashville, songKey, playId, activeKey, phraseAfter }: {
   value: string; onChange: (v: string) => void;
@@ -42,16 +42,29 @@ export function BarCell({ value, onChange, onKD, onFocus, reff, isDiatonic, warn
             className={`flex items-center gap-1.5 min-w-0 min-h-[44px] -ml-1 pl-1 pr-1 text-left ${tone}`}>
             {playing && <NowDot />}
             <FunctionMark fn={fn} />
-            <span className={wavy} style={chordNameStyle(value, playing)}>{nashville && songKey ? toNashville(value, songKey) : value}</span>
-            <Numeral chord={value} activeKey={activeKey} />
+            <span className={wavy} style={chordNameStyle(value, playing)}>{nashville && songKey ? <NashName chord={value} keyName={songKey} /> : value}</span>
+            {!nashville && <Numeral chord={value} activeKey={activeKey} />}
           </button>
         ) : <span aria-hidden className="text-muted-foreground/50" style={chordNameStyle("—")}>—</span>
-      ) : nashville && has ? (
-        <span className={`flex items-center gap-1.5 min-w-0 select-none ${tone}`}>
+      ) : nashville && songKey ? (
+        // Nashville: written and read in numbers. The input holds the plain
+        // number while you type (`6-9/5`); away from it, the drawn number
+        // (`6-⁹/5`) sits over it. The chord name is only in the tooltip — and
+        // in the data, which is unchanged: numbers are converted on the way in.
+        <>
           <FunctionMark fn={fn} />
-          <span className={wavy} style={chordNameStyle(value)}>{songKey ? toNashville(value, songKey) : value}</span>
-          <span className="text-[12px] text-muted-foreground" style={{ fontFamily: "var(--font-label)" }}>{value}</span>
-        </span>
+          <span className="relative min-w-0 flex items-center" title={has ? value : undefined}>
+            <input ref={reff} value={has ? toNashville(value, songKey) : ""}
+              onChange={e => onChange(fromNashville(e.target.value, songKey))}
+              onKeyDown={onKD} onFocus={onFocus}
+              maxLength={12} placeholder="—" aria-label="Chord (Nashville number)"
+              className={`peer min-w-0 bg-transparent focus:outline-none caret-[var(--accent-fill)] placeholder:text-muted-foreground/40 border-b border-transparent focus:border-[var(--rule)] ${has ? "text-transparent focus:text-current" : ""} ${tone}`}
+              style={{ ...chordNameStyle(value || "—"), width: `calc(${Math.max(2, (has ? toNashville(value, songKey) : "").length) + 0.6}ch + 2px)`, maxWidth: "11ch" }} />
+            {has && <span aria-hidden className={`absolute left-0 pointer-events-none peer-focus:hidden ${tone} ${wavy}`} style={chordNameStyle(value)}>
+              <NashName chord={value} keyName={songKey} />
+            </span>}
+          </span>
+        </>
       ) : (
         <>
           <FunctionMark fn={fn} />

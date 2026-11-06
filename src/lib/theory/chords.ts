@@ -41,14 +41,84 @@ export function nashvilleDegree(tonic: string, chordRoot: string): string | null
   return NASHVILLE_DEGREES[(ci - ri + 12) % 12];
 }
 
+/**
+ * A chord as a Nashville number, in parts: the degree, its quality (`-` minor,
+ * `°` diminished, `+` augmented), the extension as written (`maj9`, `7`,
+ * `sus4`… — drawn raised), and a slash bass as its own degree. Am9/G in C is
+ * 6 - ⁹ / 5. Null when the chord or key can't be read.
+ */
+export interface NashvilleParts { deg: string; qual: string; ext: string; bass: string | null }
+export function nashvilleParts(chord: string, key: string): NashvilleParts | null {
+  if (!key.trim() || !chord.trim()) return null;
+  const [main, bassRaw] = chord.trim().split("/");
+  const p = parseChord(main);
+  if (!p) return null;
+  const tonic = parseKeyString(key).root;
+  const deg = nashvilleDegree(tonic, p.root);
+  if (!deg) return null;
+  const head = main.match(/^([A-G][#b]?)(m(?!aj)|dim|aug)?/i)?.[0] ?? "";
+  let ext = main.slice(head.length);
+  let qual = p.q === "min" ? "-" : p.q === "dim" ? "°" : p.q === "aug" ? "+" : "";
+  // The app's own spellings: B°, Bø, C+ arrive with the mark in the suffix
+  if (!qual && /^[°o](?!\w)/.test(ext)) { qual = "°"; ext = ext.slice(1); }
+  else if (!qual && ext.startsWith("ø")) { qual = "-"; ext = "7b5" + ext.slice(1); }
+  else if (!qual && ext.startsWith("+")) { qual = "+"; ext = ext.slice(1); }
+  let bass: string | null = null;
+  if (bassRaw) {
+    const bm = bassRaw.trim().match(/^[A-G][#b]?/i)?.[0];
+    if (bm) bass = nashvilleDegree(tonic, bm[0].toUpperCase() + bm.slice(1)) ?? null;
+  }
+  return { deg, qual, ext, bass };
+}
+
+/** The Nashville number as one plain string, for titles and labels. */
 export function toNashville(chord: string, key: string): string {
-  if (!key.trim() || !chord.trim()) return chord;
-  const p = parseChord(chord);
-  if (!p) return chord;
-  const deg = nashvilleDegree(parseKeyString(key).root, p.root);
-  if (!deg) return chord;
-  const qual = p.q === "min" ? "-" : p.q === "dim" ? "°" : p.q === "aug" ? "+" : "";
-  return `${deg}${qual}`;
+  const n = nashvilleParts(chord, key);
+  if (!n) return chord;
+  return `${n.deg}${n.qual}${n.ext}${n.bass ? `/${n.bass}` : ""}`;
+}
+
+/**
+ * Typed Nashville back to a chord name, so a bar can be written in numbers:
+ * `6-9/5` in C is Am9/G. Flats are spelled for flat degrees and in flat keys
+ * (F, B♭… and their minors), sharps otherwise. Anything starting with a letter
+ * is already a chord name and passes through; anything unreadable passes
+ * through too, so a half-typed entry is never lost.
+ */
+const SHARP_TO_FLAT: Record<string, string> = { "C#": "Db", "D#": "Eb", "F#": "Gb", "G#": "Ab", "A#": "Bb" };
+/** Is this a key that spells with flats (F, B♭, E♭… and D, G, C, F minor)? */
+export function isFlatKey(key: string): boolean {
+  const k = key.trim();
+  if (!k) return false;
+  const { root, mode } = parseKeyString(k);
+  return /^[A-G]b/.test(k) || (mode === "major" ? root === "F" : ["D", "G", "C", "F"].includes(root));
+}
+/** A note name (sharps, as NOTES holds them) spelled for the key. */
+export const spellNote = (n: string, flat: boolean) => (flat ? SHARP_TO_FLAT[n] ?? n : n);
+
+export function fromNashville(text: string, key: string): string {
+  const t = text.trim();
+  if (!t || /^[A-G]/i.test(t) || !key.trim()) return text;
+  const m = t.match(/^([b#♭♯]?[1-7])(-|m(?!aj)|°|o(?![a-z])|\+)?([^/]*)(?:\/([b#♭♯]?[1-7]))?$/);
+  if (!m) return text;
+  const { root: tonic } = parseKeyString(key);
+  const ti = NOTES.indexOf(normNote(tonic));
+  if (ti === -1) return text;
+  const flatKey = isFlatKey(key);
+  const note = (deg: string) => {
+    const d = deg.replace("♭", "b").replace("♯", "#");
+    const i = NASHVILLE_DEGREES.indexOf(d === "b4" ? "3" : d === "#5" ? "b6" : d === "#1" ? "b2" : d === "#2" ? "b3" : d === "#6" ? "b7" : d);
+    if (i === -1) return null;
+    const n = NOTES[(ti + i) % 12];
+    const wantFlat = d.startsWith("b") || (flatKey && !d.startsWith("#"));
+    return wantFlat ? (SHARP_TO_FLAT[n] ?? n) : n;
+  };
+  const root = note(m[1]);
+  if (!root) return text;
+  const q = m[2] === "-" || m[2] === "m" ? "m" : m[2] === "°" || m[2] === "o" ? "dim" : m[2] === "+" ? "aug" : "";
+  const bass = m[4] ? note(m[4]) : null;
+  if (m[4] && !bass) return text;
+  return `${root}${q}${m[3] ?? ""}${bass ? `/${bass}` : ""}`;
 }
 
 // ─── Chord Picker Suggestions (mobile input tool) ──────────────────────────────

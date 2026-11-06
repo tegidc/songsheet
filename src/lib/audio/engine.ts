@@ -134,6 +134,8 @@ export async function prepare(inst: Instrument): Promise<void> {
 }
 
 let current: Instrument = "piano";
+/** The last few things sounded, for the dev inspection hook. */
+const auditioned: string[] = [];
 export function setInstrument(inst: Instrument) {
   current = inst;
   if (ctx) void prepare(inst);
@@ -152,6 +154,7 @@ function releaseHeld(release = 0.25) {
  */
 export function playVoicing(v: Voicing | null) {
   if (!v || !v.midi.length || !ctx || !master) return;
+  auditioned.push(`play ${v.midi.join(" ")}`); if (auditioned.length > 8) auditioned.shift();
   if (ctx.state !== "running") void ctx.resume();
   const now = ctx.currentTime + 0.01;
   const useSampler = current !== "ambient" && samplers[current] && status !== "fallback";
@@ -175,7 +178,6 @@ export function playVoicing(v: Voicing | null) {
  * the note, so it can unlock audio itself. The first note waits for the
  * guitar samples (a second or so, once); if they never come, the pad stands in.
  */
-const auditioned: string[] = [];
 export async function audition(midi: number[], strum = false) {
   const c = unlock();
   if (!c || !master || !midi.length) return;

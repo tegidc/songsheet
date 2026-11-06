@@ -51,6 +51,7 @@ import type { ChordRow } from "../lib/theory/chords";
 import { buildChordSuggestions, cycleChordRow, parseChord } from "../lib/theory/chords";
 import type { IdeaResult } from "../lib/theory/ideas";
 import { generateBridgeIdea, generateIdea } from "../lib/theory/ideas";
+import { generateJoinIdea, type JoinIdea } from "../lib/theory/joins";
 import { detectKey, formatDetectedKey, parseDeclaredKey } from "../lib/theory/key";
 import { distributeChords, sortCP, syncBarsToPositions } from "../lib/theory/layout";
 import { EMPTY_SONG, abbreviateSectionLabel, isPristineSong, makeEmptySong, makeSection, normalizeSection, renumberSections } from "../sections";
@@ -76,10 +77,16 @@ export default function App() {
   const [ideaUndo, setIdeaUndo]       = useState<{ newSectionId: string } | null>(null);
   const [bridge, setBridge]           = useState<IdeaResult | null>(null);
   const [bridgeUndo, setBridgeUndo]   = useState<{ sectionId: string; bars: string[] } | null>(null);
+  const [join, setJoin]               = useState<JoinIdea | null>(null);
+  const [joinUndo, setJoinUndo]       = useState<{ sectionId: string; bars: string[] } | null>(null);
   const [user, setUser]               = useState<User | null>(null);
   const [authModal, setAuthModal]     = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  // Generated ideas belong to the song they were made from
+  useEffect(() => {
+    setIdea(null); setIdeaUndo(null); setBridge(null); setBridgeUndo(null); setJoin(null); setJoinUndo(null);
+  }, [currentProjectId]);
   const [autoSaveState, setAutoSaveState] = useState<"idle"|"saving"|"saved"|"error">("idle");
   const [lyricSelection,   setLyricSelection]   = useState<{ word: string; seq: number } | null>(null);
   // The word the caret is resting in on mobile — offered by the strip, applied
@@ -177,10 +184,17 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setUser(data.session?.user ?? null);
-      // The app opens on a fresh object writing — the warm-up before the song.
-      // Only on load with a session (a writing needs one to keep), and only
-      // once: signing in later, or closing it, leaves you where you are.
-      if (data.session?.user && !devDemo()) setShowGlobalOW(true);
+      // The day starts with an object writing — the warm-up before the song.
+      // On load, with a session (a writing needs one to keep), until one has
+      // been written today; after that the app opens straight on the latest
+      // song (which the auto-open below loads behind the window either way).
+      // Escape or Done puts it away. One read, never a write.
+      if (data.session?.user && !devDemo()) {
+        const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+        void supabase.from("standalone_ow").select("id", { count: "exact", head: true })
+          .gte("written_at", midnight.toISOString())
+          .then(({ count, error }) => { if (!error && !count) setShowGlobalOW(true); });
+      }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => setUser(session?.user ?? null));
     return () => subscription.unsubscribe();
@@ -863,6 +877,17 @@ export default function App() {
     onBridgeUndo: () => {
       if (bridgeUndo) { updateSection(bridgeUndo.sectionId, { chordBars: bridgeUndo.bars }); setBridgeUndo(null); }
     },
+    join, joinUndo,
+    onJoinGenerate: (seam, avoid) => setJoin(generateJoinIdea(song, activeKey, seam, avoid)),
+    onJoinApply: (sectionId, bars) => {
+      const orig = song.sections.find(s => s.id === sectionId)?.chordBars;
+      if (orig) setJoinUndo({ sectionId, bars: [...orig] });
+      updateSection(sectionId, { chordBars: bars });
+    },
+    onJoinUndo: () => {
+      if (joinUndo) { updateSection(joinUndo.sectionId, { chordBars: joinUndo.bars }); setJoinUndo(null); }
+    },
+    nashKey: nashville && !isMobile && activeKeyName ? activeKeyName : null,
     onSetKey: key => updateSong({ key }),
     onRedetect: () => setPinnedSuggestion(liveDetected),
   };
@@ -1280,11 +1305,11 @@ export default function App() {
               </div>
             </Row>
 
-            <SelectorDock visible={!isMobile && showChordSuggest}
+            <SelectorDock visible={!isMobile && showChordSuggest} nashville={!isMobile && nashville}
               suggestions={pickerSuggestions} chordRow={chordRow} onCycleChordRow={cycleRow}
               activeKey={activeKey} onRemoveFretboardChord={removeFretboardChord}
               showKeys={!isMobile}
-              hint={!isMobile ? "click a bar, then a chord or its key · tab adds a bar · ← → move · backspace on empty removes" : undefined}
+              hint={!isMobile ? "click a bar, then a chord — or its key, in an empty bar · tab adds a bar · ← → move · backspace on empty removes" : undefined}
               rowTools={isMobile ? undefined : {
                 inKey: <KeyTools {...analysisProps} />,
                 fretboard: (
