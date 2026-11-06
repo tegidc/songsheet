@@ -26,7 +26,7 @@ import { FL } from "../components/common/FL";
 import { FullScreenEditor } from "../components/common/FullScreenEditor";
 import { Masthead, Rings } from "../components/common/Masthead";
 import { ProjectsSidebar, SettingsOnlySidebar } from "../components/sidebar/ProjectsSidebar";
-import { KeyRow, PlayRow, SelectorDock } from "../components/chords/PlayControls";
+import { KeyRow, PlayBadge, SelectorDock } from "../components/chords/PlayControls";
 import { Row } from "../components/chords/swiss";
 import type { ActiveGrid } from "../components/chords/ChordRowGrid";
 import { PlayProvider } from "../lib/audio/PlayContext";
@@ -174,7 +174,13 @@ export default function App() {
 
   // Auth
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null);
+      // The app opens on a fresh object writing — the warm-up before the song.
+      // Only on load with a session (a writing needs one to keep), and only
+      // once: signing in later, or closing it, leaves you where you are.
+      if (data.session?.user && !devDemo()) setShowGlobalOW(true);
+    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => setUser(session?.user ?? null));
     return () => subscription.unsubscribe();
   }, []);
@@ -854,8 +860,17 @@ export default function App() {
         </button>
         {user ? (
           <>
-            <button onClick={() => setShowGlobalOW(true)} aria-label="New object writing session"
-              className="w-11 h-11 flex items-center justify-center text-[17px] leading-none text-muted-foreground hover:text-foreground transition-colors"
+            {/* Writing: back to the song sheet from object writing or the cloud */}
+            <button onClick={() => { setShowGlobalOW(false); setShowWordCloud(false); }} aria-label="Song writing"
+              aria-pressed={!showGlobalOW && !showWordCloud} title="Writing"
+              className={`w-11 h-11 flex items-center justify-center transition-colors ${!showGlobalOW && !showWordCloud ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 3h11l3 3v15H5z" /><path d="M8.5 9h7M8.5 12.5h7M8.5 16h4.5" />
+              </svg>
+            </button>
+            <button onClick={() => { setShowWordCloud(false); setShowGlobalOW(true); }} aria-label="New object writing session"
+              aria-pressed={showGlobalOW}
+              className={`w-11 h-11 flex items-center justify-center text-[17px] leading-none transition-colors ${showGlobalOW ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               title="New Object Writing session">✦</button>
             {/* Unused thoughts from object writing and notes, as a drifting particle cloud */}
             <button onClick={() => setShowWordCloud(v => !v)} aria-label="Word cloud" aria-pressed={showWordCloud}
@@ -1133,8 +1148,6 @@ export default function App() {
         {/* ── Chords ── */}
         {tab === "chords" && (
           <div>
-            <PlayRow />
-
             {/* View tools: quiet text toggles, bold when on */}
             <Row label="view" align="center" className="py-1">
               <div className="flex flex-wrap items-center gap-x-4 text-[13px]" style={{ fontFamily: MONO }}>
@@ -1146,6 +1159,7 @@ export default function App() {
                   <button key={label} onClick={toggle} title={title} aria-pressed={on}
                     className={`py-2.5 transition-colors ${on ? "font-bold text-foreground" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>
                 ))}
+                <PlayBadge />
                 {sameFirst && <span className="flex items-center gap-1 text-[12px] text-destructive py-2.5">
                   <AlertCircle size={11} /> verse & chorus share first chord
                 </span>}
