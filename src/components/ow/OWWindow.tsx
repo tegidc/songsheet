@@ -294,6 +294,16 @@ export function OWWindow({
     </>
   );
 
+  // Escape puts the window away, as Done does — never a save gesture, never a
+  // loss (the containers flush whatever hasn't been written on close).
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented) closeRef.current(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
       <div className="w-full max-w-lg bg-background border border-border rounded-sm shadow-xl mx-4 flex flex-col max-h-[90vh]">
