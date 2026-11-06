@@ -1,5 +1,5 @@
 /**
- * The seven themes. A theme is TOKENS ONLY — colours, fonts, weights, tracking,
+ * The three themes, each with a hand-drawn dark face. A theme is TOKENS ONLY — colours, fonts, weights, tracking,
  * radius — never layout. Every component reads these through CSS custom
  * properties (see `apply.ts` and `styles/theme.css`), so switching theme is
  * one write to `document.documentElement.style` and no React re-render of the
@@ -16,14 +16,18 @@
  *            Themes without a mono of their own get a neutral one.
  */
 
-export interface ThemeDef {
-  id: string;
-  name: string;
-  dark: boolean;
+/** The colour half of a theme — what the dark toggle swaps. */
+export interface Palette {
   bg: string; ink: string; muted: string;
   rule: string;
   accent: string;
   panel: string; panelInk: string; panelMuted: string; panelRule: string;
+}
+
+export interface ThemeDef extends Palette {
+  id: string;
+  name: string;
+  dark: boolean;
   display: string; body: string; label: string; title: string; sheet: string;
   titleWeight: number; titleTracking: string; chordTracking: string;
   /** Radius of the chord selector's pills — the theme's one shape signature. */
@@ -34,80 +38,77 @@ export interface ThemeDef {
   fonts: string[];
 }
 
+interface ThemeSpec extends Omit<ThemeDef, keyof Palette | "dark"> {
+  light: Palette;
+  /** Hand-set, not computed: an inverted cream reads muddy, so each dark is drawn as its own palette. */
+  darkPalette: Palette;
+}
+
 const sans = (f: string) => `'${f}', ui-sans-serif, system-ui, -apple-system, 'Helvetica Neue', sans-serif`;
-const serif = (f: string) => `'${f}', ui-serif, Georgia, serif`;
 const mono = (f: string) => `'${f}', ui-monospace, 'SF Mono', Menlo, monospace`;
 const display = (f: string, fallback: string) => `'${f}', ${fallback}`;
 
-export const THEMES: ThemeDef[] = [
+const SPECS: ThemeSpec[] = [
   {
-    id: "swiss", name: "Swiss", dark: false,
-    bg: "#F5F4F0", ink: "#111111", muted: "#5A5955", rule: "#111111", accent: "#D3271C",
-    panel: "#111111", panelInk: "#F5F4F0", panelMuted: "#A9A8A2", panelRule: "#444444",
+    id: "swiss", name: "Swiss",
+    light: {
+      bg: "#F5F4F0", ink: "#111111", muted: "#5A5955", rule: "#111111", accent: "#D3271C",
+      panel: "#111111", panelInk: "#F5F4F0", panelMuted: "#A9A8A2", panelRule: "#444444",
+    },
+    darkPalette: {
+      bg: "#121212", ink: "#F2F1EC", muted: "#A3A29C", rule: "#F2F1EC", accent: "#E5483C",
+      panel: "#F2F1EC", panelInk: "#121212", panelMuted: "#55544F", panelRule: "#B5B4AE",
+    },
     display: sans("Inter Tight"), body: sans("Inter Tight"), label: sans("Inter Tight"),
     title: sans("Inter Tight"), sheet: mono("IBM Plex Mono"),
     titleWeight: 800, titleTracking: "-0.035em", chordTracking: "-0.02em", radius: "0px", radiusBase: "0px",
     fonts: ["Inter+Tight:wght@400;500;700;800", "IBM+Plex+Mono:wght@400;500"],
   },
   {
-    id: "hifi", name: "Hi-Fi", dark: false,
-    bg: "#EDEAE3", ink: "#2A2926", muted: "#625F59", rule: "#2A2926", accent: "#D9531E",
-    panel: "#2A2926", panelInk: "#EDEAE3", panelMuted: "#B0ACA4", panelRule: "#55524C",
-    display: sans("Archivo"), body: sans("Archivo"), label: mono("IBM Plex Mono"),
-    title: sans("Archivo"), sheet: mono("IBM Plex Mono"),
-    titleWeight: 700, titleTracking: "-0.02em", chordTracking: "-0.01em", radius: "999px", radiusBase: "6px",
-    fonts: ["Archivo:wght@400;500;700", "IBM+Plex+Mono:wght@400;500"],
-  },
-  {
-    id: "teak", name: "Teak", dark: false,
-    bg: "#F4EFE6", ink: "#2E2B27", muted: "#66615A", rule: "#B98A66", accent: "#8A4F2A",
-    panel: "#E7DCCB", panelInk: "#2E2B27", panelMuted: "#5F5A52", panelRule: "#C9B59C",
-    display: sans("Jost"), body: sans("Jost"), label: sans("Jost"),
-    title: sans("Jost"), sheet: mono("DM Mono"),
-    titleWeight: 300, titleTracking: "0em", chordTracking: "0em", radius: "12px", radiusBase: "8px",
-    fonts: ["Jost:wght@300;400;500;600", "DM+Mono:wght@400"],
-  },
-  {
-    id: "atomic", name: "Atomic", dark: false,
-    bg: "#F3E6CC", ink: "#4A2E1B", muted: "#6E5440", rule: "#4A2E1B", accent: "#D9A22B",
-    panel: "#4A2E1B", panelInk: "#F3E6CC", panelMuted: "#D8C6A6", panelRule: "#7A5E48",
-    display: sans("Josefin Sans"), body: sans("Josefin Sans"), label: sans("Josefin Sans"),
-    title: serif("DM Serif Display"), sheet: mono("DM Mono"),
-    titleWeight: 400, titleTracking: "0em", chordTracking: "0em", radius: "999px", radiusBase: "6px",
-    fonts: ["Josefin+Sans:wght@400;600;700", "DM+Serif+Display", "DM+Mono:wght@400"],
-  },
-  {
-    id: "sleeve", name: "Sleeve", dark: true,
-    bg: "#121212", ink: "#F1EDE4", muted: "#A19D95", rule: "#F1EDE4", accent: "#3C82D0",
-    panel: "#F1EDE4", panelInk: "#121212", panelMuted: "#4A4A4A", panelRule: "#B5B0A6",
-    display: display("Oswald", "'Arial Narrow', sans-serif"), body: sans("Work Sans"),
-    label: display("Oswald", "'Arial Narrow', sans-serif"), title: display("Oswald", "'Arial Narrow', sans-serif"),
-    sheet: mono("IBM Plex Mono"),
-    titleWeight: 700, titleTracking: "0em", chordTracking: "0.01em", radius: "0px", radiusBase: "0px",
-    fonts: ["Oswald:wght@400;500;700", "Work+Sans:wght@400;500;600", "IBM+Plex+Mono:wght@400;500"],
-  },
-  {
-    id: "radio", name: "Radio", dark: true,
-    bg: "#2B1D14", ink: "#EFE3C8", muted: "#C2A784", rule: "#5A4331", accent: "#F2B33D",
-    panel: "#1A110B", panelInk: "#EFE3C8", panelMuted: "#C2A784", panelRule: "#4A3527",
-    display: sans("Barlow"), body: sans("Barlow"), label: sans("Barlow"),
-    title: display("Poiret One", "ui-sans-serif, sans-serif"), sheet: mono("DM Mono"),
-    titleWeight: 400, titleTracking: "0.02em", chordTracking: "0em", radius: "4px", radiusBase: "4px",
-    fonts: ["Barlow:wght@400;500;600;700", "Poiret+One", "DM+Mono:wght@400"],
-  },
-  {
-    id: "lead", name: "Lead Sheet", dark: false,
-    bg: "#F4EEDF", ink: "#1E1C1A", muted: "#5F5A50", rule: "#1E1C1A", accent: "#B3261E",
-    panel: "#2A2724", panelInk: "#F4EEDF", panelMuted: "#B7AF9F", panelRule: "#5A554C",
+    id: "lead", name: "Lead Sheet",
+    light: {
+      bg: "#FAF8F3", ink: "#1E1C1A", muted: "#5F5A50", rule: "#1E1C1A", accent: "#B3261E",
+      panel: "#2A2724", panelInk: "#FAF8F3", panelMuted: "#B7AF9F", panelRule: "#5A554C",
+    },
+    darkPalette: {
+      bg: "#171615", ink: "#F3F1EC", muted: "#A8A398", rule: "#F3F1EC", accent: "#E0574E",
+      panel: "#F3F1EC", panelInk: "#171615", panelMuted: "#5A554C", panelRule: "#B7AF9F",
+    },
     display: mono("Courier Prime"), body: mono("Courier Prime"), label: mono("Courier Prime"),
     title: display("Special Elite", "'Courier New', monospace"), sheet: mono("Courier Prime"),
     titleWeight: 400, titleTracking: "0em", chordTracking: "0em", radius: "999px", radiusBase: "4px",
     fonts: ["Courier+Prime:wght@400;700", "Special+Elite"],
   },
+  {
+    id: "teak", name: "Teak",
+    light: {
+      bg: "#F4EFE6", ink: "#2E2B27", muted: "#66615A", rule: "#B98A66", accent: "#8A4F2A",
+      panel: "#E7DCCB", panelInk: "#2E2B27", panelMuted: "#5F5A52", panelRule: "#C9B59C",
+    },
+    darkPalette: {
+      bg: "#221D18", ink: "#EFE6D8", muted: "#B5A895", rule: "#8C6A50", accent: "#D08A5A",
+      panel: "#2F2821", panelInk: "#EFE6D8", panelMuted: "#B5A895", panelRule: "#4D4136",
+    },
+    display: sans("Jost"), body: sans("Jost"), label: sans("Jost"),
+    title: sans("Jost"), sheet: mono("DM Mono"),
+    titleWeight: 300, titleTracking: "0em", chordTracking: "0em", radius: "12px", radiusBase: "8px",
+    fonts: ["Jost:wght@300;400;500;600", "DM+Mono:wght@400"],
+  },
 ];
 
+/** The three themes, each as its light face — for the picker's swatches. */
+export const THEMES: ThemeDef[] = SPECS.map(s => resolve(s, false));
+
+function resolve({ light, darkPalette, ...rest }: ThemeSpec, dark: boolean): ThemeDef {
+  return { ...rest, ...(dark ? darkPalette : light), dark };
+}
+
 export const DEFAULT_THEME = "swiss";
-export const themeById = (id: string): ThemeDef => THEMES.find(t => t.id === id) ?? THEMES[0];
+/** A theme, light or dark. Unknown ids (the four retired themes among them) fall back to Swiss. */
+export const themeById = (id: string, dark = false): ThemeDef =>
+  resolve(SPECS.find(s => s.id === id) ?? SPECS[0], dark);
+/** The dark face of a theme, for the picker's swatches. */
+export const darkFace = (id: string): Palette => (SPECS.find(s => s.id === id) ?? SPECS[0]).darkPalette;
 
 /** The Google Fonts stylesheet for one theme, and nothing else. */
 export const fontHref = (t: ThemeDef) =>

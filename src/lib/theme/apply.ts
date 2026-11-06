@@ -125,8 +125,8 @@ const VAR_CACHE_KEY = "songsheet-theme-vars";
  * The resolved variables are cached so `index.html`'s boot script can paint the
  * right theme before React loads (no flash of Swiss on a Radio phone).
  */
-export function applyTheme(id: string) {
-  const t = themeById(id);
+export function applyTheme(id: string, dark = false) {
+  const t = themeById(id, dark);
   const root = document.documentElement;
   const vars = themeVars(t);
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
